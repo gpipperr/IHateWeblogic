@@ -27,7 +27,7 @@
 #            07-Maintenance/domain_jdk_path.sh (read-only check)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 07-Maintenance/README.md, 09-Install/docs/01-root_setup_java.md
+# Ref      : 07-Maintenance/docs/02-patching.md, 09-Install/docs/01-root_setup_java.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

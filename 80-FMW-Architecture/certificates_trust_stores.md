@@ -168,7 +168,7 @@ Secret files that unlock stores (repository root, gitignored, machine-bound
 `des3`): `ssl_ca_sec.conf.des3` (`SSL_CA_PASS`), `forms_sign_sec.conf.des3`
 (`FORMS_SIGN_STOREPASS`). Backup: `$ORACLE_BASE/admin/pki` and the `des3`
 files are **excluded** from `backup_config.sh` – back up offline
-([07-Maintenance/README.md](../07-Maintenance/README.md)).
+([07-Maintenance/docs/01-backup_restore.md](../07-Maintenance/docs/01-backup_restore.md#backup_configsh)).
 
 ### 4.1 The two JDK root lists are not the OS root list
 
@@ -387,7 +387,7 @@ adds itself here and links back to this article.
 | [clone_golden_image.md](clone_golden_image.md) | the certificate as the host-specific part of a clone |
 | [weblogic_outbound_connections.md](weblogic_outbound_connections.md) | what the domain sends outside |
 | [09-Install/docs/00-patch-references.md](../09-Install/docs/00-patch-references.md) | Java special case, eMudhra incident, Brotli |
-| [07-Maintenance/README.md](../07-Maintenance/README.md) | backup scope (pki and `des3` excluded) |
+| [07-Maintenance/docs/01-backup_restore.md](../07-Maintenance/docs/01-backup_restore.md) | backup scope (pki and `des3` excluded) |
 
 ## 10. Sources
 

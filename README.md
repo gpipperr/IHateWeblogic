@@ -152,7 +152,10 @@ scripts and the residual risks.
 > Forms client distribution via URL + first Windows FSAL session, one
 > `TNS_ADMIN` for all processes and the loopback-only / clone-capable domain
 > (2026-10-22/23), at a customer the localhost hardening of an existing domain
-> and a VM clone with a new RCU prefix (2026-11-09/10) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
+> and a VM clone with a new RCU prefix (2026-11-09/10), the CSPU November 2026
+> cycle (FMW home, repository DB MRP, APEX 26.2.1 / ORDS 26.3.1) and the
+> security hardening of the realm – audit trail, password rule, account
+> lockout, Java4Shell mitigation (2026-11-18) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
 > fix: `git log`; what is still open: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 > Use with caution and verify output before applying any changes (`--apply`).
@@ -187,12 +190,12 @@ environment (analyse + fix): the order of the first scripts –
 |-----------------------|------------------------------------------------------|
 | [`00-Setup/`](00-Setup/README.md)           | Environment setup, lib, password management          |
 | [`01-Run/`](01-Run/README.md)             | Start/stop, WLST, Reports Server status              |
-| [`02-Checks/`](02-Checks/README.md)          | OS, Java, ports, DB connectivity, SSL checks; outbound connections (egress), one `TNS_ADMIN`, clone-capable / loopback check |
+| [`02-Checks/`](02-Checks/README.md)          | OS, Java, ports, DB connectivity, SSL checks; outbound connections (egress), one `TNS_ADMIN`, clone-capable / loopback check; domain secrets, admin access, blast radius + DISA STIG items (`domain_secret_check.sh`) |
 | [`03-Logs/`](03-Logs/README.md)            | Log discovery, grep, tail, archive, cleanup          |
 | [`04-ReportsFonts/`](04-ReportsFonts/README.md)    | Font inventory, migration PS→TTF, uifont.ali, deploy |
 | [`05-ReportsPerformance/`](05-ReportsPerformance/README.md) | Reports server: analyse + fix an existing environment (parameters, load, logs) |
 | [`06-FormsDiag/`](06-FormsDiag/README.md)       | Forms: analyse + fix an existing environment (configuration, sessions, performance) |
-| [`07-Maintenance/`](07-Maintenance/README.md)     | Config backup/restore, patching an already-running environment |
+| [`07-Maintenance/`](07-Maintenance/README.md)     | Backup / restore, patching an already-running environment (CPU / CSPU cycle), security hardening of the WebLogic realm (audit, password rule, lockout) – one topic document each in `07-Maintenance/docs/` |
 | [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
@@ -219,10 +222,10 @@ IHateWeblogic/
 ├── SECURITY.md                      – how to report a security problem privately
 ├── LICENSE                          – Apache License 2.0
 ├── IHateWeblogic.md                 – Background and intention of the IHateWeblogic script lib
-├── docs/                            – sections moved out of this README (2026-11-11): migration to 14c,
-│                                    project status, security & patch status, sizing (disk, memory,
-│                                    processes), installation steps (lifecycle, first run, setup),
-│                                    general security (passwords, report invocation)
+├── docs/                            – sections moved out of this README: migration to 14c, project status,
+│                                    sizing (disk, memory, processes), installation steps (lifecycle, first
+│                                    run, setup), update_lib_to_act_cpu.md (switch the lib to a new patch
+│                                    cycle); security: 80-FMW-Architecture/security_overview.md
 ├── tools/ci_lint.sh                 – lint gate: `bash -n` + `shellcheck` (errors) over all scripts, also run by GitHub Actions
 ├── tools/hooks/                     – pre-commit hook (customer data, secrets, bash -n, stale ZIPs) + install.sh
 ├── tools/render_ascii/              – ASCII diagrams in Markdown → SVG (LLM → D2), `?v=` cache-busting
@@ -280,6 +283,9 @@ IHateWeblogic/
 │   │                                   --capture (tcpdump DNS + SYN with process) – external-DTD hang risk
 │   ├── tns_admin_check.sh           – One TNS_ADMIN everywhere: default.env, rwserver.conf, reports.sh,
 │   │                                   setUserOverrides.sh (--apply), .bash_profile, running processes
+│   ├── domain_secret_check.sh       – Domain key + boot.properties modes, file-read paths (WebUtil,
+│   │                                   folderAccess), admin locations, lockout, blast radius, DISA STIG
+│   │                                   items; --apply = modes 600
 │   ├── clone_check.sh               – Clone-capable / golden image: sockets by bind address, SSL ports,
 │   │                                   Coherence, Reports ORB, host refs, RCU location, secrets; --apply:
 │   │                                   SSL/Coherence (WLST) + AdminURL, ADMIN_URL, emoms, engine jvmOptions
@@ -331,8 +337,8 @@ IHateWeblogic/
 │   └── forms_perf_analyse.sh        – frmweb per section (pool vs session), memory, access.log, Forms logs, dumps
 │
 ├── 07-Maintenance/
-│   ├── README.md                    – Backup categories, manifest format, restore workflow,
-│   │                                   patching an already-running environment (Phase 8)
+│   ├── README.md                    – Overview: topics (backup / restore, patching, security hardening),
+│   │                                   scripts, quick start (Phase 8)
 │   ├── backup_config.sh             – Backup all config files our scripts change (13 categories,
 │   │                                   ConfigBackup/YYYYMMDD_HHMI/<category>/, mode 700/600, --keep N)
 │   ├── restore_config.sh            – List backups, restore a set or --category (--apply), path check
@@ -349,6 +355,11 @@ IHateWeblogic/
 │   │                                   same stop-check as 81-
 │   ├── apply_customer_conf.sh       – Customer overlay on an existing library environment (Way 2):
 │   │                                   14b- / 14- / 13- / 30-, restart, wait, 15- / 90- – one log
+│   ├── wls_audit_config.sh          – Audit trail (DISA STIG): configuration audit, DefaultAuditor, OPSS audit
+│   ├── wls_password_rule.sh         – Password rule of the realm: 12 characters, upper/lower/digit/special
+│   ├── wls_lockout_config.sh        – Account lockout 3 / 30 / 15, lockout runtime + events, --unlock USER
+│   ├── docs/                        – Topic documents: 01-backup_restore.md, 02-patching.md,
+│   │                                   03-security_hardening.md
 │   └── ConfigBackup/                – Backup storage: one subfolder per date/time and config type (gitignored,
 │                                       retention CONFIG_BACKUP_KEEP)
 │
@@ -484,6 +495,8 @@ IHateWeblogic/
 │
 ├── 80-FMW-Architecture/             – Background knowledge: how FMW works internally (findings
 │   ├── README.md                       marked confirmed/assumption)
+│   ├── security_overview.md         – SECURITY ENTRY PAGE: current patch cycle, hardening by layer
+│   │                                      (fix + check scripts), passwords, Reports invocation, residual risks
 │   ├── weblogic_middleware_architecture.md – START HERE: homes, AdminServer, Node Manager,
 │   │                                      system components, EM / Remote Console, logs, sources
 │   ├── rcu_middleware_architecture.md – RCU schemas, OPSS/JPS + LDAP, registry, passwords,
@@ -509,6 +522,12 @@ IHateWeblogic/
 │   ├── reports_monitoring_getserverinfo.md – monitoring the Reports server with getserverinfo
 │   ├── fmw_pwd_handling.md          – password handling in the domain (domain key, {AES256}, stores, attack paths)
 │   ├── stig_weblogic_forms_reports.md – DISA WebLogic STIG read against Forms / Reports 14c
+│   ├── oracle_patch_basics.md       – patch cycles, patch numbers, ARU / UPI, platforms, OPatch
+│   ├── fmw_forms_reports_licence.md – what the Forms & Reports licence covers (indicators, no statement)
+│   ├── fmw_derby_history.md         – Apache Derby in WebLogic 14.1.2: history and disabling
+│   ├── forms_fads_app_dep_service.md – Forms FADS (Application Deployment Services)
+│   ├── reports_error_trace.md       – Reports error analysis and trace levels
+│   ├── reports_job_queue_monitoring.md – Reports job queue in the database
 │   ├── forms_performance_analyse_tuning.md – "Forms is slow": method, what to measure, tuning
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export

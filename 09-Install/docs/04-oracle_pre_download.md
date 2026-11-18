@@ -650,7 +650,7 @@ archive as the `-d` target in step 1 instead of copying everything; the
 inventory of this script then shows those files as *in archive*, and
 `07-Maintenance/patch_storage.sh pull <step> --apply` copies only the files of
 the next step to local disk (`clean --apply` frees them after a successful run)
-– [07-Maintenance/README.md](../../07-Maintenance/README.md#patch_storagesh).
+– [07-Maintenance/README.md](../../07-Maintenance/docs/02-patching.md#patch_storagesh).
 
 The eDelivery ZIPs can also be downloaded in a browser and copied with `scp`
 into the target directories the script shows (manual mode). MOS patches are

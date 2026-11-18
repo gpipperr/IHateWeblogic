@@ -15,7 +15,7 @@
 # Runs as  : oracle
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 07-Maintenance/README.md (bak_cleanup.sh)
+# Ref      : 07-Maintenance/docs/01-backup_restore.md (bak_cleanup.sh)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

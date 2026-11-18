@@ -30,7 +30,7 @@
 # Runs as  : oracle
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 07-Maintenance/README.md (patch_storage.sh)
+# Ref      : 07-Maintenance/docs/02-patching.md (patch_storage.sh)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

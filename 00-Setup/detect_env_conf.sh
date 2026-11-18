@@ -1470,7 +1470,7 @@ SETDOMAINENV="\${DOMAIN_HOME}/bin/setDomainEnv.sh"
 WLS_LOG_DIR="\${DOMAIN_HOME}/servers/\${WLS_MANAGED_SERVER}/logs"
 DIAG_LOG_DIR="\${ROOT_DIR}/log/\$(date +%Y%m%d)"
 
-# --- Backup retention (07-Maintenance/README.md) -----------------------------
+# --- Backup retention (07-Maintenance/docs/01-backup_restore.md) -------------
 # backup_config.sh --apply keeps the newest N sets in ConfigBackup/,
 # bak_cleanup.sh --apply the newest N *.bak_<ts> copies per file
 CONFIG_BACKUP_KEEP="10"

@@ -254,7 +254,7 @@ rule applies when a password is *set*). The same check runs in
 `01-setup-interview.sh` (WLS admin) and `12-oracle_reports_users.sh`
 (`monUser`, `RepRunner`). Background:
 [stig_weblogic_forms_reports.md](../80-FMW-Architecture/stig_weblogic_forms_reports.md),
-[`07-Maintenance/wls_password_rule.sh`](../07-Maintenance/README.md#wls_password_rulesh).
+[`07-Maintenance/wls_password_rule.sh`](../07-Maintenance/docs/03-security_hardening.md#wls_password_rulesh).
 
 [`database_rcu_sec.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/database_rcu_sec.sh) stores **two** passwords in one file because RCU needs
 both: the `SYS` password (used once, only during [`07-oracle_setup_repository.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/07-oracle_setup_repository.sh))

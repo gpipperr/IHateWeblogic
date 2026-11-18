@@ -25,7 +25,7 @@
 # Runs as  : oracle
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
-# Ref      : 80-FMW-Architecture/stig_weblogic_forms_reports.md, 07-Maintenance/README.md
+# Ref      : 80-FMW-Architecture/stig_weblogic_forms_reports.md, 07-Maintenance/docs/03-security_hardening.md
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

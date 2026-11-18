@@ -16,7 +16,7 @@
 # Delegates: 09-Install/06-oracle_patch_forms_reports.sh "$@"  (same flags, unchanged)
 # New code : require_wls_stopped()/check_wls_stopped() gate only
 #            (00-Setup/IHateWeblogic_lib.sh)
-# Workflow : see 07-Maintenance/README.md "Patching an Already-Running
+# Workflow : see 07-Maintenance/docs/02-patching.md "Patching an Already-Running
 #            Environment" for the full sequence (backup, stop, patch, start)
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0

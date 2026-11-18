@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **07-Maintenance split into topic documents:** the 740-line README is now an overview (topics, scripts, quick
+  start); the content moved unchanged into [`07-Maintenance/docs/`](07-Maintenance/README.md#1-topics) –
+  `01-backup_restore.md`, `02-patching.md` (incl. `rcu_repository_check.sh`), `03-security_hardening.md` (the three
+  STIG scripts); right column in the Pages navigation; anchors and script header references repointed. Root
+  `README.md` brought up to date (tree: `domain_secret_check.sh`, `wls_*` scripts, `07-Maintenance/docs/`, seven
+  80-FMW pages; Script Directories; live-tested box with the November items; `docs/` line without the removed
+  security pages).
+
 - **Security entry page:** new [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md)
   (`nav_title` "Security", also a key page in the Pages navigation): security model at a glance, current patch cycle
   (moved from `docs/forms_reports_security.md` unchanged), hardening by layer with fix + check scripts, passwords of the

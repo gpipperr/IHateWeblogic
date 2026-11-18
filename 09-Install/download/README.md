@@ -153,7 +153,7 @@ all present). Details:
 the share host download straight into the archive (`-d <archive>`), then the
 target host pulls each step's files right before the step and frees them
 after it – `07-Maintenance/patch_storage.sh pull <step> --apply` / `clean
---apply` ([07-Maintenance/README.md](../../07-Maintenance/README.md#patch_storagesh)).
+--apply` ([07-Maintenance/README.md](../../07-Maintenance/docs/02-patching.md#patch_storagesh)).
 
 `--all` takes the optional rows too (client Java, CVU, opatch) – without it
 only `required=yes`. The tool writes `patches_sha256.txt`/`.csv` and its log

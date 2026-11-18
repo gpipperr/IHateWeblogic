@@ -357,7 +357,7 @@ Consequences:
    wallets = all passwords. [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) therefore
    does **not** copy `boot.properties`, `SerializedSystemIni.dat` or the
    keystores (only full domain / file-system backups do) –
-   [07-Maintenance/README.md](../07-Maintenance/README.md).
+   [07-Maintenance/docs/01-backup_restore.md](../07-Maintenance/docs/01-backup_restore.md#backup_configsh).
 6. **After a password change** (admin user): realm → `security/boot.properties`
    of every server → **Node Manager cache** (section 3) → stored WLST
    credentials and autostart key files (`30-configure_autostart.sh --apply`)

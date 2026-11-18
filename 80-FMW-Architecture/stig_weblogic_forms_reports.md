@@ -98,17 +98,17 @@ Each one separately, on the test host first, with `--apply` and a backup:
    `filterPreset` Low / Medium) – small effort, closes the "no trail" gap.
    **Done 2026-11-18** on the test host:
    [`07-Maintenance/wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh)
-   ([07-Maintenance README](../07-Maintenance/README.md#wls_audit_configsh)).
+   ([07-Maintenance README](../07-Maintenance/docs/03-security_hardening.md#wls_audit_configsh)).
 2. **Password rule of the domain** (12–15 characters) – agree first; it
    applies to every realm user at the next password change. **Done
    2026-11-18** with 12 characters:
    [`07-Maintenance/wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh)
-   ([07-Maintenance README](../07-Maintenance/README.md#wls_password_rulesh)).
+   ([07-Maintenance README](../07-Maintenance/docs/03-security_hardening.md#wls_password_rulesh)).
 3. **Lockout 3 / 15 / 15** – only together with long service-user passwords
    and an alert on lockouts (`RepRunner`, `monUser`). **Done 2026-11-18**
    as 3 / 30 / 15:
    [`07-Maintenance/wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh)
-   ([07-Maintenance README](../07-Maintenance/README.md#wls_lockout_configsh)).
+   ([07-Maintenance README](../07-Maintenance/docs/03-security_hardening.md#wls_lockout_configsh)).
    Finding: the Reports `authid` is not covered by the realm lockout – a
    request limit for `/reports/rwservlet` in Nginx is the next item.
 

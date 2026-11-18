@@ -473,7 +473,7 @@ special character**. This library asks for a stronger password from the start
 (interview / `weblogic_sec.sh`: 12 characters, upper + lower case, digit,
 special character, not containing the user name) and sets that rule in the
 realm afterwards with
-[`07-Maintenance/wls_password_rule.sh --apply`](../../07-Maintenance/README.md#wls_password_rulesh)
+[`07-Maintenance/wls_password_rule.sh --apply`](../../07-Maintenance/docs/03-security_hardening.md#wls_password_rulesh)
 (DISA STIG, [stig_weblogic_forms_reports.md](../../80-FMW-Architecture/stig_weblogic_forms_reports.md)).
 Do not use well-known examples (`Welcome1`, `weblogic1` …).
 

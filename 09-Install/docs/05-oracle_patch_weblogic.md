@@ -25,7 +25,7 @@ Background – what OPatch patches (components of the Oracle Home, the central
 inventory, the JDK in `.globalEnv.properties`) and why all processes of the
 home must be down: [weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#7-where-is-what--homes-configuration-logs);
 the same set on a running system: `07-Maintenance/80-` … `82-`
-([07-Maintenance/README.md](../../07-Maintenance/README.md)).
+([07-Maintenance/docs/02-patching.md](../../07-Maintenance/docs/02-patching.md)).
 
 ---
 

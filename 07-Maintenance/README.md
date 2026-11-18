@@ -1,708 +1,72 @@
 ---
-title: "Oracle Forms & Reports 14c Maintenance – Backup, Restore, Patching"
-description: "Backup, restore and patching of a running Oracle Forms & Reports 14.1.2 installation: config backup, OPatch for WebLogic, Forms and Reports, JDK 21, RCU check."
+title: "Oracle Forms & Reports 14c Maintenance – Backup, Patching, Security Hardening"
+description: "Maintenance of a running Oracle Forms & Reports 14.1.2 installation: configuration backup and restore, patching per CPU / CSPU cycle, security hardening of the WebLogic realm – overview of the scripts and topic documents."
 permalink: /07-Maintenance/
 ---
 
-# 07-Maintenance – Maintenance & Patches (Phase 8)
-
-> Certificates, keys and trust stores of the whole stack (terms, where what lives, who needs what, customer PKI / TLS interception): [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md)
+# 07-Maintenance – Maintenance, Patches, Hardening (Phase 8)
 
 **Role: analyse + fix an existing environment** (see the folder roles in the
-[root README](../docs/forms_reports_installation_steps.md#folder-roles)): backup/restore and patching of a
-running installation, no matter who built it. The patch logic itself lives
-once in `09-Install/05-`/`06-` – the `81-`/`82-` wrappers call it.
-Background: what OPatch changes (the Oracle Home, both JDKs) –
-[weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes); what must be stopped –
-[§4](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain); RCU schemas and
-patching – [rcu_middleware_architecture.md](../80-FMW-Architecture/rcu_middleware_architecture.md).
-
-Configuration backup/restore, **and** patching an already-running,
-already-installed environment (e.g. a future CPU/CSPU cycle) — as opposed
-to `09-Install/`, which covers only the one-time initial install and
-explicitly says "The Oracle Home is not touched again after this point."
-All scripts source `environment.conf` and write output to `$DIAG_LOG_DIR/`.
-
-> 📋 **Looking for current patch numbers?** →
-> [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md)
-> — the central MOS Doc-ID / patch-number reference, used for both initial
-> install and the maintenance workflow below. This is usually the first
-> thing you need once the environment is up and running.
-
----
-
-## 1. Overview
-
-| Script | Status | Purpose |
-|---|---|---|
-| [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | ✅ implemented | Back up all relevant config + font files to `ConfigBackup/<timestamp>/` |
-| [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) | ✅ implemented | List backups, restore a selected set back to its original locations |
-| [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) | ✅ implemented | Way 2 of the customer import: apply the overlay of [`00-Setup/customer_conf_import.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/customer_conf_import.sh) to an existing library environment – `14b-` / `14-` / `13-`, `30-` autostart when a server is missing, restart, wait for the Reports servers, `15-` smoke test, `90-` validate ([`09-Install/docs/17-customer_conf_import.md`](../09-Install/docs/17-customer_conf_import.md); process: [00-transfer_customer_settings.md](../09-Install/docs/00-transfer_customer_settings.md)) |
-| [`patch_storage.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/patch_storage.sh) | ✅ implemented | Local `PATCH_STORAGE` as working copy of a patch archive (`PATCH_ARCHIVE`, NFS/ZFS): `status`, `pull <step>` before a step, `clean` after it – done steps from the run history `log/run_history.csv` |
-| [`bak_cleanup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/bak_cleanup.sh) | ✅ implemented | `*.bak_<ts>` copies our scripts leave next to the Oracle files: list per file, `--apply` deletes all but the newest `BAK_FILES_KEEP` (3) |
-| [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) | ✅ implemented | Java/OS layer — [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh); `--apply`: JDK at `JDK_HOME` from the patch repository (`JDK_PATCH_NR`, downloaded by `04-`), domain stopped, then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) check |
-| [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | ✅ implemented | RCU repository: registry, DB requirements of FMW 14.1.2 (version, edition, AL32UTF8, JVM, parameter minimums), schema accounts (profile/expiry), data sources (login test), service table, invalid objects; `--apply` = Data Pump export of the prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` |
-| [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | ✅ implemented | Domain + `oui/` + `bin/` pinned to `jdk-21.0.x` instead of the `JDK_HOME` symlink: list, `--apply` replaces (backup `ConfigBackup/jdk_path_<ts>/`) |
-| [`wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh) | ✅ implemented | Audit trail of the domain (DISA STIG): configuration audit `logaudit`, auditing provider `IHW_DefaultAuditor`, OPSS audit `filterPreset` Low; read-only by default, `--apply`, `--undo` |
-| [`wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh) | ✅ implemented | Password rule of the realm (DISA STIG): current rule, realm users, stored passwords checked locally; `--apply` = 12 characters (`--min-length`), upper + lower + digit + special, no user name; `--undo` |
-| [`wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh) | ✅ implemented | Account lockout of the realm (DISA STIG): settings, lockout runtime per server + locked users, `BEA-090078` events with client address; `--apply` = 3 / 30 / 15, `--undo` = 5 / 30 / 5, `--unlock USER` |
-| [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | ✅ implemented | WLS FMW Basis layer — wraps [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) |
-| [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | ✅ implemented | Forms + Reports layer (combined) — wraps [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) |
-
-[`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) covers both the Forms and the Reports
-conceptual layer in a single call — see §3 below for why there is no
-separate Forms-only/Reports-only script.
-
----
-
-## 2. Recommended Workflow
-
-```
-Before any config change (fonts, Reports/Forms server config, domain env):
-  ./07-Maintenance/backup_config.sh --apply
-
-If something breaks afterwards:
-  ./07-Maintenance/restore_config.sh            # inspect available backups first
-  ./07-Maintenance/restore_config.sh --apply     # select a set and restore it
-```
-
-Scripts that already call [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh)-style backups internally before
-writing (via `backup_file()` in [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh)) still
-benefit from a full `backup_config.sh --apply` run beforehand — it captures
-a **complete, consistent snapshot** across all categories in one place,
-rather than one file at a time.
-
----
-
-## 3. Patching an Already-Running Environment (CPU/CSPU cycle)
+[root README](../docs/forms_reports_installation_steps.md#folder-roles)):
+backup / restore, patching and hardening of a running installation, no
+matter who built it. The patch logic itself lives once in `09-Install/05-` /
+`06-` – the `81-` / `82-` wrappers call it. All scripts source
+`environment.conf`, are read-only by default and write only with `--apply`;
+output to `$DIAG_LOG_DIR/`.
 
 > 📋 **Current patch numbers?** →
-> [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md)
+> [`09-Install/docs/00-patch-references.md`](../09-Install/docs/00-patch-references.md).
+> **Every security topic** (patch cycle, hardening by layer, checks) →
+> [security_overview.md](../80-FMW-Architecture/security_overview.md).
+> Certificates, keys and trust stores →
+> [certificates_trust_stores.md](../80-FMW-Architecture/certificates_trust_stores.md).
 
-> **RCU schemas and patching:** regular patches (SPB / CSPU / Forms and
-> Reports one-offs) never change the RCU schemas – only a version upgrade
-> does (Upgrade Assistant). Run [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) before and after a
-> patch cycle as a health check; before an upgrade or a move with `--apply`
-> (backup). Background:
-> [`80-FMW-Architecture/rcu_middleware_architecture.md`](../80-FMW-Architecture/rcu_middleware_architecture.md).
+## 1. Topics
 
-`80-`/`81-`/`82-patch_*.sh` are **thin wrappers**: they add one thing that
-was previously missing — a hard check that WebLogic is actually stopped —
-then delegate 100% of the real patch logic to the unchanged, already
-idempotent `09-Install/05-` and `06-oracle_patch_*.sh` scripts (safe to
-re-run; they skip whatever is already applied). No patch logic is
-duplicated here.
-
-```
-1. Update 09-Install/oracle_software_version.conf with the new cycle's
-   patch numbers — see 09-Install/docs/00-patch-references.md
-   (customer host: git pull of the current release, e.g. v1.0.202611 –
-   the maintainer switched conf + patch lists already)
-2. 09-Install/04-oracle_pre_download.sh --apply --mos
-   (add --fresh-patches first to archive the previous cycle's ZIPs)
-   no MOS access on the host: 04- --offline-list -> CSV for
-   mos_patch_download.ps1 on a PC with internet, scp the tree back
-   (09-Install/docs/04-oracle_pre_download.md "No MOS access on the host")
-   ./07-Maintenance/domain_jdk_path.sh            # read-only: pinned jdk-21.0.x paths?
-3. ./07-Maintenance/backup_config.sh --apply
-4. ./01-Run/startStop.sh stop-all --apply        # REQUIRED before step 5-7
-   (81-/82- refuse --apply while NM, a WLS server or ANY process from
-    $ORACLE_HOME runs – rwserver, Reports engines, frmweb, rwrun …;
-    80- also while a JVM runs from JDK_HOME – ORDS, stopped by stop-all)
-   Then each of 80-/81-/82- --apply pauses: "VM snapshot now?" – type ok to
-   continue, anything else aborts (no terminal or IHW_NO_SNAPSHOT_PROMPT=true:
-   no pause). Everything is stopped at that point, so the snapshot is
-   consistent.
-5. ./07-Maintenance/domain_jdk_path.sh --apply    # only if step 2 listed files (backup first)
-   ./07-Maintenance/80-patch_java_os.sh --apply   # JDK_HOME from patches/<JDK_PATCH_NR>/ (WARN if missing)
-6. ./07-Maintenance/81-patch_weblogic.sh --apply  # WLS FMW Basis layer
-7. ./07-Maintenance/82-patch_forms_reports.sh --apply   # Forms + Reports layer
-8. Forms only: ./09-Install/14-oracle_setup_forms.sh --apply
-   (a Forms patch can reset extensions.jnlp / formsweb.cfg – re-activates the
-   signed jacob.jar, re-signs a jacob.jar replaced by a new JACOB version)
-   Forms client distribution (FORMS_CLIENT_DIST=true): ./09-Install/40-oracle_forms_client_bundle.sh --apply
-   (new client Java from step 2 / new frmsal.jar from step 7 -> new bundle,
-   clients update themselves at their next start; domain may run)
-9. ./01-Run/startStop.sh start-all --apply
-10. verify:
-    ./09-Install/15-deploy-test-report-forms_template.sh --apply   # smoke test Forms + Reports
-    ./01-Run/rwserver_status.sh ; ./06-FormsDiag/forms_settings.sh
-    ./02-Checks/java_check.sh
-    ./10-Monitoring/cve_inventory.sh   # installed patches = PATCH_CYCLE
-    ./08-SSL/ssl_local_ca.sh status    # own root CA: certificate expiry
-11. If something breaks: ./07-Maintenance/restore_config.sh --apply
-```
-
-**Why only 3 scripts for "4 layers"?** [`06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh)
-already auto-detects whether `$ORACLE_HOME/forms` and `$ORACLE_HOME/reports`
-exist and only patches what's actually installed — there is exactly one
-underlying call for both, so [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) covers the Forms
-and the Reports conceptual layer together. A separate Forms-only/
-Reports-only script would need a new `--only forms|reports` scope flag on
-the delegated script first — not implemented (bundled on purpose, see
-[`09-Install/docs/06-oracle_patch_forms_reports.md`](../09-Install/docs/06-oracle_patch_forms_reports.md)).
-
-**Why [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh) isn't called automatically by the
-wrappers:** updating [`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf) with the new cycle's
-patch numbers (step 1) is an inherent human-judgment step (reading the new
-CPU/CSPU advisory) — it has to happen before any download anyway, and
-`05-`/`06-oracle_patch_*.sh` already print the exact download command
-whenever a required patch ZIP is missing.
-
-**Java/OS layer (step 5):** since October 2026 JDK 21 updates exist only
-on MOS (Patch 35702194 – the NFTC for JDK 21 ended in September 2026). The
-patch is downloaded **once**, with all other patches, by
-`04-oracle_pre_download.sh --apply --mos`; `80-patch_java_os.sh --apply` only
-looks into `$PATCH_STORAGE/patches/<JDK_PATCH_NR>/` – missing or not newer →
-WARN / OK, no download. Details: [01-root_setup_java.md](../09-Install/docs/01-root_setup_java.md#patch-cycle-minimum-and-upgrade---upgrade-jdk).
-The FMW-bundled JDK (`oracle_common/jdk`, OPatch component `oracle.jdk`)
-is patched with OPatch (`FMW_JDK_PATCH_NR`, still to be determined).
-
-#### JDK update on an existing customer home – order
-
-`80-` only repoints the symlink `JDK_HOME` (`jdk-21 → jdk-21.0.x`). A file
-that still names the **versioned** directory (`setDomainEnv.sh`,
-`nodemanager.properties`, `oui/.globalEnv.properties`, a text script in
-`$ORACLE_HOME/bin` like `aqxmlctl` …) keeps the domain on the **old** JDK
-after the switch – `80-` reports it afterwards only read-only ("Pinned JDK
-paths found"). So clean them up **before** the switch, in the same window:
-
-| # | When | Command | Note |
+| Topic | Document | Scripts | When |
 |---|---|---|---|
-| 1 | before, system runs | `git pull` (release of the cycle), `09-Install/04-oracle_pre_download.sh --apply --mos` | JDK patch (35702194) into the patch storage – check the version inside the ZIP |
-| 2 | before, system runs | `07-Maintenance/domain_jdk_path.sh` | read-only – lists pinned paths; `WARN JDK_HOME is no symlink` → first convert `JDK_HOME` to a link by hand (variant b of [Java_wechsel_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports_change_java/Java_wechsel_Kochbuch_de.txt)), only then go on |
-| 3 | window | `01-Run/startStop.sh stop-all --apply` | also ORDS; any other JVM on `JDK_HOME` is named by `80-`, which refuses otherwise |
-| 4 | window | `07-Maintenance/domain_jdk_path.sh --apply` | only if step 2 found files; backup `ConfigBackup/jdk_path_<ts>/`; harmless before the switch (the old JDK directory stays) |
-| 5 | window | `07-Maintenance/80-patch_java_os.sh --apply` | VM-snapshot pause, `02b-` installs the new JDK beside the old one (SHA-256, **SecureRandom fix** `file:/dev/./urandom` – a manual unpack misses it, live 2026-11-18), link switch, `domain_jdk_path.sh` read-only as counter-check |
-| 6 | window | `01-Run/startStop.sh start-all --apply`, `09-Install/15-deploy-test-report-forms_template.sh --apply`, `09-Install/90-oracle_validate.sh` | wait for the Reports server before the smoke test (REP-50001 right after the start) |
-| 7 | after | `09-Install/40-oracle_forms_client_bundle.sh --apply` | only with the Forms client distribution – new client runtime |
+| Backup / restore | [docs/01-backup_restore.md](docs/01-backup_restore.md) | `backup_config.sh`, `restore_config.sh`, `bak_cleanup.sh` | before every configuration change; after a failed change; housekeeping of `*.bak_<ts>` copies |
+| Patching | [docs/02-patching.md](docs/02-patching.md) | `80-patch_java_os.sh`, `81-patch_weblogic.sh`, `82-patch_forms_reports.sh`, `domain_jdk_path.sh`, `patch_storage.sh`, `rcu_repository_check.sh` | every CPU / CSPU cycle (monthly), JDK update, small disk with a patch archive |
+| Security hardening | [docs/03-security_hardening.md](docs/03-security_hardening.md) | `wls_audit_config.sh`, `wls_password_rule.sh`, `wls_lockout_config.sh` | once per domain (DISA STIG: audit, password rule, lockout); `--unlock USER` in operation |
+| Customer import | [09-Install/docs/17-customer_conf_import.md](../09-Install/docs/17-customer_conf_import.md) | `apply_customer_conf.sh` | applying a customer's configuration to a library environment (14c move, way 2) |
 
-Rollback: `sudo ln -sfn <old jdk dir> $JDK_HOME` (printed by `80-`), the
-files of step 4 from `ConfigBackup/jdk_path_<ts>/`. The bundled
-`oracle_common/jdk` is not touched by any of these steps.
+## 2. Scripts
 
-### domain_jdk_path.sh
-
-```bash
-./07-Maintenance/domain_jdk_path.sh            # read-only: files with jdk-21.0.x
-./07-Maintenance/domain_jdk_path.sh --apply    # replace with JDK_HOME, then restart
-```
-
-Manual way without the library (German cookbook, every file with vi): [70-Customer-Projects/FormsReports_change_java](../70-Customer-Projects/FormsReports_change_java/README.md).
-
-WLST `createDomain` / `updateDomain` (and the Config Wizard) resolve the
-`JDK_HOME` symlink and write the versioned JDK directory into
-`setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, the Forms
-instance scripts and `init-info/*`; the installer into
-`$ORACLE_HOME/oui/.globalEnv.properties`, `oui/bin/*.sh` and text scripts directly in
-`$ORACLE_HOME/bin` (e.g. `aqxmlctl`, found 2026-11-17). A JDK upgrade
-that only repoints the symlink would not reach WebLogic. Matches `JDK_HOME`
-followed by a version suffix and the current symlink target; skips logs,
-`servers/` and backups. Backup: `ConfigBackup/jdk_path_<ts>/` with the original
-paths below it. Called by [`09-Install/08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh); run it
-after every JDK upgrade and every `updateDomain`.
-
----
-
-## 4. Script Reference
-
-### backup_config.sh
-
-```bash
-./07-Maintenance/backup_config.sh              # dry-run: show what would be backed up
-./07-Maintenance/backup_config.sh --apply      # create the backup
-./07-Maintenance/backup_config.sh --apply --keep 5   # create, then keep only the 5 newest sets
-```
-
-Options:
-
-| Option | Description |
-|---|---|
-| `--apply` | Create `ConfigBackup/<timestamp>/` and copy all discovered files (default: dry-run) |
-| `--keep N` | Retention: keep the N newest sets, default `CONFIG_BACKUP_KEEP` from `environment.conf` (10) |
-| `--help` | Show usage |
-
-**Retention:** after a successful `--apply` the oldest
-sets beyond N are removed – counted separately per kind:
-
-| Kind | Name | Created by |
+| Script | Purpose | Details |
 |---|---|---|
-| config sets | `YYYYMMDD_HHMM` and `YYYYMMDD_HHMM_pre_restore` | [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh), [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) |
-| JDK path sets | `jdk_path_YYYYMMDD_HHMMSS` | `domain_jdk_path.sh --apply` |
+| [`backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) | back up all relevant config + font files to `ConfigBackup/<timestamp>/` (categories, `--keep N`) | [backup](docs/01-backup_restore.md#backup_configsh) |
+| [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) | list backups, restore a set or `--category` (pre-restore backup first) | [backup](docs/01-backup_restore.md#restore_configsh) |
+| [`bak_cleanup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/bak_cleanup.sh) | `*.bak_<ts>` copies next to the Oracle files: keep the newest `BAK_FILES_KEEP` (3) per file | [backup](docs/01-backup_restore.md#bak_cleanupsh) |
+| [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) | Java / OS layer: JDK at `JDK_HOME` from the patch repository, domain stopped | [patching](docs/02-patching.md#80-patch_java_ossh) |
+| [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) | WebLogic layer – wraps `09-Install/05-oracle_patch_weblogic.sh` + stop gate | [patching](docs/02-patching.md#81-patch_weblogicsh) |
+| [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) | Forms + Reports layer – wraps `09-Install/06-oracle_patch_forms_reports.sh` + stop gate | [patching](docs/02-patching.md#82-patch_forms_reportssh) |
+| [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) | domain + `oui/` + `bin/` pinned to `jdk-21.0.x` → `JDK_HOME` symlink | [patching](docs/02-patching.md#domain_jdk_pathsh) |
+| [`patch_storage.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/patch_storage.sh) | local `PATCH_STORAGE` as working copy of a patch archive: `status`, `pull <step>`, `clean`, run history | [patching](docs/02-patching.md#patch_storagesh) |
+| [`rcu_repository_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/rcu_repository_check.sh) | RCU repository health (registry, accounts, data sources, invalid objects); `--apply` = Data Pump backup | [patching](docs/02-patching.md#rcu_repository_checksh) |
+| [`wls_audit_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_audit_config.sh) | audit trail: configuration audit `logaudit`, `IHW_DefaultAuditor`, OPSS `filterPreset` | [hardening](docs/03-security_hardening.md#wls_audit_configsh) |
+| [`wls_password_rule.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_password_rule.sh) | password rule of the realm: 12 characters, upper + lower + digit + special, no user name | [hardening](docs/03-security_hardening.md#wls_password_rulesh) |
+| [`wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh) | account lockout 3 / 30 / 15, lockout runtime + events, `--unlock USER` | [hardening](docs/03-security_hardening.md#wls_lockout_configsh) |
+| [`apply_customer_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/apply_customer_conf.sh) | customer overlay on an existing library environment: `14b-` / `14-` / `13-` / `30-`, restart, `15-` / `90-` | [doc 17](../09-Install/docs/17-customer_conf_import.md) |
 
-The dry-run lists the sets that the next `--apply` would remove (the new set
-counts). Only directories directly under `ConfigBackup/` that match one of
-the names are removed; the newest set of each kind is never removed
-(`N >= 1`); other directories are left alone.
-
-**What it discovers and backs up** — all paths are located dynamically via
-`find` (they contain version numbers and instance names that vary per
-install), not hardcoded:
-
-| Category | Source | Content | Written by |
-|---|---|---|---|
-| `fonts` | `$UIFONT_ALI` | Oracle Reports font alias file (`uifont.ali`) | `04-`, `14b-` |
-| `fonts_ttf` | `$REPORTS_FONT_DIR/*.ttf/.ttc/.otf` (any case) | Deployed TrueType/OpenType font files (system + customer fonts as deployed) | `04-`, `14b-` |
-| `fonts_custom` | `04-ReportsFonts/custom_fonts_dir/*.ttf/.ttc/.otf` | **Customer / licensed font originals** – source for [`deploy_fonts.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/deploy_fonts.sh); gitignored (licence), so this backup is their only copy besides the deployed one | customer |
-| `reports_afm` | `ReportsToolsComponent/<inst>/guicommon/tk/admin/AFM/*` | AFM font metrics (files without extension) | [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) |
-| `reports_comp` | `ReportsServerComponent/<instance>/` | `rwserver.conf`, `rwnetwork.conf` | `13-`, `05-` |
-| `reports_tools` | `ReportsToolsComponent/<instance>/` | `rwnetwork.conf`, `rwbuilder.conf`, `PPD/screenprinter.ppd` | `13-`, [`paramform_afm_setup.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/04-ReportsFonts/paramform_afm_setup.sh) |
-| `reports_wls` | `servers/$WLS_MANAGED_SERVER/applications/reports_*/configuration/` | `rwserver.conf` (in-process), `rwservlet.properties`, `cgicmd.dat` | `13-`, `14b-` |
-| `fmw` | `$ORACLE_HOME/reports/conf/` | `cgicmd.dat` from the FMW install (separate category — same filename as the domain copy) | – |
-| `forms_wls` | `servers/*/applications/formsapp_*/config/` | `formsweb.cfg`, `default.env`, `oracle/forms/registry/Registry.dat` | `14-`, `06-` |
-| `forms_inst` | `components/FORMS/instances/<inst>/server/`, `components/FORMS/<inst>/server/` | `webutil.cfg` (stored as `webutil.cfg` / `webutil_alt.cfg`) | `14-` |
-| `security` | `config/fmwconfig/` | `jps-config.xml`, `jps-config-jse.xml` (identity store of the Reports server) | `13-` |
-| `logging` | `servers/*/logging.xml`, `components/Reports*Component/*/logging.xml` | ODL logging config (stored as `<server>_logging.xml`) | `03-Logs/setLogLevel.sh --persist` |
-| `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) |
-| `ihw` | project root | `environment.conf` | interview, [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) |
-| `ords` | `$APEX_ORDS_BASE/ords_*/config/` (whole tree) | ORDS `pool.xml`, `global/settings.xml`, `logging.properties`, wallet `cwallet.sso` (credentials of `ORDS_PUBLIC_USER`) – stored as `<inst>__<path>` (e.g. `ords_1__databases__default__wallet__cwallet.sso`), mode 600 like the whole set; restore → restart `ords@ords_<n>`. Never copied **into** the config directory (ORDS reads every file there) | `12-APEX-Ords/04-`, `06-` |
-
-**Not backed up on purpose:**
-
-| What | Why / where instead |
-|---|---|
-| `*.des3` secret files | encrypted with a machine-bound key – useless on another host, re-created by [`01-setup-interview.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-setup-interview.sh) / the scripts that ask for them |
-| own root CA `$ORACLE_BASE/admin/pki` | the CA key belongs in an **offline** backup with its passphrase ([08-SSL/README.md](../08-SSL/README.md)), not next to the configuration |
-| Nginx configuration | root-owned, written by `09-Install/04-`/`05-root_nginx*.sh` from templates |
-| keystores, `boot.properties`, `security/SerializedSystemIni.dat` | domain secrets – part of a full domain / file-system backup, not of this config snapshot |
-| `TNS_ADMIN` directory (`tnsnames.ora`, `sqlnet.ora`) | company files, maintained outside this library – include it in the file-system backup |
-
-**Output structure:**
+## 3. Quick start
 
 ```
-07-Maintenance/ConfigBackup/YYYYMMDD_HHMM/
-├── fonts/            uifont.ali
-├── fonts_ttf/        *.ttf / *.ttc / *.otf (deployed)
-├── fonts_custom/     customer font originals (custom_fonts_dir)
-├── reports_afm/      AFM metric files
-├── reports_comp/     rwserver.conf, rwnetwork.conf
-├── reports_tools/    rwnetwork.conf, rwbuilder.conf, screenprinter.ppd
-├── reports_wls/      rwserver.conf, rwservlet.properties, cgicmd.dat
-├── fmw/              cgicmd.dat (FMW install copy)
-├── forms_wls/        formsweb.cfg, default.env, Registry.dat
-├── forms_inst/       webutil.cfg, webutil_alt.cfg
-├── security/         jps-config.xml, jps-config-jse.xml
-├── logging/          <server>_logging.xml
-├── domain/           setDomainEnv.sh, setUserOverrides.sh, config.xml, nodemanager.properties
-├── ihw/              environment.conf
-├── ords/             <inst>__<path> (pool.xml, settings.xml, wallet)
-└── manifest.txt      category, stored filename, original path — one line per file
+Before any configuration change (fonts, Reports / Forms config, domain env):
+  ./07-Maintenance/backup_config.sh --apply
+  ... change ...      if it breaks: ./07-Maintenance/restore_config.sh --apply
+
+Patch cycle (monthly): the 10 steps of docs/02-patching.md §1
+  download (04- --mos) -> backup -> stop-all -> 80- / 81- / 82- --apply
+  -> 14- (Forms) -> start-all -> smoke test 15- + checks
+
+Hardening of a domain (once, test host first): docs/03-security_hardening.md
+  wls_audit_config.sh --apply -> restart
+  wls_password_rule.sh --apply
+  wls_lockout_config.sh --apply -> restart
+  check: ./02-Checks/domain_secret_check.sh
 ```
 
-Missing sources (component not installed, path not configured) are reported
-as `WARN` and simply skipped — the backup still runs for everything that
-**is** found. If nothing at all is found, the script aborts before creating
-an (empty) backup directory.
-
-`manifest.txt` is the single source of truth [`restore_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/restore_config.sh) uses to
-find files again — do not rename or move files inside a backup directory.
-
-**Permissions:** `umask 077` – backup directories 700, files 600 (the set
-contains `rwserver.conf` with the encrypted `<identifier>`, `default.env`,
-the OPSS configuration and `environment.conf`).
-
----
-
-### bak_cleanup.sh
-
-```bash
-./07-Maintenance/bak_cleanup.sh                  # list the copies per file (read-only)
-./07-Maintenance/bak_cleanup.sh --apply          # delete all but the newest 3 per file
-./07-Maintenance/bak_cleanup.sh --apply --keep 1
-```
-
-Our `--apply` scripts back up a file before they change it as
-`<file>.bak_<YYYYMMDD_HHMM[SS]>` in the same directory (`backup_file` in the
-lib, `13-`, `14-` …). After some runs there are many of them next to the
-Oracle files (live 2026-10-23: about 100, ten copies each of `default.env`,
-`Registry.dat`, `fmrweb_utf8.res`), and some hold secrets (`rwserver.conf`
-right after `13-` has the Reports admin `<identifier>` in clear text until the
-server encrypts it at its next start).
-
-| Option | Description |
-|---|---|
-| `--apply` | delete the copies beyond `--keep` (default: list only) |
-| `--keep N` | copies kept per original file, newest first; default `BAK_FILES_KEEP` from `environment.conf` (3), `N >= 1` |
-
-**Searched:** `$DOMAIN_HOME`, `$ORACLE_HOME/forms/java` and
-`$ORACLE_HOME/reports/conf` (not the whole Oracle Home), `$ORACLE_BASE/admin`,
-`$ORACLE_BASE/reports` and `$ORACLE_BASE/forms` (report / form modules deployed by `15-`),
-the project root and `00-Setup/environments/` (backups of `environment.conf`),
-the oracle home directory (top level) – files only, one file system (`-xdev`).
-
-**Never deleted, only reported:**
-
-| What | Why |
-|---|---|
-| directories (`OPatch.bak_*`, inventory copies) | rollback of `09-Install/05-` – remove by hand after a successful patch |
-| `*.des3.bak_*` | copies of secret files – check by hand which key/password they hold |
-| files of another owner | root copies (`/etc/*.bak_*` of `01-` / `02b-`, Nginx) are not searched at all |
-
-The copies are grouped per original file and sorted by the timestamp in the
-name; the table shows copies / kept / removed and the size per file.
-`ConfigBackup/` is not touched (see `backup_config.sh --keep`).
-
----
-
-### patch_storage.sh
-
-Small local disk, big but slow archive (customer 2026-10-30: installing from
-the ZFS share is far too slow, the local disk cannot hold every installer and
-patch at once). `PATCH_ARCHIVE` (interview, optional) is the **master copy**
-with the layout of `PATCH_STORAGE` – the share host with MOS access downloads
-straight into it (`mos_patch_download.sh -c patches_fmw.csv -d <archive> --all
---apply`, eDelivery ZIPs by browser into `wls/`, `fr/`). The local
-`PATCH_STORAGE` only holds what the next step needs.
-
-```bash
-./07-Maintenance/patch_storage.sh                                         # status
-./07-Maintenance/patch_storage.sh pull 05-oracle_patch_weblogic.sh         # show what would be copied + space check
-./07-Maintenance/patch_storage.sh pull 05-oracle_patch_weblogic.sh --apply # copy archive -> local
-./07-Maintenance/patch_storage.sh pull spb --apply                         # or by CSV role
-./07-Maintenance/patch_storage.sh clean                                    # what could be freed
-./07-Maintenance/patch_storage.sh clean --apply                            # ask per file
-./07-Maintenance/patch_storage.sh clean --apply --yes                      # take every proposal
-./07-Maintenance/patch_storage.sh history                                  # last run per script
-```
-
-**Items** – no own list: every row of [`09-Install/download/patches_fmw.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_fmw.csv)
-(+ [`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) with `LOCAL_REP_DB=true`) the installation needs (same role
-rules as `04-`), the eDelivery ZIPs + their extracted installers of
-[`oracle_software_version.conf`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/oracle_software_version.conf), the 19c base (`DB_INSTALL_ARCHIVE`, when below
-`PATCH_STORAGE`), APEX/ORDS version directories.
-
-**Which run frees what** (last `--apply` run with rc 0 or 1 in the run history):
-
-| Files | Freed by a successful |
-|---|---|
-| `wls/` ZIP + `fmw_*_infrastructure.jar` | [`09-Install/05-oracle_install_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_install_weblogic.sh) |
-| `fr/` ZIP + `fmw_*_fr_linux64.bin` | [`09-Install/06-oracle_install_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_install_forms_reports.sh) |
-| roles `opatch`, `spb`, `wls` | [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) or [`81-patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/81-patch_weblogic.sh) (not `--opatch-only`) |
-| roles `fr_common`, `reports`, `forms`, `fr_optional` | [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) or [`82-patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/82-patch_forms_reports.sh) |
-| role `jdk` | `09-Install/02b-root_os_java.sh --upgrade-jdk` or [`80-patch_java_os.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/80-patch_java_os.sh) |
-| role `client_jdk` | [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) |
-| role `cvu` / 19c base + [`patches_db.csv`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/download/patches_db.csv) | `60-RCU-DB-19c/00b-` / [`01-db_install_software.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/60-RCU-DB-19c/01-db_install_software.sh) |
-| role `apex`, APEX / ORDS directories | `12-APEX-Ords/03-` / `02-` / `04-` |
-
-**Proposals** (`status`, `clean`): `pull` = only in the archive, step not done
-yet; `keep` = step not done; `free` = step done and the archive holds the same
-size (or an extracted installer – re-created from the ZIP); `archive` = step
-done, file only local → copy into the archive, verify SHA-256, then delete
-locally; without an archive only *delete* or *keep* (proposal *keep* – deleted
-means downloading again). Also offered by `clean`: `patches_<ts>/` +
-`client/jdk_<ts>/` of `--fresh-patches`, staging directories of finished runs
-in `$ORACLE_BASE/tmp` (`mw_patches_<pid>`, `fr_patches_<pid>`, `wls_spb_<pid>`,
-`opatch_*_<pid>` – only when that PID no longer runs). Info only:
-`$ORACLE_HOME/.patch_storage` (OPatch rollback data, `opatch util cleanup`).
-
-`pull` checks the free space first (size + 10 %), copies with `rsync -a
---partial` (resumable; without `rsync` `cp` via a `.part` name), compares the
-size and the SHA-256 of the CSV (soft check, WARN). [`04-oracle_pre_download.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/04-oracle_pre_download.sh)
-shows files that are only in the archive as *in archive* (not MISSING); the
-"ZIP not found" messages of `05-`, `06-`, `02b-`, `40-` name the `pull`
-command when `PATCH_ARCHIVE` is set.
-
-**Run history** – [`00-Setup/IHateWeblogic_lib.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/IHateWeblogic_lib.sh) (`print_summary` →
-`run_history_record`) appends one row per run of every script in `09-Install`,
-`07-Maintenance`, `08-SSL`, `12-APEX-Ords`, `60-RCU-DB-19c` to
-`log/run_history.csv` (`IHW_RUN_HISTORY` overrides the path):
-`timestamp;host;user;script;args;apply;rc;ok;warn;fail;log`. `rc` = the
-OK/WARN/FAIL result of `print_summary` (a wrapper that raises its exit code
-afterwards, e.g. `81-` after `05-`, is recorded with its own summary; the
-delegated `05-` has its own row). Root scripts of phase 0 hand a new file to
-the repository owner. The installation progress built from it:
-[`09-Install/00-install-status.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-install-status.sh) (every step, its state, the next step).
-
----
-
-### restore_config.sh
-
-```bash
-./07-Maintenance/restore_config.sh             # list backups + show all manifests (read-only)
-./07-Maintenance/restore_config.sh --apply     # interactively select and restore one
-./07-Maintenance/restore_config.sh --apply --category forms_wls,forms_inst   # only these
-```
-
-Options:
-
-| Option | Description |
-|---|---|
-| `--apply` | Interactively select a backup set and restore it (default: list only) |
-| `--category LIST` | Only these categories (comma separated) – recommended; a full restore also brings back an older `environment.conf` and `config.xml` |
-| `--help` | Show usage |
-
-**Without `--apply`:** lists every backup set under `ConfigBackup/` that has
-a `manifest.txt` (newest first) with its file count, then prints the full
-`manifest.txt` of each — read-only, nothing is touched. Directories without
-a manifest come from single scripts (e.g. `jdk_path_<ts>/` of
-[`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh)) and are only named.
-
-**With `--apply`:**
-
-1. Shows a numbered selection menu, newest first (skipped automatically if only one backup exists)
-2. Prints the manifest of the selected backup for a final visual check
-   - only destinations below `DOMAIN_HOME`, `ORACLE_HOME`, the repository or
-     `REPORTS_FONT_DIR` are accepted – the manifest is a text file, other
-     paths (or `..`) are skipped with a WARN
-   - categories `domain` / `security` are refused while WebLogic or any
-     process from `$ORACLE_HOME` runs (`check_wls_stopped`); `ihw` warns that
-     newer `environment.conf` variables are lost
-3. **Creates a pre-restore backup of the current state first** — every file
-   that is about to be overwritten is saved to a new
-   `ConfigBackup/<timestamp>_pre_restore/` set (with its own manifest), so a
-   bad restore can itself be undone
-4. Prompts for confirmation (`askYesNo`, default **no**) before overwriting anything
-5. Copies each file from the backup back to its original path
-6. Prints next steps per restored category: font cache, restart of the
-   Reports server / `WLS_REPORTS` / `WLS_FORMS` via [`01-Run/startStop.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/startStop.sh),
-   `start-all` after `domain`/`security`
-
-If the destination directory for a file no longer exists (e.g. a Reports
-instance was removed since the backup was taken), that file is skipped with
-a `WARN` rather than failing the whole restore.
-
----
-
-### 80-patch_java_os.sh
-
-```bash
-./07-Maintenance/80-patch_java_os.sh            # read-only: java_check.sh + JDK in the patch repository?
-./07-Maintenance/80-patch_java_os.sh --apply    # upgrade JDK_HOME from the patch repository
-```
-
-| Option | Description |
-|---|---|
-| `--apply` | domain must be stopped (`require_wls_stopped`); calls `09-Install/02b-root_os_java.sh --apply --upgrade-jdk` (sudo inside), then [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) (read-only check) and [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) |
-| `--help` | Show usage |
-
-Without `--apply`: [`java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) plus `02b- --upgrade-jdk` as dry-run –
-which JDK is in the repository, would it be installed. Rollback:
-`ln -sfn <old jdk dir> $JDK_HOME` (old directory is kept).
-
-### 81-patch_weblogic.sh
-
-```bash
-./07-Maintenance/81-patch_weblogic.sh                # dry-run
-./07-Maintenance/81-patch_weblogic.sh --check-only    # conflict check only
-./07-Maintenance/81-patch_weblogic.sh --apply         # patch (requires WLS stopped)
-```
-
-Options: same as [`09-Install/05-oracle_patch_weblogic.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/05-oracle_patch_weblogic.sh) (`--apply`,
-`--check-only`, `--help`) — forwarded verbatim, no translation.
-
-Delegates to: `09-Install/05-oracle_patch_weblogic.sh` (OPatch upgrade, WLS
-Stack Patch Bundle, `INSTALL_PATCHES` loop). Own code: the
-`require_wls_stopped()` hard gate before `--apply` (OPatch itself does not
-enforce a stopped domain).
-
-### 82-patch_forms_reports.sh
-
-```bash
-./07-Maintenance/82-patch_forms_reports.sh                # dry-run
-./07-Maintenance/82-patch_forms_reports.sh --check-only    # conflict check only
-./07-Maintenance/82-patch_forms_reports.sh --apply          # patch (requires WLS stopped)
-```
-
-Options: same as [`09-Install/06-oracle_patch_forms_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/06-oracle_patch_forms_reports.sh) — forwarded
-verbatim.
-
-Delegates to: `09-Install/06-oracle_patch_forms_reports.sh` (auto-detects
-Forms/Reports, superseded-QPR rollback, `check_patch_zip()` validation). Own
-code: same `require_wls_stopped()` hard gate as `81-`.
-
-### rcu_repository_check.sh
-
-```bash
-./07-Maintenance/rcu_repository_check.sh            # read-only checks
-./07-Maintenance/rcu_repository_check.sh --apply    # + Data Pump backup
-```
-
-Connects as SYSDBA over the network (`sqlplus` of the Oracle Home, password
-from `db_sys_sec.conf.des3` via stdin):
-
-| # | Check | FAIL / WARN when |
-|---|---|---|
-| 1 | `db_securefile`, registry table, **all** prefixes of the DB (own one marked `*`) | `FORCE` (WARN, ORA-43853 risk), registry missing (FAIL), orphaned registry rows (WARN) |
-| 2 | registry rows of `DB_SCHEMA_PREFIX`: version, status, upgraded, edition | status ≠ `VALID`; no edition with `RCU_DB_TYPE=EBR` |
-| 3 | schema accounts: status, profile, expiry, editions | not `OPEN`, expiry < `RCU_EXPIRY_WARN_DAYS` (30) → FAIL; profile ≠ `RCU_DB_PROFILE` → WARN |
-| 4 | data sources `config/jdbc/*-jdbc.xml`: user is a registry schema, URL = `DB_HOST/PORT/SERVICE`, login with `DB_SCHEMA_PWD` | login fails (FAIL), foreign user / URL (WARN) |
-| 5 | `<prefix>_STB.COMPONENT_SCHEMA_INFO` rows = registry rows | differ (WARN) |
-| 6 | invalid objects in the `<prefix>_*` schemas, grouped per owner / type, first line of `DBA_ERRORS` (since 2026-10-26) | invalid since the RCU run (last DDL ≤ user creation + 1 h) → WARN, invalidated later (patch / upgrade) → FAIL; no automatic recompile |
-| 7 | `--apply`: `expdp` (Oracle Home, network) of all prefix schemas + `SYSTEM.SCHEMA_VERSION_REGISTRY$` into `DATA_PUMP_DIR` on the DB server | export fails |
-
-The Data Pump `userid` is written to a parameter file (mode 600, removed
-afterwards) – not in the process list. Exported as SYSDBA; on a production
-DB a DBA may prefer an own export user. Live 2026-10-17 on the test host:
-27 checks OK; export schemas 22 MB / 56 s, registry 9 rows / 16 s.
-
----
-
-### wls_audit_config.sh
-
-```bash
-./07-Maintenance/wls_audit_config.sh                      # current state (WLST online) + plan
-./07-Maintenance/wls_audit_config.sh --apply              # + --preset Medium for OPSS
-./07-Maintenance/wls_audit_config.sh --undo --apply       # the way back
-```
-
-**Why:** without an audit trail an admin login and a deployment leave no
-trace in the domain – the end point of both attack paths in
-[fmw_pwd_handling.md §1a](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths)
-(DISA STIG V-235931/33/34, [stig_weblogic_forms_reports.md](../80-FMW-Architecture/stig_weblogic_forms_reports.md)).
-
-| Change | Where it lands | Active |
-|---|---|---|
-| configuration audit `logaudit` (Change Log and Audit) | every configuration change / activation with user in `<server>.log` + the auditing provider | after the restart (non-dynamic) |
-| auditing provider `IHW_DefaultAuditor` (DefaultAuditor, severity `ERROR` = ERROR + SUCCESS + FAILURE) – only if the realm has none | `servers/<server>/logs/DefaultAuditRecorder.log`: successful and failed logins, configuration events, role / policy deployment; rotated daily, 50 files kept (provider defaults) | after the restart |
-| OPSS audit `filterPreset` Low (`setAuditPolicy`) | OPSS management events only (credentials, keystores, policies, roles, audit configuration – `audit-store.xml`, no logins / authorisation checks): `servers/<server>/logs/auditlogs/JPS/audit_*.log` | at once |
-
-`--apply` backs up `config.xml` first and prints the restart (`stop-all` /
-`start-all`). `--undo` sets the configuration audit to `none`, removes only
-`IHW_DefaultAuditor` and sets `filterPreset` to `None`.
-
-**Live on the test host 2026-11-18:** `--apply` with Low, `stop-all` /
-`start-all`: every component up; `DefaultAuditRecorder.log` in all three
-servers (AdminServer ~300 records / 100 KB right after the start – mostly
-role / policy deployment; a smoke test run added ~4 KB on WLS_REPORTS); a
-login with a wrong user produced a `FAILURE` record with the user name, the
-WLST login of the script a `SUCCESS` record; the OPSS policy change itself
-is in `auditlogs/JPS/`. `domain_secret_check.sh` section 7: both audit WARN
-gone; smoke test 32 OK. **Open:** the OPSS audit loader did not write that
-event into `DEV_IAU` (0 rows in every `E$` table) – the file under
-`auditlogs/` is the record for now; `--undo` not run live yet.
-
-### wls_password_rule.sh
-
-```bash
-./07-Maintenance/wls_password_rule.sh                     # rule, realm users, stored passwords vs. the new rule
-./07-Maintenance/wls_password_rule.sh --apply             # --min-length N (default 12, STIG 15)
-./07-Maintenance/wls_password_rule.sh --undo --apply      # back to the template: 8 characters, 1 digit or special
-```
-
-**Why:** the domain template only demands 8 characters and one digit or
-special character – the cracked admin password of the Medium case met
-exactly that ([fmw_pwd_handling.md §1a](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths),
-DISA STIG V-235966–70).
-
-| Section | Content |
-|---|---|
-| 1 current rule | `SystemPasswordValidator` values of `config.xml` |
-| 2 realm users | WLST online, read-only (`listUsers` of every authentication provider) |
-| 3 stored passwords | `weblogic_sec.conf.des3` (admin), `reports_users.conf.des3` (`monUser`, `RepRunner`) checked **locally** against the target rule (lib `wls_pwd_rule_fail`) – only the failed criteria are printed; a failing password cannot be set again after the change |
-| 4 plan / 5 apply | backup of `config.xml`, WLST: `MinPasswordLength`, `MinUppercaseCharacters`, `MinLowercaseCharacters`, `MinNumericCharacters`, `MinNonAlphanumericCharacters` (1 each), `MinNumericOrSpecialCharacters` 1, `RejectEqualOrContainUsername` true |
-
-The rule is checked whenever a password is **set** (create user, change,
-reset) – existing passwords keep working. Not affected: Node Manager
-password, embedded LDAP `cn=Admin`, Reports `<identifier>`, DB / RCU
-passwords (no realm users). The prompts of the library check the active rule
-before WLST would fail: `01-setup-interview.sh` (WLS admin),
-`00-Setup/weblogic_sec.sh`, `12-oracle_reports_users.sh` – a failing password
-only after a confirmation (it may be the existing password of the realm).
-
-**Live on the test host 2026-11-18** (`--min-length 12`): active at once,
-no restart (dynamic attributes); a temporary test user with a weak password
-was rejected (`Security:099069` length, `099078` upper case, `099079`
-special character), a strong one accepted, the user removed again – the
-three steps are in `DefaultAuditRecorder.log` (audit trail of step 1).
-Stored passwords: `monUser` / `RepRunner` meet the rule, the **admin
-password does not** (length, upper case, special character) – it keeps
-working; the next change must meet the rule. Smoke test 32 OK.
-
-### wls_lockout_config.sh
-
-```bash
-./07-Maintenance/wls_lockout_config.sh                     # settings, runtime, lockout events (30 days)
-./07-Maintenance/wls_lockout_config.sh --apply             # 3 / 30 / 15 (--threshold / --duration / --reset)
-./07-Maintenance/wls_lockout_config.sh --undo --apply      # WebLogic defaults 5 / 30 / 5
-./07-Maintenance/wls_lockout_config.sh --unlock RepRunner  # operational: clear a lockout on every running server
-```
-
-**Why:** DISA STIG V-235936–38 (3 failed logins); the default 5 / 30 / 5
-lets a guesser try 5 passwords every 5 minutes.
-
-| Value | STIG | Library | Note |
-|---|---|---|---|
-| threshold | 3 | **3** | |
-| duration (min) | 15 | **30** | WebLogic warns below 30 min in production mode (`BEA-090978`, message catalog) – 30 is the stricter value |
-| reset duration (min) | 15 | **15** | failures are counted over 15 minutes |
-
-The values are **non-dynamic** – restart the domain after `--apply`. The
-runtime view (section 2) lists per server the users locked now, invalid
-logins and lockouts since the start; section 3 the `BEA-090078` messages
-(user + client address) of the last `LOCKOUT_LOG_DAYS` (30) days – WebLogic
-logs one at the lockout and one for each attempt on the locked account.
-
-**Live on the test host 2026-11-18:** `--apply`, restart (no
-`BEA-090978`), every component up; a temporary test user was locked after 3
-wrong logins (the right password then answered 401 instead of 403),
-`--unlock` released it (403 again), user removed. 4 wrong
-`authid=RepRunner` through `rwservlet` gave `REP-50171` but **no lockout** –
-the standalone Reports server checks `authid` with an LDAP bind against the
-embedded LDAP, past the realm lockout
-([reports_user_local_ldap.md §8](../80-FMW-Architecture/reports_user_local_ldap.md#8-account-lockout-does-not-cover-authid-test-host-2026-11-18)).
-Smoke test 32 OK.
-
-## 5. Troubleshooting
-
-### backup_config.sh reports most categories as "not found"
-
-```
-Symptom: Nearly all BACKUP_ITEMS show "NOT FOUND" / "(not found – will be skipped)"
-Cause:   DOMAIN_HOME or ORACLE_HOME in environment.conf is wrong, or the
-         domain/instances haven't been created yet
-Fix:     Re-run 00-Setup/detect_env_conf.sh to detect the current paths, or verify
-         DOMAIN_HOME manually: ls $DOMAIN_HOME/config/fmwconfig/components/
-```
-
-### restore_config.sh: "manifest.txt not found"
-
-```
-Symptom: FAIL manifest.txt not found in <backup dir>
-Cause:   The backup directory is incomplete (interrupted backup_config.sh run,
-         or manifest.txt was manually deleted/moved)
-Fix:     Choose a different, complete backup set. Do not restore from a
-         backup directory with a missing or edited manifest.txt.
-```
-
-### restore_config.sh: file restored but Reports Server still shows old behavior
-
-```
-Symptom: uifont.ali / rwserver.conf restored, but server behaves unchanged
-Cause:   Reports Server / WLS_FORMS JVM caches config at startup; a restored
-         file only takes effect after a restart
-Fix:     ./01-Run/startStop.sh stop  repserver01 --apply   (Reports server component)
-         ./01-Run/startStop.sh start repserver01 --apply
-         WLS_FORMS / WLS_REPORTS the same way; restore_config.sh prints the
-         commands for the restored categories.
-         For fonts, also run: ./04-ReportsFonts/font_cache_reset.sh --apply
-```
-
-### Backup directory grows large over time
-
-```
-Symptom: 07-Maintenance/ConfigBackup/ contains many timestamped directories,
-         or many *.bak_<ts> files next to the Oracle configuration files
-Cause:   every --apply run creates a new set / copy
-Fix:     ./07-Maintenance/backup_config.sh --apply --keep 10   (sets)
-         ./07-Maintenance/bak_cleanup.sh --apply               (*.bak_<ts> copies)
-         Defaults: CONFIG_BACKUP_KEEP / BAK_FILES_KEEP in environment.conf.
-```
-
-### 81-/82- wrapper: FAIL "WebLogic components are still RUNNING"
-
-```
-Symptom: Script exits immediately (EXIT_CODE=2) before the delegated
-         05-/06-oracle_patch_*.sh banner ever prints
-Cause:   Domain not stopped (NM, a WLS server or any process from
-         $ORACLE_HOME) – intentional hard gate of the wrappers.
-Fix:     ./01-Run/startStop.sh stop-all --apply
-         Verify: ./01-Run/startStop.sh list
-         Then re-run the wrapper with --apply.
-```
-
----
-
-## 6. Related Scripts
+## 4. Related scripts
 
 | Script | Purpose |
 |---|---|
@@ -717,24 +81,9 @@ Fix:     ./01-Run/startStop.sh stop-all --apply
 | `02-Checks/java_check.sh` | Delegated to by `80-patch_java_os.sh` |
 | `09-Install/docs/00-patch-references.md` | Central MOS Doc-ID / patch-number reference for a new cycle |
 
----
+## 5. Notes
 
-## 7. Notes
-
-- All scripts are read-only by default; `--apply` is required for any write operation, consistent with the rest of the project.
-- `ConfigBackup/` is excluded from Git (`.gitignore`) — backups are server-local and may contain environment-specific paths and settings.
-- Retention: `backup_config.sh --keep N` (`CONFIG_BACKUP_KEEP`, 10 sets) and `bak_cleanup.sh` (`BAK_FILES_KEEP`, 3 copies per file) – both delete only with `--apply`.
-- `rcu_repository_check.sh` check 6 (invalid objects): objects invalid since
-  the RCU run (IAU synonyms, `DEV_OPSS` packages) are fixed by `utlrp.sql` in
-  the PDB (`catcon.pl`, see `60-RCU-DB-19c/docs/03-db_create_database.md`) –
-  no MOS note needed.
-- `rcu_repository_check.sh --apply`: the Data Pump parameter file with the SYS password is mode 600 and removed by a trap also on Ctrl-C / error.
-
-## 8. Open Items
-
-All scripts of this folder are live-tested on the test host (review
-2026-10-19; `80-`/`81-`/`82-` `--apply` in the CPU Oct 2026 run 2026-10-24).
-
-- Reports engines on the FMW-bundled JDK 17.0.12 (`oracle_common/jdk`,
-  `80-` shows them): no Oracle patch number yet (`FMW_JDK_PATCH_NR`), SR
-  prepared – root README open item.
+- `ConfigBackup/` is excluded from Git (`.gitignore`) – backups are
+  server-local and may contain environment-specific paths and settings.
+- Open items of this folder: [docs/02-patching.md §5](docs/02-patching.md#5-open-items),
+  security: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md) block "Security hardening".
