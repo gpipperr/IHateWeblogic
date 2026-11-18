@@ -260,7 +260,14 @@ The runner is started as a single-file source program (`java -cp
 getMOSPatch.jar GetMOSPatchRunner.java …`) and needs **Java 11 or newer**,
 e.g. the bundled JDK 17 of FMW 14.1.2 or `JDK_HOME` 21. FMW 12c ships JDK 8:
 point `-Java` to any JDK 11+. Without one, getMOSPatch is started directly
-and asks for user and password itself, once per patch.
+and asks for user and password itself, once per patch – in the same console
+window (`Start-Process -NoNewWindow`, since 2026-11-18.1). Up to 2026-11-17.1
+that path piped the output (`| Out-Host`); `System.console()` of getMOSPatch was
+then `null` and it stopped with a `NullPointerException` in
+`setAuthentication` before asking anything (customer run with Java 8,
+2026-11-18; reproduced with a pseudo terminal: pipe → console `null`,
+`Start-Process` → console present). A JDK 11+ for Windows is in the patch
+storage of a library host: `client/jdk/35702194/p35702194_2100_MSWIN-x86-64.zip`.
 
 **ZIP check:** `GetMOSPatchRunner.java --zipcheck` reads every entry with
 `ZipInputStream`, which checks the CRC of each entry like `unzip -t`. Tested

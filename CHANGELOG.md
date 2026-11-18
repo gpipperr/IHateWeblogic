@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **`mos_patch_download.ps1` 2026-11-18.1 – Java < 11 fixed:** without the password runner getMOSPatch was
+  started with `| Out-Host`; the pipe left `System.console()` `null` → `NullPointerException` in
+  `getMOSPatch.setAuthentication`, no user / password prompt (first customer run of the offline list with Java
+  8). Now `Start-Process -NoNewWindow -Wait` – getMOSPatch inherits the console and asks itself; proven with a
+  pseudo terminal and Java 8 (old: console `null`, new: present). Recommended remains `-Java <JDK 11+>`
+  (password once, through the runner). The bash tool was not affected (pseudo terminal via Python).
+
 - **Offline patch download for a host without MOS access** – `09-Install/04-oracle_pre_download.sh
   --offline-list[=FILE]` / `--offline-list-all` (read-only): writes the MOS rows this host needs and misses
   (roles of `environment.conf`; `patches_db.csv` with `LOCAL_REP_DB=true`, a row in the AutoUpgrade patchdir

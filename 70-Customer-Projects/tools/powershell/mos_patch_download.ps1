@@ -25,7 +25,8 @@
   GetMOSPatchRunner.java over stdin - never on a process command line, never
   stored, masked in the output. The runner needs Java 11 or newer (single-file
   source launch). With an older Java (FMW 12c: JDK 8) getMOSPatch is started
-  directly and asks for user / password itself for every patch.
+  directly in this console window and asks for user / password itself for
+  every patch - so use a JDK 11+ (-Java) for a list with many patches.
 
   CSV columns sha256 and aru are SOFT checks (WARN): Oracle re-releases
   patches under the same number. The ZIP check (CRC of every entry) is the
@@ -97,7 +98,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-17.1"   # bump on every change
+$SCRIPT_VERSION = "2026-11-18.1"   # bump on every change
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $LANG_CODE = "4L"
@@ -289,13 +290,18 @@ if ($use_runner -and -not $mos_pwd) { local-fail "empty password"; exit 2 }
 
 # Run getMOSPatch for one patch in directory $WorkDir. With the runner the
 # credentials go over stdin; output is captured (password masked).
-# Without the runner getMOSPatch needs the console -> output not captured.
+# Without the runner (Java < 11) getMOSPatch asks itself via System.console() -
+# that is null as soon as stdin / stdout are redirected (a pipe like "| Out-Host"
+# or capturing the output of a function): NullPointerException in
+# getMOSPatch.setAuthentication (customer run 2026-11-18). Start-Process
+# -NoNewWindow -Wait without redirection inherits the console of this window.
 function local-gmp {
     param([string] $WorkDir, [string[]] $GmpArgs)
     if (-not $use_runner) {
-        Push-Location $WorkDir
-        try { & $java_exe @java_opts -jar $Jar @GmpArgs | Out-Host } finally { Pop-Location }
-        return ""
+        $direct = @($java_opts) + @("-jar", $Jar) + $GmpArgs
+        $p = Start-Process -FilePath $java_exe -ArgumentList (($direct | ForEach-Object { local-quote $_ }) -join ' ') `
+                -WorkingDirectory $WorkDir -NoNewWindow -Wait -PassThru
+        return ("getMOSPatch exit code {0}" -f $p.ExitCode)
     }
     $all_args = @($java_opts) + @("-cp", $Jar, $runner) + $GmpArgs
     $psi = New-Object System.Diagnostics.ProcessStartInfo
