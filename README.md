@@ -84,9 +84,10 @@ of replacing it piece by piece with other platforms (background and appeal:
 Status in this library: scripts `01-` … `06-` in
 [`12-APEX-Ords/README.md`](12-APEX-Ords/README.md) (prepare the DB, install /
 patch APEX, install / patch ORDS standalone homes `ords_1` / `ords_2`, images
-in `/srv/apex`, Nginx `/ords` + `/i/`), live-tested 2026-10-23, the manual
-procedure stays as reference; follow-ups (security check of what applications
-bring in, first real patch run) are an [open item](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
+in `/srv/apex`, Nginx `/ords` + `/i/`), live-tested 2026-10-23, first real
+patch run in the CSPU November 2026 window (2026-11-18: APEX 26.2.1 patch set
+bundle, ORDS 26.3.1); the manual procedure stays as reference; follow-up
+(security check of what applications bring in) is an [open item](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
 ## Start here
 
@@ -96,12 +97,14 @@ install a new one from an empty host, patch, harden, monitor. Every script
 is read-only by default and writes only with `--apply`.
 **For whom:** administrators and DBAs who run Forms & Reports.
 
-Three ways in:
+Ways in:
 
 | I want to … | Start with |
 |---|---|
 | analyse an existing environment (also a customer's) | the tools ZIP – [70-Customer-Projects/tools](70-Customer-Projects/tools/README.md); on the host itself: [first run, required order](docs/forms_reports_installation_steps.md#first-run-on-an-existing-environment--required-order) |
 | install Forms & Reports 14c from an empty host | [09-Install/README.md](09-Install/README.md) – the install chain; overview: [lifecycle](docs/forms_reports_installation_steps.md#lifecycle-overview) |
+| patch a running installation (monthly CPU / CSPU) | [07-Maintenance/docs/02-patching.md](07-Maintenance/docs/02-patching.md) – the steps per cycle; current patch numbers: [00-patch-references.md](09-Install/docs/00-patch-references.md) |
+| check and harden security | [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md) – patch cycle, hardening by layer with fix + check scripts, residual risks |
 | understand why it behaves that way | [80-FMW-Architecture/](80-FMW-Architecture/README.md) – background articles with diagrams |
 | fix a known problem | DB login `ORA-12154` / `ORA-12162`: [tns_admin_check.sh](02-Checks/README.md#tns_admin_checksh) · fonts in PDF / HTML parameter form: [04-ReportsFonts §11](04-ReportsFonts/README.md#11-troubleshooting) · Reports slow, jobs waiting: [05-ReportsPerformance](05-ReportsPerformance/README.md) · Forms sessions dropped, timeouts: [06-FormsDiag](06-FormsDiag/README.md) |
 
@@ -199,9 +202,9 @@ environment (analyse + fix): the order of the first scripts –
 | [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
-| [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23 |
+| [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23, patched 2026-11-18 (APEX 26.2.1, ORDS 26.3.1) |
 | [`14-ReportsBuilder/`](14-ReportsBuilder/README.md)  | Oracle Reports Builder 14.1.2 on a central Windows Server (builder-only domain, RDP) and the report deployment with GitLab: rdf → xml, one report per check-in, PowerShell scripts + menu, push → DEV, `prod-*` tag → production, SSH forced-command queue; live at a customer since 2026-11-13 |
-| [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; out-of-place RU patch |
+| [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; RU patch out-of-place, monthly MRP in-place (`09-db_patch_rcu.sh --mrp`) |
 | [`70-Customer-Projects/`](70-Customer-Projects/README.md) | Customer-specific manual walkthroughs (German Kochbuch `.txt` files, anonymised English knowledge base: localhost hardening, domain clone), patch analyses (12.2.1.19 customer; 14.1.2 manual guide per patch cycle) and standalone tools (`tools/bash/`: collector, MOS download, clone check, cookbook variables, disk space; `tools/powershell/`: collector, cookbook variables, MOS download for Windows hosts), independent of the scripts above |
 | [`80-FMW-Architecture/`](80-FMW-Architecture/README.md) | Background: how Forms/Reports/WebLogic work internally – start with [`weblogic_middleware_architecture.md`](80-FMW-Architecture/weblogic_middleware_architecture.md) (homes, AdminServer / Node Manager / system components, consoles, log locations), RCU / OPSS: [`rcu_middleware_architecture.md`](80-FMW-Architecture/rcu_middleware_architecture.md), Reports: [`reports_engine_architecture.md`](80-FMW-Architecture/reports_engine_architecture.md), certificates / trust stores: [`certificates_trust_stores.md`](80-FMW-Architecture/certificates_trust_stores.md), Forms: [`forms_runtime_architecture.md`](80-FMW-Architecture/forms_runtime_architecture.md) – findings, not procedures; index [`80-FMW-Architecture/README.md`](80-FMW-Architecture/README.md) |
 

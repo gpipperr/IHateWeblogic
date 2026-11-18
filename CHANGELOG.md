@@ -10,6 +10,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **README final pass of the day:** "Ways in" with patching (`07-Maintenance/docs/02-patching.md`) and security
+  (`security_overview.md`); APEX / ORDS status with the first real patch run 2026-11-18 (APEX 26.2.1, ORDS 26.3.1 –
+  also in the directory table and TODO); 60-RCU row with the MRP in-place mode.
+
 - **07-Maintenance split into topic documents:** the 740-line README is now an overview (topics, scripts, quick
   start); the content moved unchanged into [`07-Maintenance/docs/`](07-Maintenance/README.md#1-topics) –
   `01-backup_restore.md`, `02-patching.md` (incl. `rcu_repository_check.sh`), `03-security_hardening.md` (the three

@@ -316,8 +316,8 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
-  12-APEX-Ords README §9); first real run of `03-patch-apex.sh` /
-  `06-patch-ords.sh` upgrade; `clone_check` / `backup_config` (ORDS config +
+  12-APEX-Ords README §9); (first real run of `03-patch-apex.sh` /
+  `06-patch-ords.sh` done 2026-11-18 – APEX 26.2.1, ORDS 26.3.1); `clone_check` / `backup_config` (ORDS config +
   wallet) / `cve_inventory` for IC / SQLcl / ORDS / APEX; move `rcu_repository_check` etc. to `ihw_sqlplus`;
   the 8 `_run_root` copies in `09-Install` to the lib `ihw_run_root`.
 - [ ] **ORDS follow-ups from the Oracle Skills comparison (2026-11-17,
