@@ -94,6 +94,7 @@ plus `72_eventlog.txt`).
 | Web tier | owner of the ports 80 / 443 / 7777 / 4443 / 8080 / 8443, IIS (`W3SVC`, sites / bindings, WebLogic `iisproxy.ini`), OHS instances, Apache, **Nginx** (below) – routing and rated directives in the format of the bash version |
 | Load profile | Forms / Reports access logs aggregated like bash, `getserverinfo` / `showjobs` per POST; no `sar` on Windows (CPU / memory history "not collected") |
 | Logs (`-Logs`) | also the event log `Application` / `System`, level Critical / Error, last 7 days (max 300) |
+| Java4Shell (2026-11-18.1) | `20_java.txt` `java4shell;…` lines + fact `Java4Shell CVE-2026-114938`, same format as bash (`ihwt-java4shell`). CPU features: Windows has no API for AVX-512 BW / VBMI, so the **bundled JVM** is asked (`java -Xlog:os+cpu -version`, Java 11+ – the features the OS really enables), else .NET 8 (`System.Runtime.Intrinsics.X86`, PowerShell 7.4+), else `IsProcessorFeaturePresent` (AVX-512 F only, the rest `?` → `vulnerable=unknown`); extra column `source=jvm|dotnet|win32`. `reports.bat` (or `.cmd`) and a machine variable `REPORTS_JVM_OPTIONS` are checked; the environment of the native `rwserver.exe` is not readable on Windows → `flag=unknown` (engines: command line) |
 
 **Nginx on Windows** (installed by hand – no package manager, OpenSSL linked
 statically into `nginx.exe`):

@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-16.7"
+$IHWT_PS_LIB_VERSION = "2026-11-18.1"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1282,6 +1282,128 @@ function ihwt-realpath {
     param([string] $P)
     if (-not $IHWT_ON_WINDOWS) { $r = "$(& readlink -f $P 2>$null)".Trim(); if ($r) { return $r } }
     try { return [IO.Path]::GetFullPath($P).TrimEnd('\', '/') } catch { return $P }
+}
+
+# ihwt-java4shell OH DH PROCS - Java4Shell (CVE-2026-114938, Base64 intrinsic of
+# HotSpot, AVX-512 VBMI path) facts, read-only - the lines of bash ihwt_java4shell:
+#   java4shell;cpu;<model>;avx512f=y|n|? avx512bw=.. avx512vbmi=.. bmi2=..;vulnerable=yes|no|unknown;source=jvm|dotnet|win32|cpuinfo
+#   java4shell;bundled_jdk;<version>;affected|not-affected|java8|none
+#   java4shell;reports_sh;<reports.bat / reports.cmd / reports.sh | ENV(Machine)>;flag=yes|no|no-file
+#   java4shell;engine;<rwserver.conf>;<engine id>;flag=yes|no
+#   java4shell;process;<pid>;<name>;<binary>;flag=yes|no|unknown
+# CPU: Windows has no API for AVX-512 BW / VBMI -> asked from the bundled JVM
+# (java -Xlog:os+cpu, Java 11+: the features the OS really enables), else .NET 8
+# (PowerShell 7.4+: System.Runtime.Intrinsics.X86), else IsProcessorFeaturePresent
+# (only AVX-512 F, the rest "?"). Native rwserver.exe: environment of another
+# process not readable on Windows -> flag=unknown.
+function ihwt-java4shell {
+    param([string] $OH, [string] $DH, $Procs)
+    $out = New-Object System.Collections.Generic.List[string]
+    $bjdir = ""; $bjx = ""; $v = ""; $m = 0
+    if ($OH) {
+        $bjdir = ihwt-jp @($OH, "oracle_common", "jdk")
+        foreach ($j in @((ihwt-jp @($bjdir, "bin", "java.exe")), (ihwt-jp @($bjdir, "bin", "java")))) { if (Test-Path -LiteralPath $j -PathType Leaf) { $bjx = $j; break } }
+    }
+    if ($bjx) {
+        $vl = "$(((ihwt-exec $bjx @("-version") -TimeoutSec 60).Out -split "`n") | Select-Object -First 1)"
+        if ($vl -match '"([0-9][^"]*)"') { $v = $Matches[1] }
+        $pp = $v -split '[._-]'; if ($pp[0] -eq '1') { $m = [int]$pp[1] } elseif ($pp[0] -match '^\d+$') { $m = [int]$pp[0] }
+    }
+    # --- CPU ---
+    $f = [ordered]@{ avx512f = '?'; avx512bw = '?'; avx512vbmi = '?'; bmi2 = '?' }; $src = ""
+    if ($bjx -and $m -ge 11) {
+        $cl = "$(((ihwt-exec $bjx @("-Xlog:os+cpu", "-version") -TimeoutSec 60).Out -split "`n") | Where-Object { $_ -match '\[os,cpu\] CPU:' } | Select-Object -First 1)"
+        if ($cl) {
+            $tok = @($cl -split ',\s*' | ForEach-Object { $_.Trim() })
+            $f.avx512f = $(if ($tok -contains 'avx512f') { 'y' } else { 'n' })
+            $f.avx512bw = $(if ($tok -contains 'avx512bw') { 'y' } else { 'n' })
+            $f.avx512vbmi = $(if ($tok -contains 'avx512_vbmi' -or $tok -contains 'avx512vbmi') { 'y' } else { 'n' })
+            $f.bmi2 = $(if ($tok -contains 'bmi2') { 'y' } else { 'n' })
+            $src = "jvm"
+        }
+    }
+    if (-not $src) {
+        # types looked up by name - no type literals (Windows PowerShell 5.1 / .NET Framework has none of them)
+        $ti = @{ avx512f = 'Avx512F'; avx512bw = 'Avx512BW'; avx512vbmi = 'Avx512Vbmi'; bmi2 = 'Bmi2' }
+        if ([Type]::GetType('System.Runtime.Intrinsics.X86.Avx512Vbmi')) {
+            foreach ($k in @($ti.Keys)) {
+                $t = [Type]::GetType("System.Runtime.Intrinsics.X86.$($ti[$k])")
+                $f[$k] = $(if ($t -and $t.GetProperty('IsSupported').GetValue($null)) { 'y' } else { 'n' })
+            }
+            $src = "dotnet"
+        }
+    }
+    if (-not $src -and -not $IHWT_ON_WINDOWS -and (Test-Path -LiteralPath /proc/cpuinfo)) {
+        $fl = @(((Get-Content -LiteralPath /proc/cpuinfo | Where-Object { $_ -match '^flags' } | Select-Object -First 1) -replace '^[^:]*:\s*', '') -split '\s+')
+        foreach ($k in @($f.Keys)) { $f[$k] = $(if ($fl -contains $k) { 'y' } else { 'n' }) }
+        $src = "cpuinfo"
+    }
+    if (-not $src -and $IHWT_ON_WINDOWS) {
+        try {
+            if (-not ('Ihwt.Cpu' -as [type])) { Add-Type -Namespace Ihwt -Name Cpu -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool IsProcessorFeaturePresent(uint f);' -ErrorAction Stop }
+            $f.avx512f = $(if (('Ihwt.Cpu' -as [type])::IsProcessorFeaturePresent(41)) { 'y' } else { 'n' })   # PF_AVX512F_INSTRUCTIONS_AVAILABLE
+            $src = "win32"
+        } catch { $src = "none" }
+    }
+    $vals = @($f.Values)
+    $vul = $(if ($vals -contains 'n') { 'no' } elseif ($vals -contains '?') { 'unknown' } else { 'yes' })
+    $model = ""
+    if ($IHWT_ON_WINDOWS) { $model = "$((Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name)".Trim() }
+    elseif (Test-Path -LiteralPath /proc/cpuinfo) { $model = ((Get-Content -LiteralPath /proc/cpuinfo | Where-Object { $_ -match '^model name' } | Select-Object -First 1) -replace '^[^:]*:\s*', '') }
+    $out.Add(("java4shell;cpu;{0};{1};vulnerable={2};source={3}" -f ($model -replace ';', ','), (($f.Keys | ForEach-Object { "$_=$($f[$_])" }) -join ' '), $vul, $src))
+    # --- bundled JDK (range of the Oracle / OpenJDK advisory 2026-11-17) ---
+    if (-not $bjx) { $out.Add("java4shell;bundled_jdk;-;none") }
+    else {
+        $st = "not-affected"; $lo = ""; $fix = ""
+        switch ($m) { 8 { $st = "java8" } 17 { $lo = "17.0.6"; $fix = "17.0.21.1" } 21 { $fix = "21.0.13.1" } 25 { $fix = "25.0.5.1" } 27 { $fix = "27.0.1.1" } }
+        if ($fix) {
+            $nv = { param($x) [version](((@($x -split '[^0-9]+' | Where-Object { $_ }) + @('0', '0', '0', '0'))[0..3]) -join '.') }
+            $st = "affected"
+            if ($lo -and (& $nv $v) -lt (& $nv $lo)) { $st = "not-affected" }
+            if ((& $nv $v) -ge (& $nv $fix)) { $st = "not-affected" }
+        }
+        $out.Add(("java4shell;bundled_jdk;{0};{1}" -f $(if ($v) { $v } else { "?" }), $st))
+    }
+    # --- configuration ---
+    if ($DH) {
+        $rf = ""
+        foreach ($n in @("reports.bat", "reports.cmd", "reports.sh")) { $c = ihwt-jp @($DH, "reports", "bin", $n); if (Test-Path -LiteralPath $c -PathType Leaf) { $rf = $c; break } }
+        if ($rf) {
+            $has = @(_ihwt-lines $rf | Where-Object { $_ -match '^\s*(set\s+|export\s+)?"?REPORTS_JVM_OPTIONS=' -and $_ -match 'UseBASE64Intrinsics' }).Count -gt 0
+            $out.Add(("java4shell;reports_sh;{0};flag={1}" -f $rf, $(if ($has) { 'yes' } else { 'no' })))
+        } else { $out.Add(("java4shell;reports_sh;{0};flag=no-file" -f (ihwt-jp @($DH, "reports", "bin", "reports.bat")))) }
+        if ($IHWT_ON_WINDOWS) {
+            $ev = [Environment]::GetEnvironmentVariable('REPORTS_JVM_OPTIONS', 'Machine')
+            if ($ev) { $out.Add(("java4shell;reports_sh;ENV(Machine);flag={0}" -f $(if ($ev -match 'UseBASE64Intrinsics') { 'yes' } else { 'no' }))) }
+        }
+        $cfg = ihwt-jp @($DH, "config", "fmwconfig")
+        foreach ($rc in @(Get-ChildItem -LiteralPath $cfg -Recurse -Filter rwserver.conf -File -ErrorAction SilentlyContinue)) {
+            $txt = ""; try { $txt = [IO.File]::ReadAllText($rc.FullName) } catch { continue }
+            foreach ($e in [regex]::Matches($txt, '<engine\s[^>]*jvmOptions="[^"]*"')) {
+                $id = $(if ($e.Value -match '\sid="([^"]*)"') { $Matches[1] } else { "?" })
+                $out.Add(("java4shell;engine;{0};{1};flag={2}" -f $rc.FullName, $id, $(if ($e.Value -match 'UseBASE64Intrinsics') { 'yes' } else { 'no' })))
+            }
+        }
+    }
+    # --- running processes on the bundled JDK + native Reports binaries ---
+    if ($OH) {
+        $bjf = (ihwt-fwd $bjdir).ToLower() + "/bin/java"; $rwf = (ihwt-fwd (ihwt-jp @($OH, "bin"))).ToLower() + "/rw"
+        foreach ($p in @($Procs)) {
+            $ex = (ihwt-fwd "$($p.ExecutablePath)").ToLower()
+            $isj = $ex.StartsWith($bjf); $isn = $ex.StartsWith($rwf)
+            if (-not ($isj -or $isn)) { continue }
+            $cmd = "$($p.CommandLine)"
+            $nm = $(if ($cmd -match 'oracle\.reports\.component=(\S+)') { $Matches[1] } else { [IO.Path]::GetFileNameWithoutExtension("$($p.ExecutablePath)") })
+            $fg = "no"
+            if ($cmd -match 'UseBASE64Intrinsics') { $fg = "yes" }
+            elseif ($isn) {
+                if ($IHWT_ON_WINDOWS) { $fg = "unknown" }
+                else { try { if (([IO.File]::ReadAllText("/proc/$($p.ProcessId)/environ") -split "`0" | Where-Object { $_ -like 'REPORTS_JVM_OPTIONS=*' }) -match 'UseBASE64Intrinsics') { $fg = "yes" } } catch { $fg = "unknown" } }
+            }
+            $out.Add(("java4shell;process;{0};{1};{2};flag={3}" -f $p.ProcessId, $nm, $p.ExecutablePath, $fg))
+        }
+    }
+    return $out
 }
 
 # ihwt-listen-ports - listening TCP ports, normalised (as bash ihwt_listen_ports):

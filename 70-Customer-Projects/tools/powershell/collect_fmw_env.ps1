@@ -95,7 +95,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.8"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-18.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -230,6 +230,17 @@ if ($jdk_ge) {
 ihwt-fact "JDKs of running processes" ((@($procs | Where-Object { $_.Name -match '^javaw?(\.exe)?$' } | ForEach-Object { $_.ExecutablePath } | Sort-Object -Unique)) -join ' ')
 $bj = ""; if ($OH) { foreach ($j in @((ihwt-jp @($OH, "oracle_common", "jdk", "bin", "java.exe")), (ihwt-jp @($OH, "oracle_common", "jdk", "bin", "java")))) { if (Test-Path -LiteralPath $j -PathType Leaf) { $bj = ((ihwt-exec $j @("-version") -TimeoutSec 60).Out -split "`n" | Select-Object -First 1).Trim(); break } } }
 ihwt-fact "Bundled JDK (oracle_common/jdk)" $(if ($bj) { $bj } else { "none" })
+# Java4Shell (CVE-2026-114938): CPU path, bundled JDK range and the mitigation
+# -XX:-UseBASE64Intrinsics (reports.bat / engine jvmOptions / running processes)
+$j4 = @(ihwt-java4shell $OH $DH $procs)
+ihwt-block 20_java.txt "Java4Shell (CVE-2026-114938): CPU flags, bundled JDK, -XX:-UseBASE64Intrinsics (normalised: java4shell;key;...)" ($j4 -join "`n")
+$j4c = (($j4 | Where-Object { $_ -like 'java4shell;cpu;*' } | Select-Object -First 1) -split ';')
+$j4b = (($j4 | Where-Object { $_ -like 'java4shell;bundled_jdk;*' } | Select-Object -First 1) -split ';')
+$j4r = @($j4 | Where-Object { $_ -like 'java4shell;reports_sh;*' } | ForEach-Object { ($_ -split ';')[3] }) -join ','
+$j4p = @($j4 | Where-Object { $_ -like 'java4shell;process;*' })
+$j4e = @($j4 | Where-Object { $_ -like 'java4shell;engine;*' })
+$j4en = $(if ($j4e.Count) { ", engine jvmOptions without flag: {0}/{1}" -f @($j4e | Where-Object { $_ -like '*;flag=no' }).Count, $j4e.Count } else { "" })
+ihwt-fact "Java4Shell CVE-2026-114938" ("CPU AVX-512 VBMI: {0} ({1}); bundled JDK {2} {3}; reports.sh {4}; running processes with flag {5}/{6}{7}" -f ($j4c[4] -replace '^vulnerable=', ''), ($j4c[5] -replace '^source=', ''), $j4b[2], $j4b[3], $j4r, @($j4p | Where-Object { $_ -like '*;flag=yes' }).Count, $j4p.Count, $j4en)
 
 #==============================================================================
 # 3. Oracle Home, inventory, patches

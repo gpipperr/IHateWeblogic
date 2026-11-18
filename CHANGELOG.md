@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Windows collector Java4Shell facts** (`collect_fmw_env.ps1` / `ihw_tools_lib.ps1` 2026-11-18.1): `ihwt-java4shell`
+  writes the same `java4shell;…` lines and summary fact as bash. CPU features from the bundled JVM (`-Xlog:os+cpu`,
+  Java 11+), else .NET 8 intrinsics, else `IsProcessorFeaturePresent` (AVX-512 F only → `vulnerable=unknown`), column
+  `source=`; `reports.bat` / machine variable `REPORTS_JVM_OPTIONS`; native `rwserver.exe` → `flag=unknown`. Tested
+  with pwsh 7.7 on the test host (identical lines to bash, the private patch analysis reads them); first Windows run
+  open. ([powershell/README.md](70-Customer-Projects/tools/powershell/README.md#collect_fmw_envps1))
+
 - **Collector Java4Shell facts** (`collect_fmw_env.sh` / `ihw_tools_lib.sh` 2026-11-18.1): new `ihwt_java4shell` writes
   `java4shell;…` lines into `20_java.txt` – CPU AVX-512 VBMI flags, bundled JDK range, `-XX:-UseBASE64Intrinsics` in
   `reports.sh`, engine `jvmOptions` and every running process on the bundled JDK – plus the fact `Java4Shell
