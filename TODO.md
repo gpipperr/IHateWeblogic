@@ -218,9 +218,10 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   check; live on the test host 2026-11-18: engines start, smoke test OK).
   Open: test on an **AVX-512 VBMI host** (engines start, report OK,
   `UseBASE64Intrinsics=false` at runtime); roll out at the 14c customers
-  (`13- --apply` + Reports server restart); collector fact
-  (`collect_fmw_env.sh`: CPU flags + flag in the running JVMs); remove the
-  option once Oracle ships a bundled-JDK patch.
+  (`13- --apply` + Reports server restart); Windows collector
+  (`collect_fmw_env.ps1`: bundled JDK + flag, CPU flags via
+  `IsProcessorFeaturePresent`) – the bash collector has it since 2026-11-18.1;
+  remove the option once Oracle ships a bundled-JDK patch.
 - [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
   `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
   tools): find the MOS patch number (`FMW_JDK_PATCH_NR` in

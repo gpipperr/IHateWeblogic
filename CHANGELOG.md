@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Collector Java4Shell facts** (`collect_fmw_env.sh` / `ihw_tools_lib.sh` 2026-11-18.1): new `ihwt_java4shell` writes
+  `java4shell;…` lines into `20_java.txt` – CPU AVX-512 VBMI flags, bundled JDK range, `-XX:-UseBASE64Intrinsics` in
+  `reports.sh`, engine `jvmOptions` and every running process on the bundled JDK – plus the fact `Java4Shell
+  CVE-2026-114938` in `00_summary.txt`. Tested on the test host (CPU no, 17.0.12 affected, flag 3/3); the private patch
+  analysis rates a missing flag (WARN on AVX-512 VBMI CPUs, otherwise HINT). Windows collector open (TODO).
+  ([tools README](70-Customer-Projects/tools/README.md#collect_fmw_envsh))
+
 - **Java4Shell mitigation for the FMW-bundled JDK 17.0.12** (Reports server + engines, no FMW patch yet):
   `-XX:-UseBASE64Intrinsics` added by `09-Install/13-oracle_setup_reports.sh --apply` to `REPORTS_JVM_OPTIONS` in
   `reports.sh` (appended to the existing line) and to engine `jvmOptions`; `05-ReportsPerformance/engine_perf_settings.sh`

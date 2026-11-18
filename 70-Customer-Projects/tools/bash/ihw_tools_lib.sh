@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-16.7"
+IHWT_LIB_VERSION="2026-11-18.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1045,6 +1045,78 @@ ihwt_listen_ports_parse() {
              k=ad ":" port; if (k in seen) next; seen[k]=1
              printf "port;%s;%s;%s;%s;%s\n", ad, port, sc, pid, pn }' \
     | LC_ALL=C sort -t';' -k3,3n -k2,2
+}
+
+# ihwt_java4shell OH DH - Java4Shell (CVE-2026-114938, Base64 intrinsic of
+#   HotSpot, AVX-512 VBMI path) facts of this host, read-only, one
+#   "java4shell;key;..." line each:
+#     java4shell;cpu;<model>;avx512f=y|n avx512bw=.. avx512vbmi=.. bmi2=..;vulnerable=yes|no
+#     java4shell;bundled_jdk;<version>;affected|not-affected|java8|none
+#     java4shell;reports_sh;<file>;flag=yes|no|no-file
+#     java4shell;engine;<rwserver.conf>;<engine id>;flag=yes|no   (engines with jvmOptions only)
+#     java4shell;process;<pid>;<name>;<binary>;flag=yes|no        (processes on the bundled JDK)
+#   Affected range (Oracle / OpenJDK advisory 2026-11-17): 17.0.6 - 17.0.21.0.x,
+#   21 < 21.0.13.1, 25 < 25.0.5.1, 27 < 27.0.1.1; 8 / 11 not listed. Mitigation
+#   -XX:-UseBASE64Intrinsics (Java 11+ only, Java 8 does not start with it) -
+#   IHateWeblogic 09-Install/docs/00-patch-references.md "Java4Shell".
+ihwt_java4shell() {
+    local oh="$1" dh="$2" fl x line="" vul=yes v m st lo fix f e pid cmd nm flag bj
+    fl="$(grep -m1 '^flags' /proc/cpuinfo 2>/dev/null | tr ' ' '\n')"
+    for x in avx512f avx512bw avx512vbmi bmi2; do
+        if printf '%s\n' "$fl" | grep -qx "$x"; then line="$line $x=y"; else line="$line $x=n"; vul=no; fi
+    done
+    printf 'java4shell;cpu;%s;%s;vulnerable=%s\n' \
+        "$(grep -m1 '^model name' /proc/cpuinfo 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//; s/;/,/g')" "${line# }" "$vul"
+    bj="$oh/oracle_common/jdk"
+    if [ -z "$oh" ] || [ ! -x "$bj/bin/java" ]; then
+        printf 'java4shell;bundled_jdk;-;none\n'
+    else
+        v="$("$bj/bin/java" -version 2>&1 | head -1 | grep -oE '"[0-9][^"]*"' | tr -d '"')"
+        m="$(printf '%s' "$v" | awk -F'[._-]' '{ print ($1 == 1) ? $2 : $1 }')"
+        lo=""; fix=""
+        case "$m" in
+            8)  st=java8 ;;
+            17) lo="17.0.6"; fix="17.0.21.1" ;;
+            21) fix="21.0.13.1" ;;
+            25) fix="25.0.5.1" ;;
+            27) fix="27.0.1.1" ;;
+            *)  st=not-affected ;;
+        esac
+        if [ -n "$fix" ]; then
+            st=affected
+            [ -n "$lo" ] && [ "$(printf '%s\n%s\n' "$v" "$lo" | sort -V | head -1)" != "$lo" ] && st=not-affected
+            [ "$(printf '%s\n%s\n' "$v" "$fix" | sort -V | head -1)" = "$fix" ] && st=not-affected
+        fi
+        printf 'java4shell;bundled_jdk;%s;%s\n' "${v:-?}" "$st"
+    fi
+    if [ -n "$dh" ]; then
+        f="$dh/reports/bin/reports.sh"
+        if [ ! -f "$f" ]; then flag=no-file
+        elif grep '^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}REPORTS_JVM_OPTIONS=' "$f" | grep -q 'UseBASE64Intrinsics'; then flag=yes
+        else flag=no; fi
+        printf 'java4shell;reports_sh;%s;flag=%s\n' "$f" "$flag"
+        find "$dh/config/fmwconfig" -name rwserver.conf 2>/dev/null | while read -r f; do
+            grep -o '<engine [^>]*jvmOptions="[^"]*"' "$f" 2>/dev/null | while read -r e; do
+                flag=no; printf '%s' "$e" | grep -q 'UseBASE64Intrinsics' && flag=yes
+                printf 'java4shell;engine;%s;%s;flag=%s\n' "$f" "$(printf '%s' "$e" | sed -n 's/.*id="\([^"]*\)".*/\1/p')" "$flag"
+            done
+        done
+    fi
+    [ -n "$oh" ] || return 0
+    for pid in $(pgrep -u "$(id -u)" -f "$bj/bin/java|$oh/bin/rw" 2>/dev/null); do
+        cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)"
+        [ -n "$cmd" ] || continue
+        nm="$(printf '%s' "$cmd" | grep -oE 'oracle\.reports\.component=[^ ]+' | cut -d= -f2)"
+        [ -z "$nm" ] && nm="$(basename "$(printf '%s' "$cmd" | awk '{print $1}')")"
+        flag=no
+        # native rwserver: the embedded JVM reads REPORTS_JVM_OPTIONS from its environment
+        if printf '%s' "$cmd" | grep -q 'UseBASE64Intrinsics' \
+           || tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep '^REPORTS_JVM_OPTIONS=' | grep -q 'UseBASE64Intrinsics'; then
+            flag=yes
+        fi
+        printf 'java4shell;process;%s;%s;%s;flag=%s\n' "$pid" "$nm" "$(readlink -f "/proc/$pid/exe" 2>/dev/null)" "$flag"
+    done
+    return 0
 }
 
 # ihwt_domains_find OH DH - the OTHER WebLogic domains of this host (top level

@@ -11,7 +11,8 @@
 #            database / ORDS on the host - 45_licence.txt, no licence statement),
 #            the other WebLogic domains of the host at the top level
 #            (41_other_domains.txt) and whether WebGate is configured in an
-#            OHS instance (43_ohs.txt).
+#            OHS instance (43_ohs.txt); Java4Shell facts (CPU AVX-512 VBMI,
+#            bundled JDK range, -XX:-UseBASE64Intrinsics - 20_java.txt).
 #            Test only: IHWT_DOMAINS_EXTRA="dir ..." adds domain candidates.
 #            The CONFIGURATION (formsweb.cfg, env files, rwserver.conf,
 #            config.xml, tnsnames, web tier files ...) is NOT copied here -
@@ -55,7 +56,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-16.7"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-18.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -223,6 +224,17 @@ fact "JDK version (.globalEnv)" "$("${J1:-/x}/bin/java" -version 2>&1 | head -2 
 BJ="$OH/oracle_common/jdk"
 fact "Bundled JDK (oracle_common/jdk)" "$( [ -x "$BJ/bin/java" ] && "$BJ/bin/java" -version 2>&1 | head -1 || printf 'none')"
 fact "JDKs of running processes" "$(for p in $(pgrep -f java 2>/dev/null); do readlink -f "/proc/$p/exe" 2>/dev/null; done | sort -u | tr '\n' ' ')"
+# Java4Shell (CVE-2026-114938): CPU path, bundled JDK range and the mitigation
+# -XX:-UseBASE64Intrinsics in reports.sh / engine jvmOptions / running processes
+{ printf '### Java4Shell (CVE-2026-114938): CPU flags, bundled JDK, -XX:-UseBASE64Intrinsics (normalised: java4shell;key;...)\n'
+  ihwt_java4shell "$OH" "$DH"; printf '### rc=0\n\n'; } >> "$OUT/20_java.txt"
+_j4c="$(grep -m1 '^java4shell;cpu;' "$OUT/20_java.txt" | awk -F';' '{print $5}')"
+_j4b="$(grep -m1 '^java4shell;bundled_jdk;' "$OUT/20_java.txt" | awk -F';' '{print $3 " " $4}')"
+_j4r="$(grep -m1 '^java4shell;reports_sh;' "$OUT/20_java.txt" | awk -F';' '{print $4}')"
+_j4p="$(awk -F';' '$2=="process" {n++; if ($6=="flag=yes") y++} END {printf "%d/%d", y, n}' "$OUT/20_java.txt")"
+_j4e="$(awk -F';' '$2=="engine" {n++; if ($5=="flag=no") m++} END {if (n) printf ", engine jvmOptions without flag: %d/%d", m, n}' "$OUT/20_java.txt")"
+fact "Java4Shell CVE-2026-114938" "CPU AVX-512 VBMI: ${_j4c#vulnerable=}; bundled JDK ${_j4b}; reports.sh ${_j4r}; running processes with flag ${_j4p}${_j4e}"
+unset _j4c _j4b _j4r _j4p _j4e
 
 # =============================================================================
 # 3. Oracle Home, inventory, patches
