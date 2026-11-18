@@ -136,7 +136,7 @@ results" below).
   JDK 17.0.12 of the Reports engines is in the affected range without an FMW
   patch – on AVX-512 VBMI hosts mitigate with `-XX:-UseBASE64Intrinsics`
   (test host: no AVX-512). In the switch: mention it in
-  `docs/forms_reports_security.md` and the customer cookbooks
+  `80-FMW-Architecture/security_overview.md` (was `docs/forms_reports_security.md`) and the customer cookbooks
   (`Reports14_linux_manual_install/Reports_security.txt`, Java note of
   `OS_Kochbuch_de.txt`); Forms client bundle `40- --apply` (21.0.13.1) has
   priority right after the switch (client PCs often Zen 4 / Ice Lake+).
@@ -194,7 +194,7 @@ Areas as in [docs/update_lib_to_act_cpu.md](../../docs/update_lib_to_act_cpu.md)
 - [ ] `80-FMW-Architecture/`: `java_jlink_forms_env.md`, `certificates_trust_stores.md`, `oracle_patch_basics.md`, `ords_architecture.md`, `apex_architecture.md`, and the other hits of the sweep (`weblogic_middleware_architecture.md`, `reports_engine_architecture.md`, `fmw_forms_reports_licence.md`, …).
 
 ### H – Overview
-- [ ] root `README.md` (Project Status, Security & Patch Status), `docs/project_status.md`, `docs/forms_reports_security.md`, `docs/forms_reports_sizing.md`, `10-Monitoring/README.md`, `TODO.md`.
+- [ ] root `README.md` (Project Status, Security & Patch Status), `docs/project_status.md`, `80-FMW-Architecture/security_overview.md` §2 (was `docs/forms_reports_security.md`), `docs/forms_reports_sizing.md`, `10-Monitoring/README.md`, `TODO.md`.
 - [ ] `CHANGELOG.md`: `## v1.0.202611 – CSPU November 2026` (areas A–J).
 
 ### I – Customer tools

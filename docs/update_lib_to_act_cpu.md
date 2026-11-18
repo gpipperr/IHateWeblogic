@@ -210,7 +210,8 @@ applied …") stays. Typical pages: `java_jlink_forms_env.md`,
 ### H – Overview pages
 
 - root `README.md` – Project Status, Security & Patch Status
-- `docs/project_status.md`, `docs/forms_reports_security.md`,
+- `docs/project_status.md`, [`80-FMW-Architecture/security_overview.md`](../80-FMW-Architecture/security_overview.md#2-current-patch-cycle)
+  §2 "Current patch cycle" (cycle box + what matters),
   `docs/forms_reports_sizing.md` (if versions appear)
 - `10-Monitoring/README.md`, `TODO.md` (cycle items done, new follow-ups)
 - `CHANGELOG.md` – release section **`## v1.0.<yyyymm> – <cycle>`** with the

@@ -76,7 +76,7 @@ inbound = outbound); there is no separate contributor agreement.
   line – bump it on every change (shown in their report and in `VERSIONS.txt`).
 - **Passwords never** on a command line, in a file in clear text or in a log
   – use the encrypted `.des3` files of the library (concept:
-  [docs/general_security.md](docs/general_security.md)); pass secrets to
+  [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md#4-passwords-of-this-library)); pass secrets to
   WLST / SQL\*Plus via environment variables or stdin.
 - Generated WLST / Jython code is **pure ASCII**; own helper functions are
   prefixed `_ihw_` (WLST overrides globals after `connect()`).

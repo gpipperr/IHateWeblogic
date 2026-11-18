@@ -131,17 +131,18 @@ Documentation:
 |---|---|
 | [docs/migration_forms_reports_to_14c.md](docs/migration_forms_reports_to_14c.md) | 12c → 14c in three steps |
 | [docs/project_status.md](docs/project_status.md) | status per phase, live tests |
-| [docs/forms_reports_security.md](docs/forms_reports_security.md) | security & patch status, current cycle |
+| [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md) | **security entry page:** current patch cycle, hardening by layer (fix + check scripts), passwords, Reports invocation, residual risks |
 | [docs/forms_reports_sizing.md](docs/forms_reports_sizing.md) | disk sizing, memory and processes |
 | [docs/forms_reports_installation_steps.md](docs/forms_reports_installation_steps.md) | lifecycle, folder roles, known gaps, first run, setup |
-| [docs/general_security.md](docs/general_security.md) | password concept, secure report invocation |
 
 ## Security & Patch Status
 
 Oracle ships security fixes every month – check the current cycle before
 every installation and every patch run. Current cycle (CSPU November 2026,
 state 2026-11-18, release `v1.0.202611`), patch lists and what matters in it:
-[docs/forms_reports_security.md](docs/forms_reports_security.md).
+[security_overview.md §2](80-FMW-Architecture/security_overview.md#2-current-patch-cycle) –
+the security entry page, also with the hardening by layer, the check
+scripts and the residual risks.
 
 > **Live-tested** on Oracle Linux 9 / FMW 14.1.2 (CSPU Nov 2026, local 19c
 > repository DB): clean script-by-script rebuild of the whole `09-Install/`
@@ -161,13 +162,13 @@ state 2026-11-18, release `v1.0.202611`), patch lists and what matters in it:
 
 The Reports servlet is unsecured by default – secure invocation and basic
 hardening before going live:
-[docs/general_security.md](docs/general_security.md#report-security--secure-invocation--basic-hardening).
+[security_overview.md §5](80-FMW-Architecture/security_overview.md#5-reports-invocation-essentials).
 
 ### Password Security Concept
 
 Every password is stored encrypted and machine-bound (`openssl`, key from
 the disk UUID), one `.des3` file per secret:
-[docs/general_security.md](docs/general_security.md#password-security-concept).
+[security_overview.md §4](80-FMW-Architecture/security_overview.md#4-passwords-of-this-library).
 
 ## Sizing Guide
 

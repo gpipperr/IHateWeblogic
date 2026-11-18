@@ -39,7 +39,7 @@
       "folder=text" = shorter text in the menu, the link stays on the folder;
       "path.md=text" = a single page (key pages of the project, below Start)
     {%- endcomment -%}
-    {%- assign ihw_sections = "IHateWeblogic.md=The idea,09-Install/docs/00-patch-references.md=Current patches,|,00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,14-ReportsBuilder,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
+    {%- assign ihw_sections = "IHateWeblogic.md=The idea,09-Install/docs/00-patch-references.md=Current patches,80-FMW-Architecture/security_overview.md=Security,|,00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,14-ReportsBuilder,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
     {%- assign ihw_repo = site.github.repository_url | default: "https://github.com/gpipperr/IHateWeblogic" -%}
     {%- assign ihw_label = ihw_top -%}
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}

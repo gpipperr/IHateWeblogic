@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Security entry page:** new [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md)
+  (`nav_title` "Security", also a key page in the Pages navigation): security model at a glance, current patch cycle
+  (moved from `docs/forms_reports_security.md` unchanged), hardening by layer with fix + check scripts, passwords of the
+  library (from `docs/general_security.md`), Reports invocation essentials (rules instead of dated findings), deliberate
+  deviations / residual risks, checks to run. `docs/general_security.md` and `docs/forms_reports_security.md` removed
+  (`redirect_from` on the new page), every link repointed (README, CONTRIBUTING, cycle procedure, patch-cycle skill,
+  update plan, migration page). TODO: today's open security items in one block.
+
 - **STIG change 3 – account lockout:** new [`07-Maintenance/wls_lockout_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/wls_lockout_config.sh)
   (settings, lockout runtime + locked users per server, `BEA-090078` events; `--apply` 3 / 30 / 15 – 30 instead of the
   STIG's 15 because WebLogic warns below 30 in production mode, `BEA-090978`; `--undo`; `--unlock USER`). Live: restart

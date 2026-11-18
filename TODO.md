@@ -217,24 +217,32 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   (`00-Setup/weblogic_sec.sh --apply`) – order in
   [fmw_pwd_handling.md §5](80-FMW-Architecture/fmw_pwd_handling.md#5-what-to-observe-for-security)
   / [80-oracle_security.md §5](09-Install/docs/80-oracle_security.md#5--password-recovery).
-- [ ] **DISA STIG changes** ([stig_weblogic_forms_reports.md §5](80-FMW-Architecture/stig_weblogic_forms_reports.md#5-order-of-the-open-changes)),
-  each one separately with `--apply`, test host first: (1) configuration
-  audit `logaudit` + auditing provider + OPSS `filterPreset` – **done
-  2026-11-18** (`07-Maintenance/wls_audit_config.sh`; open: OPSS loader
-  writes nothing into `DEV_IAU`, `--undo` live, DefaultAuditRecorder volume
-  over days, step for new installs); (2) password
-  rule of the domain – **done 2026-11-18** with 12 characters
-  (`07-Maintenance/wls_password_rule.sh`, prompts check it; open: change the
-  admin password of the test host to a rule-conform one, `--undo` live, step
-  for new installs after `08-`); (3) lockout 3 / 15 / 15
-  only with service-user protection (`RepRunner`, `monUser`) – **done
-  2026-11-18** as 3 / 30 / 15 (`07-Maintenance/wls_lockout_config.sh`,
-  `--unlock`); finding: Reports `authid` (LDAP bind of the standalone
-  server) is not covered by the realm lockout → **next:** Nginx
-  `limit_req` for `/reports/rwservlet` + monitoring of `REP-50171` /
-  `LDAP error code 49` in `rwserver_diagnostic.log`. Plus: WLST
-  read-only check "service users not in Administrators / Deployers";
-  `umask` 027 for our scripts without breaking Nginx-readable files.
+- [ ] **Security hardening 2026-11-18 – still open** (entry page:
+  [security_overview.md](80-FMW-Architecture/security_overview.md); the
+  three DISA STIG changes – audit, password rule 12, lockout 3 / 30 / 15 –
+  are live on the test host,
+  [stig_weblogic_forms_reports.md §5](80-FMW-Architecture/stig_weblogic_forms_reports.md#5-order-of-the-open-changes)):
+  - [ ] **Reports `authid` guessing not slowed down** (LDAP bind of the
+    standalone server, not covered by the realm lockout –
+    [reports_user_local_ldap.md §8](80-FMW-Architecture/reports_user_local_ldap.md#8-account-lockout-does-not-cover-authid-test-host-2026-11-18)):
+    Nginx `limit_req` for `/reports/rwservlet` (template + `04-root_nginx.sh`)
+    and monitoring of `REP-50171` / `LDAP error code 49` in
+    `rwserver_diagnostic.log` (e.g. `10-Monitoring`).
+  - [ ] `--undo --apply` live for `07-Maintenance/wls_audit_config.sh`,
+    `wls_password_rule.sh`, `wls_lockout_config.sh` (then `--apply` again).
+  - [ ] The three STIG steps for **new installations**: after `08-` / in
+    `09-` (audit, password rule, lockout) – a new domain starts with the
+    template values (8 / 1, no audit, 5 / 30 / 5).
+  - [ ] OPSS audit (`filterPreset` Low): the loader wrote nothing into
+    `DEV_IAU` (0 rows in every `E$` table) – events only in
+    `servers/<srv>/logs/auditlogs/JPS/`; find out why.
+  - [ ] `DefaultAuditRecorder.log` volume over some days (rotation daily,
+    50 files) – add to the log housekeeping if needed.
+  - [ ] WLST read-only check: service users (`RepRunner`, `monUser`,
+    Reports users) not in `Administrators` / `Deployers` (STIG V-235956–60).
+  - [ ] `umask` 027 for the files of our scripts without breaking files
+    Nginx must read (Forms client bundle `/formsWeb`).
+  - [ ] Test host admin password – see the entry above.
 - [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch
   13.9.4.2.25: removes the rollback copies of superseded patches in
   `$ORACLE_HOME/.patch_storage` (scanners report old jars there) – supported
@@ -261,7 +269,7 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   `engine_perf_settings.sh`; `java_check.sh` / collectors already rate a
   fixed JDK as "not affected" (`java4shell_affected`) – the check stays;
   update `13-reports-detail-settings.md`, `00-patch-references.md`
-  "Java4Shell" and `forms_reports_security.md`; at the customers
+  "Java4Shell" and `80-FMW-Architecture/security_overview.md`; at the customers
   `13- --apply` + Reports server restart.
 - [ ] **FMW-bundled JDK** (`oracle_common/jdk` 17.0.12, OPatch component
   `oracle.jdk`, used by the Reports server/engines and the Forms/Reports
