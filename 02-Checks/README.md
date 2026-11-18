@@ -34,6 +34,7 @@ explained in the background documents of
 | [`egress_check.sh`](#egress_checksh) | what the domain sends to other hosts: external DTD/XSD URLs in the configuration, `/etc/hosts` entries for them, XML/network JVM options, live non-local connections per process, `--capture` (tcpdump: DNS + outgoing SYN/UDP, with DNS names and process) | [outbound connections, external-DTD trap](../80-FMW-Architecture/weblogic_outbound_connections.md) |
 | [`tns_admin_check.sh`](#tns_admin_checksh) | one Oracle Net directory (`TNS_ADMIN` of `environment.conf`) in every place a Forms / Reports / WebLogic process or the oracle shell reads it; `--apply` writes the `setUserOverrides.sh` block | [Forms: `frmweb` reads `default.env`](../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias), [Reports: three places, Oracle's defaults](../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin) |
 | [`clone_check.sh`](#clone_checksh) | clone-capable / golden image: listening sockets by bind address, WebLogic listen + SSL ports + Coherence, Reports ORB, host name / IP in the domain configuration, `*.des3` secrets (disk UUID), host-specific places; `--apply` = SSL off + Coherence 127.0.0.1 (WLST online) and the file places Node Manager `AdminURL`, `bin/*.sh` `ADMIN_URL`, `emoms.properties` (3 files), engine `jvmOptions` | [clone_golden_image.md](../80-FMW-Architecture/clone_golden_image.md) |
+| [`domain_secret_check.sh`](#domain_secret_checksh) | domain key + `boot.properties` modes / clear text, WebUtil / Reports file-read paths, Nginx admin locations, AdminServer / NM on loopback, account lockout, blast radius of the owner (sudo, `dba`, other domains, key copies); `--apply` = modes 600 | [fmw_pwd_handling.md §1a / §1b](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths) |
 | [`reports_network_scan.sh`](#reports_network_scansh) | Reports multicast discovery: `rwnetwork.conf`, route/firewall, send+receive self-test, active scan per port | [Reports server discovery](../80-FMW-Architecture/reports_server_discovery_multicast.md), [broadcast – why it disturbs](../80-FMW-Architecture/reports_engine_architecture.md#8-server-discovery-broadcast--the-idea-and-why-it-rather-disturbs) |
 
 All scripts source `environment.conf` and write their output to stdout and
@@ -530,6 +531,40 @@ first hardening at a customer 2026-11-10
 The script names the servers to restart; simplest is `stop-all` / `start-all`.
 Tested in an isolated copy (fake domain, 2026-11-10), not yet on a real
 domain – there the same changes were made by hand (customer cookbook).
+
+---
+
+### domain_secret_check.sh
+
+```bash
+./02-Checks/domain_secret_check.sh            # read-only
+./02-Checks/domain_secret_check.sh --apply    # chmod 600: SerializedSystemIni.dat + every boot.properties
+```
+
+**Why:** whoever reads the domain key **and** one `{AES}` value has the
+password offline – and an admin login is code execution (deployment). Two
+public cases reached it by a file-read hole and by an unpatched, reachable
+console (CVE-2020-14882) – [fmw_pwd_handling.md §1a](../80-FMW-Architecture/fmw_pwd_handling.md#1a-what-an-attacker-does-with-it--two-real-paths).
+
+| Section | FAIL | WARN | INFO / OK |
+|---|---|---|---|
+| 1 modes: key, `config.xml`, `config/jdbc/*.xml`, every `boot.properties` (server + NM cache) | world-readable | group-readable and the group has further members (listed) | group-readable, no further member (INFO) |
+| 2 `boot.properties` | – | password still in clear text | encrypted |
+| 3 file-read paths | WebUtil `transfer.appsrv` enabled without `accessControl=TRUE`, or a `read` / `write` / `workAreaRoot` directory at / above `DOMAIN_HOME` / `ORACLE_HOME`; Reports `folderAccess` read covering them | – | paths outside |
+| 4 admin interfaces | Nginx `location` on `/console`, `/em`, `/management` … without `allow` + `deny all` | the same with `ADMIN_IP_RANGE=any` (decision of `04-root_nginx.sh`); AdminServer / NM port on a non-loopback address | `/management` not proxied, ports on `127.0.0.1` |
+| 5 lockout / admin name | `<lockout-enabled>false` | threshold > 10 | no `user-lockout-manager` = defaults (5 failed logins, 30 min); admin name `weblogic` / `admin` (INFO) |
+| 6 blast radius of the owner | – | `wheel` / `sudo` group, password-less `sudo` (`sudo -n -l`), `dba` / `oper` with a database on the host, further domains of the owner, copies of `SerializedSystemIni.dat` below `ORACLE_BASE` | – |
+
+`--apply` changes only modes: the key and every `boot.properties` that is
+group- or world-readable get `600`; the old modes go to
+`log/<date>/domain_secret_modes_<time>.txt` (way back: `chmod` per line).
+`config.xml` / JDBC stay (Oracle tools rewrite them – WARN only). No restart
+needed. Live on the test host 2026-11-18: before 3 WARN (sudo / `wheel` /
+`dba` of the lab account) and modes 640 with `oinstall` = only `oracle`
+(INFO); `--apply` set the key and the two NM-cache `boot.properties` to 600;
+after `stop-all` / `start-all` every component ran, the Node Manager had
+rewritten its `boot.properties` **and kept 600**, smoke test (`15- --apply`)
+32 OK.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: "Password Handling in an Oracle Forms / Reports Domain"
-description: "Where WebLogic, Node Manager, OPSS, Reports and this library keep credentials, how they are encrypted, and why the Node Manager copy of boot.properties matters."
+description: "Where WebLogic, Node Manager, OPSS, Reports and this library keep credentials, how they are encrypted, how attackers use the domain key (file read, RCE), the blast radius of the oracle account, and why the Node Manager copy of boot.properties matters."
 ---
 
 # Password handling in an FMW Forms / Reports domain
@@ -60,6 +60,109 @@ Permissions on the test host (**confirmed (live)** 2026-10-29):
 `640` + group `oinstall` means: **every member of `oinstall` can decrypt the
 boot identity.** Keep `oinstall` to the software owner (and DBA accounts that
 need the inventory) – or treat its members as administrators of the domain.
+[`02-Checks/domain_secret_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/domain_secret_check.sh)
+shows the modes and the group members; `--apply` sets the key and every
+`boot.properties` to `600` (old modes saved to `log/<date>/`). **Confirmed
+(live)** 2026-11-18: the domain starts with the key at `600`, and the Node
+Manager rewrites its `data/nodemanager/boot.properties` at the next start
+**keeping** `600` (smoke test OK).
+
+## 1a. What an attacker does with it – two real paths
+
+The key model is not theoretical. Two public write-ups show the same end
+point – the decrypted admin password – reached on two different ways
+(**documented**, sources in section 6):
+
+```
+ (a) file-read hole                       (b) code execution as the domain owner
+     any application / servlet that           unpatched, reachable admin port:
+     returns a file by path                   CVE-2020-14882 (console, no login)
+            |                                          |
+            v                                          v
+   read security/SerializedSystemIni.dat   shell as "oracle" -> find config.xml,
+   + config.xml / boot.properties          boot.properties, SerializedSystemIni.dat
+            \                                          /
+             '----> decrypt {AES} values OFFLINE <----'
+                    (public scripts, no password needed)
+                                 |
+                                 v
+              admin login (console / EM / WLST / REST)
+                                 |
+                                 v
+           deploy an application = code execution on the host
+```
+
+- **(a) vulhub "weblogic/weak_password"** – a lab (WebLogic 10.3.6): a
+  file-read page delivers the key file and `config.xml`; the Node Manager
+  password is decrypted offline; the login to the console deploys a WAR
+  with a web shell. The second variant of the same lab is simply a guessed
+  weak password.
+- **(b) Medium case study (2025-11-24)** – a real penetration test on
+  WebLogic **12.2.1.4**: the admin port `7001` was reachable from the
+  network, the console showed its version, **CVE-2020-14882** (fixed in the
+  CPU of **October 2020**) gave OS commands as `oracle` without a login. With
+  that shell the tester found `config.xml`, `boot.properties` and the key of
+  **several domains and environments under the same OS user** (UAT next to a
+  production domain, an EBS domain) **plus backup copies** of domains on the
+  same host, decrypted `boot.properties` and logged in to the console as
+  `weblogic` – with a password that met the domain's password rule
+  (8 characters, one digit).
+
+Lessons:
+
+1. **An admin login is code execution by design.** Whoever has the admin
+   password deploys code (EM, Remote Console, WLST / T3, REST
+   `/management`). The admin password and the key file are worth as much as
+   an SSH login as `oracle`.
+2. **Path (a) is stopped by file modes and by narrow file access** of the
+   applications. In a Forms / Reports domain the usual file-read paths are:
+
+   | Path | Guard in this library | Check |
+   |---|---|---|
+   | WebUtil file transfer (`transfer.appsrv.read/write`, `accessControl`) | `14-oracle_setup_forms.sh` writes only the configured directories, drops Oracle's examples | `domain_secret_check.sh` §3 |
+   | Reports `<folderAccess><read>` (report sources, `Read from File` images) | `13-oracle_setup_reports.sh`: exactly the report directories | `domain_secret_check.sh` §3 |
+   | Reports web commands (`showenv`, `getserverinfo` …) | secured server, web-command rights ([doc 81](../09-Install/docs/81-reports_rwservlet_security.md)) | – |
+   | Nginx `root` / `alias` mistakes | only exact locations, start page from its own directory | template |
+   | other deployed applications | none – every additional application is a candidate | – |
+   | backups, VM snapshots, clones | `backup_config.sh` copies no key ([§5.4](#5-what-to-observe-for-security)) | `domain_secret_check.sh` §6 (copies of the key) |
+
+3. **Path (b) is not stopped by file modes** – the attacker *is* `oracle`.
+   Only these help: the admin port not reachable from the network (every
+   WebLogic socket on `127.0.0.1`, Nginx proxies `/console` and `/em` only
+   from `ADMIN_IP_RANGE`, `/management` not at all), the patch level (the
+   CVE was 5 years old) and a small blast radius (section 1b).
+4. **A known key stays known.** After a suspected leak a new admin password
+   is not enough – every `{AES}` value of the old key is readable by
+   whoever copied it: new passwords for admin, Node Manager, data sources and
+   RCU schemas; the key itself only changes with a new domain.
+
+**14.1.2 specifics (confirmed (live), test host 2026-11-18):** the classic
+Administration Console is removed – `/console` only answers with a welcome
+page pointing to the Remote Console, the CVE-2020-14882 class of console
+holes has no target any more. Deployments go through **EM** (`/em`), the
+**Remote Console** (REST, `/management`) and **WLST / T3** – all of them on
+`127.0.0.1:7001` here; Nginx proxies only `/console` and `/em`.
+
+## 1b. Blast radius of the domain owner account
+
+Code execution in any WebLogic JVM (AdminServer, WLS_FORMS, WLS_REPORTS)
+runs as the domain owner – everything that account can read or do belongs to
+the attacker as well:
+
+| What the account has | Consequence | Recommendation |
+|---|---|---|
+| further domains / environments under the same OS user | one hole reaches all of them (case (b): UAT and production on one host, one user) | separate OS users or hosts per environment |
+| group `dba` / `oper` with a database on the host (`LOCAL_REP_DB=true`) | `sqlplus / as sysdba` – the whole repository database | production: own OS user for the database; at least name the risk |
+| `sudo` rights, group `wheel` | root is one step away (password-less sudo = root at once) | never on production hosts; on lab hosts a conscious decision |
+| the same password in several places (admin = Node Manager = RCU = DB, UAT = PROD) | one decrypted value opens every system | different passwords per system and environment |
+| copies of domains on the host (`*_BKP`, `domain_bak`, old installations) | each copy holds key + `{AES}` values = the passwords of that time | no domain copies on the host; backups elsewhere and protected |
+
+**Confirmed (live)** on the test host 2026-11-18 (`domain_secret_check.sh`):
+`oracle` is in `wheel` with password-less `sudo` and in `dba` with the local
+repository database – an RCE in WebLogic would be root and SYSDBA there.
+Acceptable for a lab host, never for production;
+[`03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)
+adds no sudo rule and notes that `dba` / `oper` are not needed for WebLogic.
 
 ## 2. `boot.properties` – the boot identity of a server
 
@@ -224,30 +327,39 @@ Consequences:
 1. **The host is the boundary.** Every store above can be read by the OS
    owner `oracle` (wallets: auto-login; `{AES256}`: key next to it). Protect
    the account: SSH access, sudo policy, no shared `oracle` logins, minimal
-   `oinstall` membership (section 1).
-2. **Never on the command line.** Passwords on a command line are visible
+   `oinstall` membership (section 1), small blast radius (section 1b) – and
+   keep every admin interface off the network (section 1a, path (b)). Check:
+   [`02-Checks/domain_secret_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/domain_secret_check.sh).
+2. **Strong, unique admin password and own admin name.** The library's rule
+   (`weblogic_sec.sh`: 8 characters, one digit or special character) is the
+   minimum – the password of case (b) met such a rule. Use a long passphrase,
+   not `weblogic` / `welcome1`, an own admin user name instead of `weblogic`,
+   and never the same password in UAT and production. Account lockout stays
+   on (WebLogic default: 5 failed logins, 30 min – `domain_secret_check.sh`
+   §5 FAILs on `lockout-enabled=false`).
+3. **Never on the command line.** Passwords on a command line are visible
    in `ps` / `/proc/<pid>/cmdline` and shell history. This library passes
    them via environment / stdin / temp files 600 (WLST helpers,
    `jarsigner -storepass:file`, `ihw_sql_sys`); avoid
    `startWebLogic.sh <user> <password>` and `connect('u','p',…)` in scripts
    that end up in a history.
-3. **Clear text only briefly.** `boot.properties` until the first start,
+4. **Clear text only briefly.** `boot.properties` until the first start,
    `rwserver.conf <identifier>` until the first Reports server start, the
    interview / `10-` write them right before the start.
-4. **Backups and clones are secrets.** A domain backup or VM snapshot holds
+5. **Backups and clones are secrets.** A domain backup or VM snapshot holds
    `SerializedSystemIni.dat` + every `{AES256}` value + the auto-login
    wallets = all passwords. [`07-Maintenance/backup_config.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/backup_config.sh) therefore
    does **not** copy `boot.properties`, `SerializedSystemIni.dat` or the
    keystores (only full domain / file-system backups do) –
    [07-Maintenance/README.md](../07-Maintenance/README.md).
-5. **After a password change** (admin user): realm → `security/boot.properties`
+6. **After a password change** (admin user): realm → `security/boot.properties`
    of every server → **Node Manager cache** (section 3) → stored WLST
    credentials and autostart key files (`30-configure_autostart.sh --apply`)
    → `weblogic_sec.conf.des3` (`00-Setup/weblogic_sec.sh --apply`).
    Steps: [doc 80 §5.3 / §5.4](../09-Install/docs/80-oracle_security.md#53-bootproperties-server-dies-at-start--stop-script-cannot-log-in).
-6. **Clear-text exceptions** (`cgicmd.dat` `authid` – unlike `userid=`, see 4a; `formsweb.cfg` `userid`):
+7. **Clear-text exceptions** (`cgicmd.dat` `authid` – unlike `userid=`, see 4a; `formsweb.cfg` `userid`):
    least-privilege users, file mode 640 / 600, never in a repository.
-7. **Demo trust in the cache** (`TrustKeyStore=DemoTrust`): harmless while
+8. **Demo trust in the cache** (`TrustKeyStore=DemoTrust`): harmless while
    every WebLogic port is on `127.0.0.1` and TLS ends at Nginx; with own
    SSL on WebLogic the identity / trust keystores must be configured and the
    cache refreshed ([certificates_trust_stores.md](certificates_trust_stores.md)).
@@ -263,3 +375,12 @@ Consequences:
   <https://docs.oracle.com/en/middleware/fusion-middleware/weblogic-server/14.1.2/lockd/index.html>
 - Test host inventory 2026-10-29 (`find $DOMAIN_HOME -name boot.properties …`,
   modes, time stamps; values never displayed).
+- vulhub, *WebLogic weak password / arbitrary file read* (lab, WebLogic
+  10.3.6): <https://github.com/vulhub/vulhub/tree/master/weblogic/weak_password>
+  – section 1a path (a).
+- Vinay A S, *How I Identified and Exploited an Oracle WebLogic Server
+  Unauthenticated Remote Code Execution (RCE) Vulnerability on Port 7001
+  (Real-World Case Study)*, Medium, 2025-11-24 (WebLogic 12.2.1.4,
+  CVE-2020-14882): <https://medium.com/@vinayas23913/how-i-identified-and-exploited-an-oracle-weblogic-server-unauthenticated-remote-code-execution-f082fb95b428>
+  – section 1a path (b); described in our own words, no commands or tools
+  taken over.

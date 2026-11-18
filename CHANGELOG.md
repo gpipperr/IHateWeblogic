@@ -10,6 +10,18 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-18 (after the release)
 
+- **Domain key / admin password – attack paths and check:**
+  [fmw_pwd_handling.md](80-FMW-Architecture/fmw_pwd_handling.md) new §1a (two public cases: vulhub file read →
+  key + `{AES}` → offline decryption → console → WAR; Medium case study WebLogic 12.2.1.4, reachable port 7001,
+  CVE-2020-14882 → shell as `oracle` → several domains + backup copies → decrypted `boot.properties`; admin login =
+  code execution; file-read paths of Forms / Reports; 14.1.2 without the classic console) and §1b (blast radius of the
+  owner: other domains, `dba` with a local DB, sudo, password reuse, domain copies), §5 strong unique password / own
+  admin name / lockout. New [`02-Checks/domain_secret_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/domain_secret_check.sh) (read-only;
+  `--apply` = modes 600 for key + `boot.properties`, old modes saved). Test host: 3 WARN (lab account `oracle` in
+  `wheel` with password-less sudo and in `dba`); negative and `--apply` tests in an isolated fake domain; live
+  `--apply` (key + 2 NM-cache `boot.properties` → 600), `stop-all` / `start-all`: every component up, the NM keeps 600,
+  smoke test 32 OK.
+
 - **Windows collector Java4Shell facts** (`collect_fmw_env.ps1` / `ihw_tools_lib.ps1` 2026-11-18.1): `ihwt-java4shell`
   writes the same `java4shell;…` lines and summary fact as bash. CPU features from the bundled JVM (`-Xlog:os+cpu`,
   Java 11+), else .NET 8 intrinsics, else `IsProcessorFeaturePresent` (AVX-512 F only → `vulnerable=unknown`), column

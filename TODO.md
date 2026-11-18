@@ -202,7 +202,11 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   ([em_principal_search_libovd.md](80-FMW-Architecture/em_principal_search_libovd.md)).
 - [ ] **Idea: configuration security scanner** for WebLogic / Forms / Reports
   (T3/IIOP, debug configs, web commands, demo certificates …) –
-  [10-Monitoring/README.md](10-Monitoring/README.md).
+  [10-Monitoring/README.md](10-Monitoring/README.md). Slice 1 done 2026-11-18:
+  [`02-Checks/domain_secret_check.sh`](02-Checks/domain_secret_check.sh)
+  (domain key, file-read paths, admin locations, lockout, blast radius);
+  live `--apply` + restart on the test host OK (NM keeps 600); open:
+  collector facts for customer hosts.
 - [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch
   13.9.4.2.25: removes the rollback copies of superseded patches in
   `$ORACLE_HOME/.patch_storage` (scanners report old jars there) – supported
