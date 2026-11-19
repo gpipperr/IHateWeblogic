@@ -12,7 +12,11 @@
 #            the other WebLogic domains of the host at the top level
 #            (41_other_domains.txt) and whether WebGate is configured in an
 #            OHS instance (43_ohs.txt); Java4Shell facts (CPU AVX-512 VBMI,
-#            bundled JDK range, -XX:-UseBASE64Intrinsics - 20_java.txt).
+#            bundled JDK range, -XX:-UseBASE64Intrinsics - 20_java.txt);
+#            security facts of the domain (modes of the domain key /
+#            boot.properties, lockout, password rule, audit, OPSS filterPreset,
+#            apps on the AdminServer, owner groups, key copies, umask, ORDS
+#            version - 46_security.txt, values never stored, no sudo call).
 #            Test only: IHWT_DOMAINS_EXTRA="dir ..." adds domain candidates.
 #            The CONFIGURATION (formsweb.cfg, env files, rwserver.conf,
 #            config.xml, tnsnames, web tier files ...) is NOT copied here -
@@ -56,7 +60,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-18.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-19.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -371,6 +375,21 @@ if [ -n "$DH" ]; then
     _wg="$(grep '^webgate;' "$OUT/43_ohs.txt" | grep -v '^webgate;none;' | awk -F';' '{printf "%s%s: %s, %s, %s, %s, %s", (NR>1?"; ":""), $2, $3, $5, $6, $7, $4}')"
     fact "WebGate configured (OHS)" "${_wg:-no (no OHS instance with an OAM agent configuration)}"
     unset _wg
+fi
+
+# security facts of the domain (02-Checks/domain_secret_check.sh as facts,
+# the analysis rates them): modes / owners of the secrets, realm settings,
+# OPSS audit, AdminServer apps, owner groups, key copies, umask, ORDS version
+if [ -n "$DH" ]; then
+    { printf '### Security facts of the domain (normalised: security;key;...) - values never stored, no sudo call\n'
+      ihwt_security "$DH" "$OH" | mask; printf '### rc=0\n\n'; } >> "$OUT/46_security.txt"
+    _sv() { grep -m1 "^security;$1;" "$OUT/46_security.txt" | cut -d';' -f3-; }
+    fact "Domain key / boot.properties" "$(awk -F';' '$2=="file" && $3=="domain_key" {k=$4} $2=="file" && $3 ~ /^boot/ {n++; if (substr($4, length($4)) ~ /[4-7]/) w++} END {printf "key mode %s, boot.properties world-readable %d/%d", k, w, n}' "$OUT/46_security.txt"); $(_sv boot_properties | cut -d';' -f2)"
+    fact "Lockout / password rule" "lockout $(_sv lockout | tr ';' ' '); password rule $(_sv password_validator | cut -d';' -f1-2 | tr ';' ' ')"
+    fact "Audit" "configuration $(_sv config_audit), auditor $(_sv auditor), OPSS $(_sv opss_audit | tr ';' ' ')"
+    fact "Domain owner groups" "$(_sv owner | cut -d';' -f3-5 | tr ';' ' ')"
+    fact "ORDS version" "$(grep '^security;ords;' "$OUT/46_security.txt" | cut -d';' -f3- | paste -sd' ' -)"
+    unset -f _sv
 fi
 
 # other WebLogic domains of this host (top level only: BI Publisher, OAM, ...

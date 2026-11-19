@@ -11,7 +11,11 @@
 #            applications of the domain, CPU / virtualization, database / ORDS
 #            on the host; no licence statement), the other WebLogic domains at
 #            the top level (41_other_domains.txt), WebGate configured in an
-#            OHS instance (43_ohs.txt). The CONFIGURATION is not copied - that
+#            OHS instance (43_ohs.txt), security facts of the domain (ACLs of
+#            the domain key / boot.properties, lockout, password rule, audit,
+#            OPSS filterPreset, apps on the AdminServer, owner groups, key
+#            copies, ORDS version - 46_security.txt, no values stored).
+#            The CONFIGURATION is not copied - that
 #            is export_forms_reports_conf.ps1; an analysis always needs both.
 #            Windows / PowerShell version of tools/bash/collect_fmw_env.sh
 #            (same file layout 00_summary.txt, 10_os.txt ... 71_log_errors.txt).
@@ -95,7 +99,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-18.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-19.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -415,6 +419,22 @@ if ($DH) {
     ihwt-block 43_ohs.txt "WebGate in the OHS instances (webgate/config/ObAccessClient.xml)" ($wgl -join "`n")
     $wgf = @($wgl | Where-Object { $_ -notlike 'webgate;none;*' } | ForEach-Object { $q = $_ -split ';'; "{0}: {1}, {2}, {3}, {4}, {5}" -f $q[1], $q[2], $q[4], $q[5], $q[6], $q[3] })
     ihwt-fact "WebGate configured (OHS)" $(if ($wgf.Count) { $wgf -join '; ' } else { "no (no OHS instance with an OAM agent configuration)" })
+}
+
+# security facts of the domain (as bash ihwt_security: modes / ACLs of the
+# secrets, realm, OPSS audit, AdminServer apps, owner groups, key copies, ORDS)
+if ($DH) {
+    $sec = @(ihwt-security $DH $OH $procs)
+    ihwt-block 46_security.txt "Security facts of the domain (normalised: security;key;...) - values never stored, no sudo call" ($sec -join "`n")
+    $sv = { param($k) $l = @($sec | Where-Object { $_ -like "security;$k;*" } | Select-Object -First 1); if ($l.Count) { ($l[0] -split ';', 3)[2] } else { "" } }
+    $kf = @($sec | Where-Object { $_ -like 'security;file;domain_key;*' } | Select-Object -First 1)
+    $bf = @($sec | Where-Object { $_ -like 'security;file;boot.properties*' })
+    $bw = @($bf | Where-Object { $q = ($_ -split ';')[3]; $q -eq 'acl-world' -or ($q -match '^\d+$' -and [int]"$($q[-1])" -band 4) })
+    ihwt-fact "Domain key / boot.properties" ("key mode {0}, boot.properties world-readable {1}/{2}; {3}" -f $(if ($kf.Count) { ($kf[0] -split ';')[3] } else { '?' }), $bw.Count, $bf.Count, ((& $sv 'boot_properties') -split ';')[1])
+    ihwt-fact "Lockout / password rule" ("lockout {0}; password rule {1}" -f ((& $sv 'lockout') -replace ';', ' '), ((((& $sv 'password_validator') -split ';') | Select-Object -First 2) -join ' '))
+    ihwt-fact "Audit" ("configuration {0}, auditor {1}, OPSS {2}" -f (& $sv 'config_audit'), (& $sv 'auditor'), ((& $sv 'opss_audit') -replace ';', ' '))
+    ihwt-fact "Domain owner groups" (((((& $sv 'owner') -split ';') | Select-Object -Skip 2 -First 3) -join ' '))
+    ihwt-fact "ORDS version" ((@($sec | Where-Object { $_ -like 'security;ords;*' } | ForEach-Object { ($_ -split ';', 3)[2] })) -join ' ')
 }
 
 # other WebLogic domains of this host (top level only, as bash)

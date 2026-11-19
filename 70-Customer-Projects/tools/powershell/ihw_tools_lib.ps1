@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-18.1"
+$IHWT_PS_LIB_VERSION = "2026-11-19.1"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1589,5 +1589,125 @@ function ihwt-webgate {
         $out.Add(("webgate;{0};loaded={1};id={2};security={3};primary={4};cert_until={5}" -f $inst, $ld, $(if ($kv['id']) { $kv['id'] } else { '-' }), $(if ($kv['security']) { $kv['security'] } else { '-' }), $pri, $ce))
     }
     if ($out.Count -eq 0) { return @("webgate;none;-") }
+    return $out.ToArray()
+}
+
+# ihwt-security DH OH PROCS - security facts of the domain (as ihwt_security
+#   of ihw_tools_lib.sh, same "security;key;..." lines). Windows: the mode
+#   field is "acl" (readers beyond owner / SYSTEM / Administrators in field 7)
+#   or "acl-world" (Users / Authenticated Users / Everyone may read = world-
+#   readable); owner groups = local Administrators / ORA_DBA of this account,
+#   db_on_host = a running OracleService*; umask n/a. Read-only, no values.
+function _ihwt-sec-tag { param([string] $T, [string] $E) $m = [regex]::Match($T, "<(?:\w+:)?$E>([^<]*)"); if ($m.Success) { return $m.Groups[1].Value }; return "" }
+function _ihwt-sec-file {
+    param([string] $F, [string] $Label)
+    if (-not (Test-Path -LiteralPath $F -PathType Leaf)) { return $null }
+    if ($IHWT_ON_WINDOWS) {
+        try {
+            $acl = Get-Acl -LiteralPath $F
+            $rd = @($acl.Access | Where-Object { $_.AccessControlType -eq 'Allow' -and ("$($_.FileSystemRights)" -match 'FullControl|Modify|Read') } | ForEach-Object { "$($_.IdentityReference)" } |
+                    Where-Object { $_ -ne "$($acl.Owner)" -and $_ -notmatch '(?i)^(NT AUTHORITY\\SYSTEM|NT-AUTORIT.T\\SYSTEM|BUILTIN\\(Administrators|Administratoren)|CREATOR OWNER|ERSTELLER-BESITZER|NT SERVICE\\TrustedInstaller)$' } | Sort-Object -Unique)
+            $weak = @($rd | Where-Object { $_ -match '(?i)\\Users$|Authenticated Users|Everyone|\\Benutzer$|Authentifizierte Benutzer|Jeder' })
+            return ("security;file;{0};{1};{2};-;{3};{4}" -f $Label, $(if ($weak.Count) { 'acl-world' } else { 'acl' }), $acl.Owner, $(if ($rd.Count) { $rd -join ',' } else { '-' }), $F)
+        } catch { return "security;file;$Label;unreadable;-;-;-;$F" }
+    }
+    $s = ((ihwt-exec "stat" @("-c", "%a;%U;%G", $F) -TimeoutSec 30).Out).Trim() -split ';'
+    $mem = @()
+    $ge = ((ihwt-exec "getent" @("group", $s[2]) -TimeoutSec 30).Out).Trim() -split ':'
+    if ($ge.Count -ge 4 -and $ge[3]) { $mem += @($ge[3] -split ',') }
+    if ($ge.Count -ge 3 -and $ge[2]) { $mem += @(((ihwt-exec "getent" @("passwd") -TimeoutSec 30).Out -split "`n") | Where-Object { ($_ -split ':')[3] -eq $ge[2] } | ForEach-Object { ($_ -split ':')[0] }) }
+    $oth = @($mem | Where-Object { $_ -and $_ -ne $s[1] } | Sort-Object -Unique -Culture ([Globalization.CultureInfo]::InvariantCulture))
+    return ("security;file;{0};{1};{2};{3};{4};{5}" -f $Label, $s[0], $s[1], $s[2], $(if ($oth.Count) { $oth -join ',' } else { '-' }), $F)
+}
+function ihwt-security {
+    param([string] $DH, [string] $OH, $Procs)
+    $c = ihwt-jp @($DH, "config", "config.xml")
+    if (-not $DH -or -not (Test-Path -LiteralPath $c)) { return @() }
+    $out = New-Object System.Collections.Generic.List[string]
+    # owner and its groups
+    if ($IHWT_ON_WINDOWS) {
+        $id = [Security.Principal.WindowsIdentity]::GetCurrent(); $pr = [Security.Principal.WindowsPrincipal]::new($id)
+        $gn = @($id.Groups | ForEach-Object { try { $_.Translate([Security.Principal.NTAccount]).Value } catch { } })
+        $ag = $(if ($pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { 'Administrators' } else { 'none' })
+        $dg = @($gn | Where-Object { $_ -match '(?i)\\ORA_.*DBA$|\\ORA_OPER$' } | ForEach-Object { ($_ -split '\\')[-1] })
+        $db = $(if (@(Get-Service -Name 'OracleService*' -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' }).Count) { 'yes' } else { 'no' })
+        $out.Add(("security;owner;{0};groups={1};admin_group={2};db_group={3};db_on_host={4}" -f $id.Name, ((@($gn | ForEach-Object { ($_ -split '\\')[-1] }) | Select-Object -First 20) -join ','), $ag, $(if ($dg.Count) { $dg -join ',' } else { 'none' }), $db))
+    } else {
+        $ow = ((ihwt-exec "stat" @("-c", "%U", $DH) -TimeoutSec 30).Out).Trim()
+        $g = @(((ihwt-exec "id" @("-nG", $ow) -TimeoutSec 30).Out).Trim() -split '\s+')
+        $ag = @($g | Where-Object { $_ -in @('wheel', 'sudo', 'admin') }); $dg = @($g | Where-Object { $_ -in @('dba', 'oper', 'backupdba', 'dgdba', 'kmdba', 'racdba') })
+        $db = $(if (@($Procs | Where-Object { $_.CommandLine -match '^ora_pmon_' }).Count) { 'yes' } else { 'no' })
+        $out.Add(("security;owner;{0};groups={1};admin_group={2};db_group={3};db_on_host={4}" -f $ow, ($g -join ','), $(if ($ag.Count) { $ag -join ',' } else { 'none' }), $(if ($dg.Count) { $dg -join ',' } else { 'none' }), $db))
+    }
+    # file modes / ACLs of the secrets
+    $key = ihwt-jp @($DH, "security", "SerializedSystemIni.dat")
+    if (Test-Path -LiteralPath $key) { $out.Add((_ihwt-sec-file $key "domain_key")) } else { $out.Add("security;file;domain_key;missing;-;-;-;$key") }
+    $out.Add((_ihwt-sec-file $c "config.xml"))
+    foreach ($f in @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "config", "jdbc")) -Filter *.xml -File -ErrorAction SilentlyContinue | Sort-Object Name -Culture ([Globalization.CultureInfo]::InvariantCulture))) { $out.Add((_ihwt-sec-file $f.FullName "jdbc")) }
+    $n = 0; $cf = @()
+    foreach ($f in @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "servers")) -Recurse -Filter boot.properties -File -ErrorAction SilentlyContinue | Sort-Object FullName -Culture ([Globalization.CultureInfo]::InvariantCulture))) {
+        $p = $f.FullName -replace '\\', '/'
+        $l = "boot.properties:" + $(if ($p -match '/servers/([^/]+)/') { $Matches[1] } else { '?' })
+        if ($p -match '/data/nodemanager/') { $l += ":nm_cache" }
+        $out.Add((_ihwt-sec-file $f.FullName $l)); $n++
+        $t = Get-Content -LiteralPath $f.FullName -ErrorAction SilentlyContinue
+        if (@($t | Where-Object { $_ -match '^\s*password\s*=' }).Count -and -not @($t | Where-Object { $_ -match '^\s*password\s*=\s*\{AES' }).Count) { $cf += $f.FullName }
+    }
+    $out.Add(("security;boot_properties;{0};cleartext={1};{2}" -f $n, $cf.Count, $(if ($cf.Count) { $cf -join ',' } else { '-' })))
+    # realm
+    $cx = ((Get-Content -LiteralPath $c -Raw) -replace "[\r\n]", '')
+    $m = [regex]::Match($cx, '<(?:sec:)?user-lockout-manager>.*?</(?:sec:)?user-lockout-manager>')
+    if (-not $m.Success) { $out.Add("security;lockout;enabled=default;threshold=default;duration=default;reset=default") }
+    else { $v = $m.Value; $out.Add(("security;lockout;enabled={0};threshold={1};duration={2};reset={3}" -f @('lockout-enabled', 'lockout-threshold', 'lockout-duration', 'lockout-reset-duration' | ForEach-Object { $x = _ihwt-sec-tag $v $_; if ($x) { $x } else { 'default' } }))) }
+    $m = [regex]::Match($cx, '<(?:sec:)?password-validator.*?</(?:sec:)?password-validator>')
+    if (-not $m.Success) { $out.Add("security;password_validator;present=no") }
+    else { $v = $m.Value; $out.Add(("security;password_validator;present=yes;min_length={0};upper={1};lower={2};numeric={3};special={4};numeric_or_special={5};reject_user={6}" -f @('min-password-length', 'min-uppercase-characters', 'min-lowercase-characters', 'min-numeric-characters', 'min-non-alphanumeric-characters', 'min-numeric-or-special-characters', 'reject-equal-or-contain-username' | ForEach-Object { $x = _ihwt-sec-tag $v $_; if ($x) { $x } else { '-' } }))) }
+    $x = _ihwt-sec-tag $cx 'configuration-audit-type'; $out.Add("security;config_audit;$(if ($x) { $x } else { 'none' })")
+    $out.Add("security;auditor;$(if ($cx -match '<(sec:)?auditor') { 'yes' } else { 'no' })")
+    # OPSS audit of the default jpsContext
+    $jc = ihwt-jp @($DH, "config", "fmwconfig", "jps-config.xml"); $ai = ""; $fp = ""
+    if (Test-Path -LiteralPath $jc) {
+        $jt = ((Get-Content -LiteralPath $jc -Raw) -replace "[\r\n]", '')
+        $dc = [regex]::Match($jt, '<jpsContext name="default">.*?</jpsContext>').Value
+        $ai = [regex]::Match($dc, 'serviceInstanceRef ref="(audit[^"]*)"').Groups[1].Value
+        $si = [regex]::Match($jt, ('<serviceInstance name="{0}"[^>]*>.*?</serviceInstance>' -f [regex]::Escape($(if ($ai) { $ai } else { 'audit' })))).Value
+        $fp = [regex]::Match($si, 'name="audit.filterPreset" value="([^"]*)"').Groups[1].Value
+    }
+    $out.Add(("security;opss_audit;instance={0};filterPreset={1}" -f $(if ($ai) { $ai } else { '-' }), $(if ($fp) { $fp } else { '-' })))
+    # applications on the AdminServer besides the FMW infrastructure
+    $infra = '^(em|opss-rest|DMS Application.*|state-management-provider.*|coherence-transaction-rar|wsm-pm|FMW Welcome Page Application.*|fmw-welcome.*|mds-.*|owsm-.*|jms-.*|wls-.*|bea_wls.*|ORDS.*-rest|sdpmessaging.*|usermessagingserver.*)$'
+    $adm = @([regex]::Matches($cx, '<app-deployment>.*?</app-deployment>') | ForEach-Object { $nm = _ihwt-sec-tag $_.Value 'name'; $tg = _ihwt-sec-tag $_.Value 'target'
+               if ((",$tg,") -match ',AdminServer,' -and $nm -notmatch $infra) { $nm } })
+    $out.Add("security;admin_apps;$(if ($adm.Count) { $adm -join ',' } else { 'none' })")
+    # further copies of the domain key below ORACLE_BASE / the domain parent
+    $roots = @($(if ($env:ORACLE_BASE) { $env:ORACLE_BASE } else { Split-Path -Parent (Split-Path -Parent $DH) }), (Split-Path -Parent $DH)) | Where-Object { $_ } | Sort-Object -Unique
+    $kc = @($roots | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Depth 8 -Filter SerializedSystemIni.dat -File -ErrorAction SilentlyContinue } | ForEach-Object { $_.FullName } |
+            Sort-Object -Unique -Culture ([Globalization.CultureInfo]::InvariantCulture) | Where-Object { $_ -ne $key })
+    $out.Add("security;key_copies;$(if ($kc.Count) { $kc -join ',' } else { 'none' })")
+    if ($IHWT_ON_WINDOWS) { $out.Add("security;umask;n/a;-") }
+    else {
+        $bp = Join-Path ((((ihwt-exec "getent" @("passwd", $ow) -TimeoutSec 30).Out).Trim() -split ':')[5]) ".bash_profile"
+        $um = @(Get-Content -LiteralPath $bp -ErrorAction SilentlyContinue | Where-Object { $_ -match '^\s*umask\s+[0-7]+' } | ForEach-Object { ($_.Trim() -split '\s+')[1] }) | Select-Object -Last 1
+        $out.Add("security;umask;$(if ($um) { $um } else { 'none' });$bp")
+    }
+    # ORDS: ords.war of the running processes / domain deployments
+    $wars = @(@($Procs | ForEach-Object { $cl = "$($_.CommandLine)"
+                [regex]::Matches($cl, '[^\s="]*ords\.war') | ForEach-Object { $_.Value }
+                $h = [regex]::Match($cl, '-Doracle\.dbtools\.cmdline\.home=("?)([^\s"]+)\1'); if ($h.Success) { Join-Path $h.Groups[2].Value "ords.war" } }) +
+              @([regex]::Matches($cx, '<source-path>([^<]*ords[^<]*\.war)</source-path>') | ForEach-Object { $_.Groups[1].Value }) |
+            Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | ForEach-Object { ihwt-realpath $_ } | Sort-Object -Unique -Culture ([Globalization.CultureInfo]::InvariantCulture))
+    if (-not $wars.Count) { $out.Add("security;ords;none;-") }
+    foreach ($w in $wars) {
+        $ver = "?"
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+            $z = [IO.Compression.ZipFile]::OpenRead($w)
+            $vs = @($z.Entries | ForEach-Object { $mm = [regex]::Match($_.FullName, '^WEB-INF/lib/ords-[a-z-]+-(\d+\.\d+\.\d+\.\d+\.\d+)\.jar$'); if ($mm.Success) { $mm.Groups[1].Value } })
+            $z.Dispose()
+            if ($vs.Count) { $ver = ($vs | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name }
+        } catch { }
+        $out.Add("security;ords;$w;$ver")
+    }
+    $out.Add("security;sudo;not-probed")
     return $out.ToArray()
 }

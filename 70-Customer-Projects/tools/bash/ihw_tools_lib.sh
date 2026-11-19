@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-18.1"
+IHWT_LIB_VERSION="2026-11-19.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1261,5 +1261,125 @@ ihwt_webgate() {
         n=$((n + 1))
     done < <(find "$dh/config/fmwconfig/components/OHS" -path '*/webgate/config/ObAccessClient.xml' ! -path '*/lang/*' 2>/dev/null | sort)
     [ "$n" -eq 0 ] && printf 'webgate;none;-\n'
+    return 0
+}
+
+# ihwt_security DH OH - security facts of the domain (the checks of
+#   02-Checks/domain_secret_check.sh section 1, 2, 5-7 as FACTS - the analysis
+#   rates them), read-only, no sudo call, values never printed. One line each:
+#     security;owner;<user>;groups=<g,..>;admin_group=<g|none>;db_group=<g|none>;db_on_host=yes|no
+#     security;file;<label>;<mode>;<user>;<group>;<other group members|->;<path>
+#     security;boot_properties;<n files>;cleartext=<n>;<clear-text files|->
+#     security;lockout;enabled=<true|false|default>;threshold=<n|default>;duration=..;reset=..
+#     security;password_validator;present=yes|no;min_length=..;upper=..;lower=..;numeric=..;special=..;numeric_or_special=..;reject_user=..
+#     security;config_audit;<logaudit|log|audit|none>
+#     security;auditor;yes|no
+#     security;opss_audit;instance=<name|->;filterPreset=<value|->
+#     security;admin_apps;<applications on the AdminServer besides the FMW infrastructure|none>
+#     security;key_copies;<further SerializedSystemIni.dat|none>
+#     security;umask;<value|none>;<file>
+#     security;ords;<ords.war>;<version|?>       (or security;ords;none;-)
+#     security;sudo;not-probed
+#   Background: 80-FMW-Architecture/fmw_pwd_handling.md section 1a / 1b,
+#   stig_weblogic_forms_reports.md
+ihwt_security() {
+    local dh="$1" oh="$2" c owner grp ag dg db f l m u g oth gid mem n cl cf cx v ai fp jc infra adm um w ver
+    c="$dh/config/config.xml"
+    [ -f "$c" ] || return 0
+    owner="$(stat -c %U "$dh" 2>/dev/null)"
+    grp=" $(id -nG "${owner:-x}" 2>/dev/null) "
+    ag="$(printf '%s' "$grp" | grep -owE 'wheel|sudo|admin' | paste -sd, -)"
+    dg="$(printf '%s' "$grp" | grep -owE 'dba|oper|backupdba|dgdba|kmdba|racdba' | paste -sd, -)"
+    db=no; pgrep -f '^ora_pmon_' >/dev/null 2>&1 && db=yes
+    printf 'security;owner;%s;groups=%s;admin_group=%s;db_group=%s;db_on_host=%s\n' \
+        "${owner:--}" "$(printf '%s' "$grp" | xargs | tr ' ' ',')" "${ag:-none}" "${dg:-none}" "$db"
+    # file modes of the secrets + further members of the owning group
+    _ihwt_sec_file() {
+        [ -f "$1" ] || return 0
+        m="$(stat -c %a "$1")"; u="$(stat -c %U "$1")"; g="$(stat -c %G "$1")"
+        gid="$(getent group "$g" | cut -d: -f3)"
+        mem="$(getent group "$g" | cut -d: -f4 | tr ',' '\n')"
+        [ -n "$gid" ] && mem="$mem
+$(getent passwd | awk -F: -v g="$gid" '$4 == g {print $1}')"
+        oth="$(printf '%s\n' "$mem" | sed '/^$/d' | sort -u | grep -vx "$u" | paste -sd, -)"
+        printf 'security;file;%s;%s;%s;%s;%s;%s\n' "$2" "$m" "$u" "$g" "${oth:--}" "$1"
+    }
+    if [ -f "$dh/security/SerializedSystemIni.dat" ]; then
+        _ihwt_sec_file "$dh/security/SerializedSystemIni.dat" "domain_key"
+    else
+        printf 'security;file;domain_key;missing;-;-;-;%s\n' "$dh/security/SerializedSystemIni.dat"
+    fi
+    _ihwt_sec_file "$c" "config.xml"
+    for f in "$dh"/config/jdbc/*.xml; do _ihwt_sec_file "$f" "jdbc"; done
+    n=0; cl=0; cf=""
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        l="boot.properties:$(printf '%s' "$f" | sed -n 's#.*/servers/\([^/]*\)/.*#\1#p')"
+        case "$f" in */data/nodemanager/*) l="$l:nm_cache" ;; esac
+        _ihwt_sec_file "$f" "$l"
+        n=$((n + 1))
+        if grep -qE '^[[:space:]]*password[[:space:]]*=' "$f" && ! grep -qE '^[[:space:]]*password[[:space:]]*=[[:space:]]*\{AES' "$f"; then
+            cl=$((cl + 1)); cf="$cf${cf:+,}$f"
+        fi
+    done < <(find "$dh/servers" -name boot.properties -type f 2>/dev/null | sort)
+    printf 'security;boot_properties;%s;cleartext=%s;%s\n' "$n" "$cl" "${cf:--}"
+    unset -f _ihwt_sec_file
+    # realm: lockout, password rule, configuration audit, auditing provider
+    cx="$(tr -d '\n' < "$c" | sed 's#<\(/\{0,1\}\)\(sec\|pas\):#<\1#g')"
+    v="$(printf '%s' "$cx" | grep -oE '<user-lockout-manager>.*</user-lockout-manager>' | head -1)"
+    _ihwt_x() { printf '%s' "$1" | grep -oE "<$2>[^<]*" | head -1 | sed 's/.*>//'; }
+    if [ -z "$v" ]; then
+        printf 'security;lockout;enabled=default;threshold=default;duration=default;reset=default\n'
+    else
+        printf 'security;lockout;enabled=%s;threshold=%s;duration=%s;reset=%s\n' "$(_ihwt_x "$v" lockout-enabled)" \
+            "$(_ihwt_x "$v" lockout-threshold)" "$(_ihwt_x "$v" lockout-duration)" "$(_ihwt_x "$v" lockout-reset-duration)" \
+            | sed 's/=;/=default;/g; s/=$/=default/'
+    fi
+    v="$(printf '%s' "$cx" | grep -o '<password-validator.*</password-validator>' | head -1)"
+    if [ -z "$v" ]; then
+        printf 'security;password_validator;present=no\n'
+    else
+        printf 'security;password_validator;present=yes;min_length=%s;upper=%s;lower=%s;numeric=%s;special=%s;numeric_or_special=%s;reject_user=%s\n' \
+            "$(_ihwt_x "$v" min-password-length)" "$(_ihwt_x "$v" min-uppercase-characters)" "$(_ihwt_x "$v" min-lowercase-characters)" \
+            "$(_ihwt_x "$v" min-numeric-characters)" "$(_ihwt_x "$v" min-non-alphanumeric-characters)" \
+            "$(_ihwt_x "$v" min-numeric-or-special-characters)" "$(_ihwt_x "$v" reject-equal-or-contain-username)" \
+            | sed 's/=;/=-;/g; s/=$/=-/'
+    fi
+    printf 'security;config_audit;%s\n' "$(_ihwt_x "$cx" configuration-audit-type | sed 's/^$/none/')"
+    printf '%s' "$cx" | grep -q '<auditor' && printf 'security;auditor;yes\n' || printf 'security;auditor;no\n'
+    unset -f _ihwt_x
+    # OPSS audit: the audit service instance of the default jpsContext counts
+    jc="$dh/config/fmwconfig/jps-config.xml"
+    ai="$(tr -d '\n' < "$jc" 2>/dev/null | grep -o '<jpsContext name="default">.*' | sed 's#</jpsContext>.*##' | grep -o 'serviceInstanceRef ref="audit[^"]*"' | head -1 | sed 's/.*ref="//; s/"$//')"
+    fp="$(tr -d '\n' < "$jc" 2>/dev/null | grep -o "<serviceInstance name=\"${ai:-audit}\"[^>]*>.*" | sed 's#</serviceInstance>.*##' | grep -o 'name="audit.filterPreset" value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
+    printf 'security;opss_audit;instance=%s;filterPreset=%s\n' "${ai:--}" "${fp:--}"
+    # applications on the AdminServer besides the FMW infrastructure (STIG V-235983)
+    infra='^(em|opss-rest|DMS Application.*|state-management-provider.*|coherence-transaction-rar|wsm-pm|FMW Welcome Page Application.*|fmw-welcome.*|mds-.*|owsm-.*|jms-.*|wls-.*|bea_wls.*|ORDS.*-rest|sdpmessaging.*|usermessagingserver.*)$'
+    adm="$(tr -d '\n' < "$c" | grep -o '<app-deployment>.*</app-deployment>' | sed 's#</app-deployment>#&\n#g' \
+           | sed -n 's#.*<name>\([^<]*\)</name>.*<target>\([^<]*\)</target>.*#\1|\2#p' \
+           | awk -F'|' '("," $2 ",") ~ /,AdminServer,/ {print $1}' | grep -vE "$infra" | paste -sd, -)"
+    printf 'security;admin_apps;%s\n' "${adm:-none}"
+    # further copies of a domain key (backups, old domain copies) - time-boxed
+    v="$(timeout 120 find "${ORACLE_BASE:-$(dirname "$(dirname "$dh")")}" "$(dirname "$dh")" -xdev -maxdepth 9 -name SerializedSystemIni.dat -type f 2>/dev/null \
+         | sort -u | grep -vx "$dh/security/SerializedSystemIni.dat" | paste -sd, -)"
+    printf 'security;key_copies;%s\n' "${v:-none}"
+    # umask of the installation user (login profile)
+    w="$(getent passwd "${owner:-x}" | cut -d: -f6)/.bash_profile"
+    um="$(grep -hE '^[[:space:]]*umask[[:space:]]+[0-7]+' "$w" 2>/dev/null | tail -1 | awk '{print $2}')"
+    printf 'security;umask;%s;%s\n' "${um:-none}" "$w"
+    # ORDS on the host: version of every ords.war (process / domain deployment)
+    v="$( { ps -eo args= 2>/dev/null | grep -oE '[^ =]*ords\.war' ; ps -eo args= 2>/dev/null | sed -n 's/.*-Doracle\.dbtools\.cmdline\.home=\([^ ]*\).*/\1\/ords.war/p'
+            tr -d '\n' < "$c" | grep -oE '<source-path>[^<]*ords[^<]*\.war</source-path>' | sed 's#</\{0,1\}source-path>##g'; } \
+          | while read -r f; do [ -f "$f" ] && readlink -f "$f"; done | sort -u)"
+    if [ -z "$v" ]; then
+        printf 'security;ords;none;-\n'
+    else
+        for f in $v; do
+            ver="$(unzip -l "$f" 2>/dev/null | grep -oE 'WEB-INF/lib/ords-[a-z-]+-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.jar' \
+                   | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')"
+            printf 'security;ords;%s;%s\n' "$f" "${ver:-?}"
+        done
+    fi
+    printf 'security;sudo;not-probed\n'
     return 0
 }

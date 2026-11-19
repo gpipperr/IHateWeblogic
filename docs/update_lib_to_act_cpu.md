@@ -136,6 +136,8 @@ One block per area. Old → new values always from `update_plan.md`.
 - `WLS_SPB_VERSION`, `WLS_SPB_MARKER_PATCH`, `WLS_SPB_CHECK_BUGS`
 - `JDK_VERSION_MIN`
 - APEX / ORDS download URLs or versions, if they are pinned
+- `ORDS_VERSION_MIN` – lowest ORDS release without an open CVE of the cycle
+  (risk matrix "Oracle REST Data Services"; read by the customer patch analysis)
 - comment blocks per patch and the **"Superseded"** list (old numbers with
   the cycle that replaced them)
 

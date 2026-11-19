@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **Collector security facts (`46_security.txt`):** `collect_fmw_env.sh` / `.ps1` 2026-11-19.1, `ihw_tools_lib`
+  2026-11-19.1 (`ihwt_security` / `ihwt-security`, identical lines bash / pwsh on the test host) – the checks of
+  `02-Checks/domain_secret_check.sh` as facts: mode / owner / further group members of the domain key,
+  `config.xml`, JDBC files and every `boot.properties`, clear-text `boot.properties`, lockout and password rule of
+  the realm, configuration audit + auditor, OPSS `filterPreset`, applications on the AdminServer, groups of the
+  domain owner, further copies of a domain key, `umask`, ORDS version of every `ords.war`; Windows: ACL readers
+  (`acl` / `acl-world`). No values stored, no `sudo` call. New `ORDS_VERSION_MIN="26.3.1"` in
+  `09-Install/oracle_software_version.conf` (set per cycle, [update_lib_to_act_cpu.md](docs/update_lib_to_act_cpu.md)
+  area B). The customer analyses (private repo) rate the facts (status report section 11.1, patch analysis ORDS row).
+
 - **CSPU November 2026 folder closed:** README state line (client bundle `40-` built 2026-11-18, rest → TODO),
   open point 2 (Forms session from a Windows PC OK), `update_plan.md` checklist ticked – only the AutoUpgrade
   question / first `09-db_patch_rcu.sh --mrp --apply` stays open.
