@@ -355,7 +355,7 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   ignore list from real logs; core dumps; daily facts; levels, rings, rollups.
   Installation: `00-setup-interview.sh` (oracle: questions, defaults from
   `environment.conf`, secrets to `etc/pending/`), `01-install-wlsmon_fmw.sh`
-  (oracle: `bin/`, `www/`, `libs.json`, WebLogic monitor user in group Monitors
+  (oracle: `bin/`, `www/`, `ui.json`, WebLogic monitor user in group Monitors
   – REST `createUser` to verify), `02-install-wlsmon_root.sh` (root, last: group
   `wlsmon`, systemd units with limits, Nginx include GUI + data role from a
   template, htpasswd, pending → `creds/`, timers, first run). GUI with the APEX

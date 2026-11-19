@@ -22,7 +22,8 @@ Both are local and not in git (`90-Source-MetaData/wlsmon/`). This concept takes
 - the rollup rules;
 - the Nginx / CSP rules.
 
-It changes the GUI basis (APEX libraries instead of own SVG / CSS). It adds
+It changes the GUI basis (font-apex icons and Oracle JET charts from APEX
+`/i/`, with an own small CSS in the colours of the project site). It adds
 the split between one GUI host and many data hosts.
 
 ## 1. Goal and non-goals
@@ -76,9 +77,11 @@ The JSON files are open for other tools: an existing PRTG or Nagios can read
   14.1.2) 3.6. The code stays **3.6-compatible** – no `dataclasses`, no `:=`,
   no `match`, no `|` in type hints – so it runs on both without an extra
   package.
-- **GUI libraries:** the ones APEX already ships under `/i/` – Universal Theme
-  CSS, font-apex icons, Oracle JET. They are updated with every APEX patch, so
-  there are no own copies of JavaScript libraries to maintain (section 7).
+- **GUI libraries:** two of the ones APEX already ships under `/i/` –
+  font-apex icons and Oracle JET charts. They are updated with every APEX
+  patch, so there are no own copies of JavaScript libraries to maintain. The
+  look is our own (colours of the project site, one small CSS file – section
+  7 and the [interface design](02-wlsmon_interface_design.md)).
 
 ### 2.2 No side effects on WebLogic
 
@@ -478,10 +481,11 @@ Tests after the setup:
 
 ## 7. GUI – plain HTML5 with the APEX libraries from `/i/`
 
-The GUI uses the libraries that APEX already ships under `/i/`:
-- served by the same Nginx;
-- updated with every APEX patch;
-- the familiar APEX look.
+The GUI uses two libraries that APEX already ships under `/i/` – served by
+the same Nginx and updated with every APEX patch. The look is our own: the
+colours and the frame of the project site, defined in
+[02-wlsmon_interface_design.md](02-wlsmon_interface_design.md) (decision
+2026-11-19).
 
 The page itself is plain HTML5 and JavaScript – no APEX application, no APEX
 runtime, no database access. From the prototype it keeps the page structure
@@ -490,18 +494,25 @@ and the security rules:
 - values only through `textContent`;
 - levels only from a whitelist.
 
-- **Layout:** Universal Theme CSS (`/i/themes/theme_42/<ver>/css/Core.min.css`
-  plus a theme style, Redwood or Vita) and the icons of
-  `/i/libraries/font-apex/<ver>/`.
+- **Layout and colours:** one small own file `www/css/wlsmon.css` with the
+  tokens of the interface design and the frame of the site
+  (`assets/css/ihw.css`: header with gold line, left black border, Arial).
+  The Universal Theme CSS of APEX is **not** loaded – its colours would cover
+  ours.
+- **Icons:** font-apex (`/i/libraries/font-apex/<ver>/`) – the status icons
+  of the interface design.
 - **Charts:** Oracle JET (`/i/libraries/oraclejet/<ver>/`, `oj-chart`, loaded
-  with the RequireJS of the JET folder):
+  with the RequireJS of the JET folder), drawn in our own design: series and
+  threshold colours, grid, axes, fonts and tooltips from the tokens of
+  `wlsmon.css`, not from the JET theme. JET's own theme CSS only as far as
+  `oj-chart` needs it to work – to verify in P1:
   - line charts for day / week / year, sparklines in the tiles;
   - if JET does not load, the values and tables still show (a simple SVG
     fallback as in the prototype).
 - **Versioned paths:** the version directories change with APEX. On the test
-  host, APEX 26.2.1 has JET `20.1.4`, theme_42 `26.2` and font-apex `2.5.1`.
+  host, APEX 26.2.1 has JET `20.1.4` and font-apex `2.5.1`.
   - `01-install-wlsmon_fmw.sh` finds the newest version directories in the
-    APEX images directory and writes them into `www/libs.json`, which the page
+    APEX images directory and writes them into `www/ui.json`, which the page
     reads first;
   - the daily collector run checks that these paths still exist, and otherwise
     reports "GUI libraries moved – run 01-install-wlsmon_fmw.sh --apply".
@@ -516,7 +527,8 @@ and the security rules:
     APEX ZIP (download logic of `12-APEX-Ords/`) to `$WLSMON_BASE/www/i/`;
     `02-install-wlsmon_root.sh` routes it;
   - it is then updated with each APEX ZIP.
-- **Language:** English.
+- **Language:** English texts; date and number format German by default,
+  switchable with `WLSMON_LOCALE` (interface design, section 8).
 - **Pages:**
   - overview (tiles per host);
   - host view (dashboard of the prototype, plus Reports busy / queue / failed
@@ -582,7 +594,7 @@ the timers start only when everything is in place:
 | Script | User | Does |
 |---|---|---|
 | `00-setup-interview.sh` | FMW owner (`oracle`) | asks everything for wlsmon (below); without `--apply` it shows the resulting `wlsmon.conf` as a diff, with `--apply` it creates `$WLSMON_BASE/etc/` (oracle owns `admin/`, no root needed), writes `wlsmon.conf` and the secrets to `etc/pending/` |
-| `01-install-wlsmon_fmw.sh` | FMW owner (`oracle`) | copies `bin/wlsmon.py`, `share/wlsmon_rules.cfg`, `www/`; writes `libs.json` (APEX library paths); `etc/wlsmon_rules.local.cfg` skeleton (never overwritten); creates the WebLogic monitor user in the group Monitors with the password from `pending/` – a one-time call at installation only, never at runtime; asks for the WebLogic admin password for it (memory only) or takes it from the library if present; checks the Reports `monUser`; `wlsmon.py collect --check` |
+| `01-install-wlsmon_fmw.sh` | FMW owner (`oracle`) | copies `bin/wlsmon.py`, `share/wlsmon_rules.cfg`, `www/`; writes `ui.json` (APEX library paths, `WLSMON_LOCALE`); `etc/wlsmon_rules.local.cfg` skeleton (never overwritten); creates the WebLogic monitor user in the group Monitors with the password from `pending/` – a one-time call at installation only, never at runtime; asks for the WebLogic admin password for it (memory only) or takes it from the library if present; checks the Reports `monUser`; `wlsmon.py collect --check` |
 | `02-install-wlsmon_root.sh` | root | group `wlsmon` (members `nginx`, `oracle`); `chgrp` + setgid on `www/`, `api/`, `hosts/`; traverse ACLs on the parents if needed; SELinux context; systemd units + timers from templates (`##VARIABLE##` substitution as in `09-Install/04-root_nginx.sh`); Nginx include `/etc/nginx/oracle-wls.d/wlsmon.conf` + `conf.d/wlsmon_zone.conf` from `templates/wlsmon-nginx.conf.template`, blocks of the role switched on with `#@WLSMON_GUI_BEGIN@` / `#@WLSMON_DATA_BEGIN@` markers; `htpasswd` files in `/etc/nginx/` (`openssl passwd -6`); `pending/` → `creds/*.cred` and delete the clear text; `nginx -t` + reload; enable the timers; first run with `systemctl start` and its result |
 
 **The interview** (`00-setup-interview.sh`):
@@ -625,7 +637,7 @@ Planned files in the repository:
 ├── README.md
 ├── docs/01-wlsmon_concept.md      this document (master)
 ├── 00-setup-interview.sh          oracle: questions, wlsmon.conf, secrets -> etc/pending/
-├── 01-install-wlsmon_fmw.sh       oracle: bin/, share/, www/, libs.json, monitor user
+├── 01-install-wlsmon_fmw.sh       oracle: bin/, share/, www/, ui.json, monitor user
 ├── 02-install-wlsmon_root.sh      root: group, systemd, Nginx include, htpasswd, pending -> creds, timers
 ├── wlsmon.py                      the program: collect (data role), pull (GUI role) – stdlib only, python 3.6+
 ├── rules/wlsmon_rules.cfg         default log rules (local additions: $WLSMON_BASE/etc/)

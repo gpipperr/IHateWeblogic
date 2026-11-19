@@ -16,7 +16,9 @@ live view of a Forms & Reports environment:
 - the history over a day, a week and a year.
 
 **State 2026-11-19: concept** –
-[docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md). No script yet.
+[docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md), interface design
+(colour concept): [docs/02-wlsmon_interface_design.md](docs/02-wlsmon_interface_design.md).
+No script yet.
 
 ## In short
 
@@ -24,8 +26,9 @@ live view of a Forms & Reports environment:
   - python3 with its standard library (one program, 3.6-compatible), systemd
     and the existing Nginx;
   - only `dnf` packages from BaseOS / AppStream – no pip, PyPI or Galaxy;
-  - the GUI uses the libraries APEX ships under `/i/` (Universal Theme, Oracle
-    JET), so they are patched with APEX.
+  - the GUI uses two libraries APEX ships under `/i/` (font-apex icons, Oracle
+    JET charts), so they are patched with APEX; the look is our own, in the
+    colours of the project site.
 - **No side effects on WebLogic:**
   - one read-only REST call per 5 minutes on `localhost`, no WLST;
   - the collector runs with low priority and hard systemd limits.

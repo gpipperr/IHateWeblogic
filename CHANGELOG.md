@@ -26,6 +26,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   - Installation planned as `00-setup-interview.sh` (questions, defaults from
     `environment.conf`) → `01-install-wlsmon_fmw.sh` → `02-install-wlsmon_root.sh`
     (systemd, Nginx include from a template, timers).
+- **11-wlsmon interface design:** [docs/02-wlsmon_interface_design.md](11-wlsmon/docs/02-wlsmon_interface_design.md) –
+  colour concept from the colours of the project site: frame and data colours
+  kept apart, reserved status colours (OK blue-green, WARN orange, CRIT red,
+  STALE outline – always with icon + word), chart series, light / dark mode,
+  CSS tokens; values checked for contrast and red-green colour blindness;
+  colour swatches as small SVGs. From APEX `/i/` only font-apex and Oracle JET,
+  no Universal Theme CSS – own look.
 - **TODO:** library `.des3` secrets weaker than needed (key readable, process
   list, clear-text file, disk UUID order).
   - GUI as plain HTML5 with the APEX libraries from `/i/`.
