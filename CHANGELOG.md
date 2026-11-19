@@ -10,6 +10,30 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **New folder `11-wlsmon/` – concept of a lightweight runtime monitor:**
+  [docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md) (master spec).
+  - Static JSON per host (contract of the first plan / prototype).
+  - Collector with one read-only WebLogic REST call per 5 min, no WLST, systemd
+    limits; one python3 program (standard library only, 3.6-compatible); only
+    `dnf` packages, no pip / PyPI / Galaxy.
+  - Rules file `wlsmon_rules.cfg` (+ local file per host): `match` / `ignore`
+    per log entry, counted per rule, so the WebLogic noise is filtered visibly.
+  - Self-contained runtime below `$ORACLE_BASE/admin/wlsmon` (program, rules,
+    `wlsmon.conf`, credentials – no library needed); Nginx reads only `www` /
+    `api` / `hosts` via group `wlsmon`.
+  - Secrets as encrypted systemd credentials; hand-over from the FMW owner to
+    root like `boot.properties` (`etc/pending/` → `etc/creds/`).
+  - Installation planned as `00-setup-interview.sh` (questions, defaults from
+    `environment.conf`) → `01-install-wlsmon_fmw.sh` → `02-install-wlsmon_root.sh`
+    (systemd, Nginx include from a template, timers).
+- **TODO:** library `.des3` secrets weaker than needed (key readable, process
+  list, clear-text file, disk UUID order).
+  - GUI as plain HTML5 with the APEX libraries from `/i/`.
+  - Data and GUI separated: one GUI host pulls many data hosts – overview +
+    drill-down.
+  - One login for people, one shared pull user restricted to the GUI host's IP.
+  - Concept only, no script yet; nav, README, TODO.
+
 - **`ihw_tools_lib` 2026-11-19.2:** `ihwt_security` writes `config_audit;none` instead of an empty value and no
   longer prints an error when `jps-config.xml` is missing (found with the first real customer collection).
 

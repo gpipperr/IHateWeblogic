@@ -39,7 +39,7 @@
       "folder=text" = shorter text in the menu, the link stays on the folder;
       "path.md=text" = a single page (key pages of the project, below Start)
     {%- endcomment -%}
-    {%- assign ihw_sections = "IHateWeblogic.md=The idea,09-Install/docs/00-patch-references.md=Current patches,80-FMW-Architecture/security_overview.md=Security,|,00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,12-APEX-Ords,14-ReportsBuilder,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
+    {%- assign ihw_sections = "IHateWeblogic.md=The idea,09-Install/docs/00-patch-references.md=Current patches,80-FMW-Architecture/security_overview.md=Security,|,00-Setup,|,01-Run,02-Checks,03-Logs,04-ReportsFonts,05-ReportsPerformance=05-ReportsPerf,06-FormsDiag,07-Maintenance,08-SSL,|,09-Install,10-Monitoring,11-wlsmon,12-APEX-Ords,14-ReportsBuilder,60-RCU-DB-19c,|,70-Customer-Projects,80-FMW-Architecture" | split: "," -%}
     {%- assign ihw_repo = site.github.repository_url | default: "https://github.com/gpipperr/IHateWeblogic" -%}
     {%- assign ihw_label = ihw_top -%}
     {%- if page.path == "README.md" -%}{%- assign ihw_label = "Start" -%}
@@ -57,7 +57,7 @@
       Label: front matter nav_title, else the folder name for a README.md,
       else the file name. Add an entry here to give another section the column.
     {%- endcomment -%}
-    {%- assign ihw_side_dirs = "00-Setup/,04-ReportsFonts/,07-Maintenance/docs/,09-Install/docs/,10-Monitoring/,14-ReportsBuilder/**,60-RCU-DB-19c/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
+    {%- assign ihw_side_dirs = "00-Setup/,04-ReportsFonts/,07-Maintenance/docs/,09-Install/docs/,10-Monitoring/,11-wlsmon/docs/,14-ReportsBuilder/**,60-RCU-DB-19c/docs/,80-FMW-Architecture/,70-Customer-Projects/*" | split: "," -%}
     {%- comment -%}
       Links into another section, indented below a page of the column (flat
       mode): "page.md>target.md|target.md;page.md>..." - shown with an arrow,

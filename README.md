@@ -202,6 +202,7 @@ environment (analyse + fix): the order of the first scripts –
 | [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
+| [`11-wlsmon/`](11-wlsmon/README.md)          | **concept** 2026-11-19: lightweight runtime monitor – traffic light, components, key figures and history per host as static JSON, GUI with the APEX libraries behind Nginx, one GUI host for many data hosts, no extra software ([concept](11-wlsmon/docs/01-wlsmon_concept.md)) |
 | [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23, patched 2026-11-18 (APEX 26.2.1, ORDS 26.3.1) |
 | [`14-ReportsBuilder/`](14-ReportsBuilder/README.md)  | Oracle Reports Builder 14.1.2 on a central Windows Server (builder-only domain, RDP) and the report deployment with GitLab: rdf → xml, one report per check-in, PowerShell scripts + menu, push → DEV, `prod-*` tag → production, SSH forced-command queue; live at a customer since 2026-11-13 |
 | [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; RU patch out-of-place, monthly MRP in-place (`09-db_patch_rcu.sh --mrp`) |
@@ -446,6 +447,10 @@ IHateWeblogic/
 │   ├── claude/                      – managed-settings.json.template, ihw_guard.sh (PreToolUse hook),
 │   │                                   skills/ template of the Claude Code skill (copied to the untracked .claude/)
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
+│
+├── 11-wlsmon/
+│   ├── README.md                    – lightweight runtime monitor (concept 2026-11-19)
+│   └── docs/01-wlsmon_concept.md    – master spec: JSON contract, collector, GUI host / data hosts, Nginx, security
 │
 ├── 12-APEX-Ords/
 │   ├── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,

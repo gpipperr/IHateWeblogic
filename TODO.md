@@ -189,6 +189,13 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Security hardening
 
+- [ ] **Library secrets (`.des3`) weaker than needed** (found 2026-11-19 with
+  the wlsmon concept): key = disk UUID / `machine-id`, readable by every local
+  user; `openssl -pass pass:…` puts it into the process list for a moment;
+  decryption writes a clear-text file next to the `.des3` file; `ls
+  /dev/disk/by-uuid | tail -1` can return another key after a disk is added (all
+  secrets unreadable). Check `-pass stdin` / `fd:`, decrypt to a pipe, a stable
+  key source; systemd credentials as in wlsmon section 3b as an option.
 - [ ] **Remaining non-loopback sockets** (2026-10-23 everything else is on
   `127.0.0.1`, SSL ports with the demo certificate are off – `08-`,
   `13-`, `02-Checks/clone_check.sh`): `frmweb` (no bind option – SR
@@ -335,6 +342,26 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
     request?) – documented as an assumption.
 
 ## Monitoring (phase 9)
+
+- [ ] **11-wlsmon – lightweight runtime monitor** (concept 2026-11-19:
+  [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md)).
+  P1 one host: contract schema 1; `wlsmon.py collect` – python3 stdlib only,
+  3.6-compatible, self-contained in `$WLSMON_BASE` = `$ORACLE_BASE/admin/wlsmon`
+  (config `etc/wlsmon.conf`, secrets as systemd credentials) – WebLogic REST
+  `domainRuntime/search` (field names on 14.1.2 to verify, fallback
+  `/weblogic/ready`); Reports `getserverinfo` with `monUser`; Forms session /
+  pool; host; logs by offset incl. REP-50171 / LDAP 49 per log entry with the
+  rules file `rules/wlsmon_rules.cfg` + `etc/wlsmon_rules.local.cfg` – first
+  ignore list from real logs; core dumps; daily facts; levels, rings, rollups.
+  Installation: `00-setup-interview.sh` (oracle: questions, defaults from
+  `environment.conf`, secrets to `etc/pending/`), `01-install-wlsmon_fmw.sh`
+  (oracle: `bin/`, `www/`, `libs.json`, WebLogic monitor user in group Monitors
+  – REST `createUser` to verify), `02-install-wlsmon_root.sh` (root, last: group
+  `wlsmon`, systemd units with limits, Nginx include GUI + data role from a
+  template, htpasswd, pending → `creds/`, timers, first run). GUI with the APEX
+  libraries from `/i/` (JET without Knockout bindings under the strict CSP – to
+  prove). P2: GUI host with `wlsmon.py pull`, overview + host view, data role on
+  further hosts. P3: the three scripts in the customer tools ZIP.
 
 - [x] **CSPU November 2026** = first real run of
   `10-Monitoring/patch_cycle_analysis.sh` – done 2026-11-17 / 18 (prepare →

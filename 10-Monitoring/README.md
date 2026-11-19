@@ -19,6 +19,11 @@ configuration, SSL, fonts, performance tuning and Forms are all in place.
 
 ## Purpose
 
+> The **live runtime view** (traffic light, components, key figures, history
+> per host) is the separate concept [11-wlsmon](../11-wlsmon/README.md) – this
+> folder keeps the periodic analyses (CVE watch, certificate expiry, patch
+> cycle, AI-assisted log analysis).
+
 Every other module in this project answers a question when a human asks it:
 "Is the Reports engine healthy?", "Is the certificate about to expire?",
 "Are there errors in the WLS_FORMS log?"
