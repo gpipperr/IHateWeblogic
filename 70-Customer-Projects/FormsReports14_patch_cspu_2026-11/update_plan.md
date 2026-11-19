@@ -150,60 +150,60 @@ results" below).
 Areas as in [docs/update_lib_to_act_cpu.md](../../docs/update_lib_to_act_cpu.md) section 5.
 
 ### A – Patch lists
-- [ ] `09-Install/download/patches_fmw.csv`: header "CSPU November 2026 (2026-11-17, cspunov2026)", sources line (KA1182, CPU450, CPU435, this folder); rows 40125898 → 40289362, 40050062 → 40155248, 39940047 → 40145610, 39979746 → 40154045, 39987730 → 40181911 (file regexps, descriptions with the new versions, `dir`, sha256 + aru from section 2); both 35702194 rows: description 21.0.13.1 + new sha256; new row `apex` 40040466 (2000P, `apex/40040466`).
-- [ ] `09-Install/download/patches_db.csv`: **new role `db_mrp`** with 40196156 (header comment: "MRP / CSPU patch of the month on top of the RU of the last CPU – two layers"), `db_jdk` 39902051 → 40245331. Check how `60-RCU-DB-19c/01-` / `09-` read the roles (an unknown role must not break them).
-- [ ] `70-Customer-Projects/Reports14_linux_manual_install/`: new `patches_cspu_reports_14c_nov2026.csv` + `Patch_Kochbuch_CSPU_Nov2026_de.txt` (German ASCII, from the cumulative guide); the October files stay.
+- [x] `09-Install/download/patches_fmw.csv`: header "CSPU November 2026 (2026-11-17, cspunov2026)", sources line (KA1182, CPU450, CPU435, this folder); rows 40125898 → 40289362, 40050062 → 40155248, 39940047 → 40145610, 39979746 → 40154045, 39987730 → 40181911 (file regexps, descriptions with the new versions, `dir`, sha256 + aru from section 2); both 35702194 rows: description 21.0.13.1 + new sha256; new row `apex` 40040466 (2000P, `apex/40040466`).
+- [x] `09-Install/download/patches_db.csv`: **new role `db_mrp`** with 40196156 (header comment: "MRP / CSPU patch of the month on top of the RU of the last CPU – two layers"), `db_jdk` 39902051 → 40245331. Check how `60-RCU-DB-19c/01-` / `09-` read the roles (an unknown role must not break them).
+- [x] `70-Customer-Projects/Reports14_linux_manual_install/`: new `patches_cspu_reports_14c_nov2026.csv` + `Patch_Kochbuch_CSPU_Nov2026_de.txt` (German ASCII, from the cumulative guide); the October files stay.
 
 ### B – Conf `09-Install/oracle_software_version.conf`
-- [ ] `PATCH_CYCLE*` (section 2); header comment → `FormsReports14_patch_cspu_2026-11/`, previous cycle frozen in `docs/00-patch-references_october_2026.md`.
-- [ ] `OPATCH_VERSION_MIN` comment "(CSPU Nov 2026, Patch 40289362)".
-- [ ] `WLS_SPB_VERSION="14.1.2.0.261112"`, `WLS_SPB_MARKER_PATCH="40289390"`, `WLS_SPB_CHECK_BUGS` (+ 40073770?), comment block; "Superseded" line: SPB 40125898 / marker 40126042 (CPU Oct 2026).
-- [ ] `JDK_VERSION_MIN="21.0.13.1"` + comment (CPU435, ZIP checked 2026-11-18: `jdk-21.0.13.1_linux-x64_bin.*`; closes CVE-2026-114820).
-- [ ] APEX / ORDS pins if any (`APEX_ZIP_URL` stays 26.2 base; ORDS via `ords-latest.zip`).
+- [x] `PATCH_CYCLE*` (section 2); header comment → `FormsReports14_patch_cspu_2026-11/`, previous cycle frozen in `docs/00-patch-references_october_2026.md`.
+- [x] `OPATCH_VERSION_MIN` comment "(CSPU Nov 2026, Patch 40289362)".
+- [x] `WLS_SPB_VERSION="14.1.2.0.261112"`, `WLS_SPB_MARKER_PATCH="40289390"`, `WLS_SPB_CHECK_BUGS` (+ 40073770?), comment block; "Superseded" line: SPB 40125898 / marker 40126042 (CPU Oct 2026).
+- [x] `JDK_VERSION_MIN="21.0.13.1"` + comment (CPU435, ZIP checked 2026-11-18: `jdk-21.0.13.1_linux-x64_bin.*`; closes CVE-2026-114820).
+- [x] APEX / ORDS pins if any (`APEX_ZIP_URL` stays 26.2 base; ORDS via `ords-latest.zip`).
 
 ### C – Scripts
-- [ ] `09-Install/06-oracle_patch_forms_reports.sh` `SUPERSEDES` – live run: **not needed** (OPatch deactivates the sub-set bundles); leave unchanged.
-- [ ] `09-Install/05-oracle_patch_weblogic.sh` – bundle replacement and bug check worked live? No change expected.
-- [ ] `12-APEX-Ords/04-install-ords.sh` / `06-patch-ords.sh` – expected ORDS version text 26.3.0 → 26.3.1 where named.
-- [ ] **DB MRP in the lib (decided 2026-11-18):** *(2026-11-18: `09-db_patch_rcu.sh --mrp` implemented, dry-run tested – first `--apply` with the December MRP; the AutoUpgrade question below stays open)* first check whether AutoUpgrade (newest jar, as `01-` loads it) delivers the MRP with `recommended` or needs an own keyword (e.g. `mrp`) – result decides the new-install route of `01-` (`recommended,jdk` → `recommended,mrp,jdk`?) and is documented in `docs/01-db_install_software.md` (keyword table). For an existing home on the right RU: `09-db_patch_rcu.sh` gets an **in-place MRP mode** (`--mrp`: stop DB + listener, `opatch prereq CheckConflictAgainstOHWithDetail`, `opatch napply <mrp dir>`, start, `datapatch` with all PDBs open, check `dba_registry_sqlpatch`) – plus `docs/09-db_patch_rcu.md`. Live test in the DB window (MRP 40196156 + DB JDK 40245331 on the test host) before the switch commit, or the MRP part stays "documented" and the conf keeps it optional.
-- [ ] `00-Setup/detect_env_conf.sh` – version examples (21.0.13.0.2).
+- [x] `09-Install/06-oracle_patch_forms_reports.sh` `SUPERSEDES` – live run: **not needed** (OPatch deactivates the sub-set bundles); leave unchanged.
+- [x] `09-Install/05-oracle_patch_weblogic.sh` – bundle replacement and bug check worked live? No change expected.
+- [x] `12-APEX-Ords/04-install-ords.sh` / `06-patch-ords.sh` – expected ORDS version text 26.3.0 → 26.3.1 where named.
+- [ ] **DB MRP in the lib (decided 2026-11-18) – partly done, AutoUpgrade question + first `--mrp --apply` open (TODO.md):** *(2026-11-18: `09-db_patch_rcu.sh --mrp` implemented, dry-run tested – first `--apply` with the December MRP; the AutoUpgrade question below stays open)* first check whether AutoUpgrade (newest jar, as `01-` loads it) delivers the MRP with `recommended` or needs an own keyword (e.g. `mrp`) – result decides the new-install route of `01-` (`recommended,jdk` → `recommended,mrp,jdk`?) and is documented in `docs/01-db_install_software.md` (keyword table). For an existing home on the right RU: `09-db_patch_rcu.sh` gets an **in-place MRP mode** (`--mrp`: stop DB + listener, `opatch prereq CheckConflictAgainstOHWithDetail`, `opatch napply <mrp dir>`, start, `datapatch` with all PDBs open, check `dba_registry_sqlpatch`) – plus `docs/09-db_patch_rcu.md`. Live test in the DB window (MRP 40196156 + DB JDK 40245331 on the test host) before the switch commit, or the MRP part stays "documented" and the conf keeps it optional.
+- [x] `00-Setup/detect_env_conf.sh` – version examples (21.0.13.0.2).
 
 ### D – Install docs
 - [x] `09-Install/docs/00-patch-references.md` – new section "What a home needs – CPU vs. CSPU" (written 2026-11-18, before the switch); after the DB MRP decision update its DB row.
-- [ ] `09-Install/docs/00-patch-references.md` – cycle row "lib switched 2026-MM-DD", state block at the top.
-- [ ] `09-Install/docs/04-oracle_pre_download.md` – conf table, download block, storage tree (`WLS_SPB_14.1.2.0.261112`, 40040466).
-- [ ] `09-Install/docs/05-oracle_patch_weblogic.md` – current set, SPB section, **hardening list: November 2026 JAX-WS gate (default true)** next to the Aug / Sep editions.
-- [ ] `09-Install/docs/06-oracle_patch_forms_reports.md` – current state (OHS 40181911).
-- [ ] `09-Install/docs/40-forms_client_distribution.md` – client JDK 21.0.13.1, JRE 8u513.
-- [ ] `09-Install/download/README.md`, `09-Install/README.md`.
-- [ ] `60-RCU-DB-19c/docs/09-db_patch_rcu.md`, `60-RCU-DB-19c/README.md`, `60-RCU-DB-19c/docs/01-db_install_software.md` – MRP + DB JDK 8u513.
-- [ ] `12-APEX-Ords/README.md` – APEX 26.2.1, ORDS 26.3.1.
+- [x] `09-Install/docs/00-patch-references.md` – cycle row "lib switched 2026-MM-DD", state block at the top.
+- [x] `09-Install/docs/04-oracle_pre_download.md` – conf table, download block, storage tree (`WLS_SPB_14.1.2.0.261112`, 40040466).
+- [x] `09-Install/docs/05-oracle_patch_weblogic.md` – current set, SPB section, **hardening list: November 2026 JAX-WS gate (default true)** next to the Aug / Sep editions.
+- [x] `09-Install/docs/06-oracle_patch_forms_reports.md` – current state (OHS 40181911).
+- [x] `09-Install/docs/40-forms_client_distribution.md` – client JDK 21.0.13.1, JRE 8u513.
+- [x] `09-Install/download/README.md`, `09-Install/README.md`.
+- [x] `60-RCU-DB-19c/docs/09-db_patch_rcu.md`, `60-RCU-DB-19c/README.md`, `60-RCU-DB-19c/docs/01-db_install_software.md` – MRP + DB JDK 8u513.
+- [x] `12-APEX-Ords/README.md` – APEX 26.2.1, ORDS 26.3.1.
 
 ### E – Cycle folder
-- [ ] This folder: README state "lib switched", both guides "Automated" lines / status "confirmed (live)".
-- [ ] `70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md` (+ guide): only the frozen header with a link here.
-- [ ] `70-Customer-Projects/README.md`: index entry of this folder, October marked frozen.
+- [x] This folder: README state "lib switched", both guides "Automated" lines / status "confirmed (live)".
+- [x] `70-Customer-Projects/FormsReports14_patch_cpu_2026-10/README.md` (+ guide): only the frozen header with a link here.
+- [x] `70-Customer-Projects/README.md`: index entry of this folder, October marked frozen.
 
 ### F – Customer folders (current patch level; patch-run folders stay frozen)
-- [ ] `Reports14_linux_manual_install/`: `FMW_Kochbuch_de.txt` step 3, `Reports_kochbuch_de.txt` step 2, `OS_Kochbuch_de.txt` (JDK 21.0.13.1 example + Java note), `Reports_security.txt` step 12, `README.md` download checklist + "Patchstand".
-- [ ] `14-ReportsBuilder/`: `ReportBuilder_Windows_Kochbuch_de.txt` / `_en.txt` download checklist + step 4, `ReportsBuilder_install_windows.md` – Windows variants: SPB with `windows64_patchlist.txt`, bundles Generic (ADF 40155248, OPSS 40154045, UMS 40145610), OHS 40181911 **Windows x64 ZIP** only if OHS is in the Builder home, JDK 21.0.13.1 Windows ZIP; check every platform patch for its 233P ZIP.
-- [ ] `FormsReports_change_java/Java_wechsel_Kochbuch_de.txt` – JDK 21.0.13.1.
-- [ ] `cookbook-Skill.md` – examples.
+- [x] `Reports14_linux_manual_install/`: `FMW_Kochbuch_de.txt` step 3, `Reports_kochbuch_de.txt` step 2, `OS_Kochbuch_de.txt` (JDK 21.0.13.1 example + Java note), `Reports_security.txt` step 12, `README.md` download checklist + "Patchstand".
+- [x] `14-ReportsBuilder/`: `ReportBuilder_Windows_Kochbuch_de.txt` / `_en.txt` download checklist + step 4, `ReportsBuilder_install_windows.md` – Windows variants: SPB with `windows64_patchlist.txt`, bundles Generic (ADF 40155248, OPSS 40154045, UMS 40145610), OHS 40181911 **Windows x64 ZIP** only if OHS is in the Builder home, JDK 21.0.13.1 Windows ZIP; check every platform patch for its 233P ZIP.
+- [x] `FormsReports_change_java/Java_wechsel_Kochbuch_de.txt` – JDK 21.0.13.1.
+- [x] `cookbook-Skill.md` – examples.
 
 ### G – Architecture pages (current-state statements only)
-- [ ] `80-FMW-Architecture/`: `java_jlink_forms_env.md`, `certificates_trust_stores.md`, `oracle_patch_basics.md`, `ords_architecture.md`, `apex_architecture.md`, and the other hits of the sweep (`weblogic_middleware_architecture.md`, `reports_engine_architecture.md`, `fmw_forms_reports_licence.md`, …).
+- [x] `80-FMW-Architecture/`: `java_jlink_forms_env.md`, `certificates_trust_stores.md`, `oracle_patch_basics.md`, `ords_architecture.md`, `apex_architecture.md`, and the other hits of the sweep (`weblogic_middleware_architecture.md`, `reports_engine_architecture.md`, `fmw_forms_reports_licence.md`, …).
 
 ### H – Overview
-- [ ] root `README.md` (Project Status, Security & Patch Status), `docs/project_status.md`, `80-FMW-Architecture/security_overview.md` §2 (was `docs/forms_reports_security.md`), `docs/forms_reports_sizing.md`, `10-Monitoring/README.md`, `TODO.md`.
-- [ ] `CHANGELOG.md`: `## v1.0.202611 – CSPU November 2026` (areas A–J).
+- [x] root `README.md` (Project Status, Security & Patch Status), `docs/project_status.md`, `80-FMW-Architecture/security_overview.md` §2 (was `docs/forms_reports_security.md`), `docs/forms_reports_sizing.md`, `10-Monitoring/README.md`, `TODO.md`.
+- [x] `CHANGELOG.md`: `## v1.0.202611 – CSPU November 2026` (areas A–J).
 
 ### I – Customer tools
-- [ ] If a tool or a CSV it reads changed: bump `VERSION`, `70-Customer-Projects/tools/make_customer_zip.sh --apply`.
+- [x] If a tool or a CSV it reads changed: bump `VERSION`, `70-Customer-Projects/tools/make_customer_zip.sh --apply`.
 
 ### J – Monitoring and skill
-- [ ] `10-Monitoring/cve_inventory.sh` output shows CSPU Nov 2026.
-- [ ] `10-Monitoring/patch_cycle_analysis_skill.md`: §4 new rules – **KA1182 is cumulative: in a CSPU month the full set still contains the CPU patches, never drop unchanged rows; two layers only for the repository DB (RU of the CPU + MRP) and APEX (release + patch set bundle); overlay case (CSPU patch on the CPU PSU = `spb` + `wls` row)** – "Service Delivery Platform" = UMS in the phase-1 filter; matrix vs. PAD (CPU450) differ → follow the PAD; final advisory can change the affected range (ORDS) → always re-read; MOS README text can carry template errors (DB MRP base RU) → trust the inventory. §1 / §3.5 / §5 / §6: two guides per cycle, archive name `00-patch-references_<month>_<yyyy>.md`, release tag `v1.0.<yyyymm>`, pointer to `docs/update_lib_to_act_cpu.md`.
-- [ ] `docs/project_status.md`: link to `docs/update_lib_to_act_cpu.md`.
+- [x] `10-Monitoring/cve_inventory.sh` output shows CSPU Nov 2026.
+- [x] `10-Monitoring/patch_cycle_analysis_skill.md`: §4 new rules – **KA1182 is cumulative: in a CSPU month the full set still contains the CPU patches, never drop unchanged rows; two layers only for the repository DB (RU of the CPU + MRP) and APEX (release + patch set bundle); overlay case (CSPU patch on the CPU PSU = `spb` + `wls` row)** – "Service Delivery Platform" = UMS in the phase-1 filter; matrix vs. PAD (CPU450) differ → follow the PAD; final advisory can change the affected range (ORDS) → always re-read; MOS README text can carry template errors (DB MRP base RU) → trust the inventory. §1 / §3.5 / §5 / §6: two guides per cycle, archive name `00-patch-references_<month>_<yyyy>.md`, release tag `v1.0.<yyyymm>`, pointer to `docs/update_lib_to_act_cpu.md`.
+- [x] `docs/project_status.md`: link to `docs/update_lib_to_act_cpu.md`.
 
 ## 4. Sweep – old values of this cycle
 

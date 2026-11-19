@@ -8,6 +8,12 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-19
+
+- **CSPU November 2026 folder closed:** README state line (client bundle `40-` built 2026-11-18, rest → TODO),
+  open point 2 (Forms session from a Windows PC OK), `update_plan.md` checklist ticked – only the AutoUpgrade
+  question / first `09-db_patch_rcu.sh --mrp --apply` stays open.
+
 ## 2026-11-18 (after the release)
 
 - **README final pass of the day:** "Ways in" with patching (`07-Maintenance/docs/02-patching.md`) and security
