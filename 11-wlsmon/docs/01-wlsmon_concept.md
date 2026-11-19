@@ -8,7 +8,8 @@ description: "Concept of a read-only runtime monitor for Oracle Forms & Reports 
 
 ← [11-wlsmon](../README.md)
 
-**State 2026-11-19: concept.** No script exists yet. This document is the
+**State 2026-11-19: concept.** No script exists yet; the build order is in
+the [development plan](03-wlsmon_development.md). This document is the
 master for the scripts that follow (Doc-as-Master, as in `09-Install/docs/`).
 
 **Source:** a first plan and a frontend prototype by Gunther (2026-11-18):
@@ -597,6 +598,10 @@ and the security rules:
   ours.
 - **Icons:** font-apex (`/i/libraries/font-apex/<ver>/`) – the status icons
   of the interface design.
+- **JET only for the charts (decision 2026-11-19):** tiles, topology, tabs,
+  tables, filters and badges stay the prototype's own HTML / CSS – no
+  `oj-tab-bar`, `oj-table` or other JET components (reasons:
+  [development plan section 1](03-wlsmon_development.md)).
 - **Charts:** Oracle JET (`/i/libraries/oraclejet/<ver>/`, `oj-chart`, loaded
   with the RequireJS of the JET folder), drawn in our own design: series and
   threshold colours, grid, axes, fonts and tooltips from the tokens of
@@ -738,11 +743,16 @@ Planned files in the repository:
 ├── wlsmon.py                      the program: collect (data role), pull (GUI role) – stdlib only, python 3.6+
 ├── rules/wlsmon_rules.cfg         default log rules (local additions: $WLSMON_BASE/etc/)
 ├── templates/                     wlsmon.conf, Nginx include + zone, systemd units + timers
-├── www/                           GUI source (index.html, js, css – no own JS libraries)
-└── tools/gen_sample_data.py       sample data for GUI tests (from the prototype)
+├── www/                           GUI source from the prototype v3 (index.html, host.html, js/, css/, img/ – no own JS libraries)
+│   └── js/wlsmon_charts.js        chart layer: Oracle JET from /i/, SVG fallback
+├── tests/                         unittest (stdlib) + fixtures/ with demo data only
+└── tools/                         gen_sample_data.py (sample data), check_contract.py (contract check)
 ```
 
 ## 10. Phases
+
+The ordered steps with files and done criteria:
+[03-wlsmon_development.md](03-wlsmon_development.md).
 
 | Phase | Content |
 |---|---|

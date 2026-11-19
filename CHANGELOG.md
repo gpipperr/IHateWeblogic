@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **11-wlsmon development plan:**
+  [docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md).
+  - Ordered steps P1 0–13 and P2.1–P2.4, each with files, reuse from the repo
+    and a done criterion.
+  - Order: contract and GUI of the prototype v3 first, then the collector
+    against the same contract (`check_contract.py`), installation last.
+  - Decision: Oracle JET only for the charts (`oj-chart` from `/i/`,
+    notag theme, no Knockout); everything else stays own HTML / CSS. A JET
+    spike under the strict CSP is the gate.
+
 - **New folder `11-wlsmon/` – concept of a lightweight runtime monitor:**
   [docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md) (master spec).
   - Static JSON per host (contract of the first plan / prototype).

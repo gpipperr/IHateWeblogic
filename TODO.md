@@ -344,7 +344,10 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 ## Monitoring (phase 9)
 
 - [ ] **11-wlsmon – lightweight runtime monitor** (concept 2026-11-19:
-  [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md)).
+  [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md);
+  steps 0–13, P2.1–P2.4 with done criteria:
+  [11-wlsmon/docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md);
+  GUI base = prototype v3, Oracle JET only for the charts).
   P1 one host: contract schema 1; `wlsmon.py collect` – python3 stdlib only,
   3.6-compatible, self-contained in `$WLSMON_BASE` = `$ORACLE_BASE/admin/wlsmon`
   (config `etc/wlsmon.conf`, secrets as systemd credentials) – WebLogic REST
