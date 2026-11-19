@@ -150,7 +150,8 @@ Rules:
 | Token | Light mode | Dark mode | Use |
 |---|---|---|---|
 | `--wm-page` | ![#ffffff](colors/ffffff.svg) `#FFFFFF` | ![#0d0d0d](colors/0d0d0d.svg) `#0d0d0d` | page background |
-| `--wm-surface` | ![#ffffff](colors/ffffff.svg) `#FFFFFF` | ![#1a1a19](colors/1a1a19.svg) `#1a1a19` | tiles, chart area |
+| `--wm-surface` | ![#ffffff](colors/ffffff.svg) `#FFFFFF` | ![#1a1a19](colors/1a1a19.svg) `#1a1a19` | tiles, chart area (plot) |
+| `--wm-panel` | ![#f7f7f5](colors/f7f7f5.svg) `#f7f7f5` | ![#141413](colors/141413.svg) `#141413` | panel behind tiles and plots: components, key figures, chart card (neutral tint) |
 | `--wm-border` | ![#e8e8e8](colors/e8e8e8.svg) `#e8e8e8` | ![#2c2c2a](colors/2c2c2a.svg) `#2c2c2a` | tile border, separators |
 | `--wm-ink` | ![#000000](colors/000000.svg) `#000000` | ![#f0efec](colors/f0efec.svg) `#f0efec` | main text, values |
 | `--wm-ink-2` | ![#333333](colors/333333.svg) `#333333` | ![#c3c2b7](colors/c3c2b7.svg) `#c3c2b7` | secondary text |
@@ -166,6 +167,17 @@ Rules:
 - **The dark-mode menu red** `#ff6b6b` is a lighter step of the dark red,
   because `#990000` would be too dark on black (contrast 2.2; `#ff6b6b`
   reaches 7.0). It is only used for the active menu entry.
+- **The chart area stays on `--wm-surface`; the card around it is tinted
+  (decision 2026-11-19).** The plots stand out from a neutral panel
+  (`--wm-panel`) instead of tinting the plot itself. Every tint behind the
+  lines costs contrast: the WARN threshold `#e67700` reaches exactly 3:1 only
+  on white (on `#fff6dd` 2.8:1, on `#f7f7f5` 2.8:1). A gold tint behind the
+  plot is also excluded by rule 1 (section 2): next to a WARN line the whole
+  area would read as a warning zone. The tint is a neutral warm grey, close
+  to the site's line grey, and carries no status. In dark mode the panel is
+  one step darker than the plot (`#141413` under `#1a1a19`). The same panel
+  sits behind the component and key-figure tiles, so the tiles stand out
+  from it (2026-11-19).
 - **The table header** keeps the light gold tint of the site. It is a very
   pale area behind black text and does not look like a status.
 
@@ -186,6 +198,7 @@ switched in one place:
   --wm-series-single: #333333;
   --wm-series-1: #2a78d6; --wm-series-2: #e87ba4; --wm-series-3: #6250d6;
   --wm-grid: #e8e8e8;  --wm-axis: #888888;
+  --wm-panel: #f7f7f5;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { /* dark set, see below */ }
@@ -199,6 +212,7 @@ switched in one place:
   --wm-series-single: #f0efec;
   --wm-series-1: #3987e5; --wm-series-2: #d55181; --wm-series-3: #9085e9;
   --wm-grid: #2c2c2a;
+  --wm-panel: #141413;
 }
 ```
 

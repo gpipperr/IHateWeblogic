@@ -121,7 +121,7 @@ Nginx on B: /wlsmon/api/*.json                   Nginx on A: /wlsmon/           
 
 ### 3.1 The JSON files are the interface
 
-Each data host writes 4 static files, schema-versioned:
+Each data host writes 7 static files, schema-versioned:
 
 | File | Content | Resolution | Kept |
 |---|---|---|---|
@@ -129,17 +129,27 @@ Each data host writes 4 static files, schema-versioned:
 | `day.json` | series for the charts | 5 min | 24 h (288 points) |
 | `week.json` | series, maximum per hour | 1 h | 7 days (168 points) |
 | `history.json` | series, maximum per 12 h + worst level | 12 h | 1 year (730 points) |
+| `patch.json` | patch level per component, expected vs. installed CPU, installed patches | daily | current |
+| `security.json` | security checks with level, result and hint | hourly | current |
+| `logs.json` | log events of the last 24 h grouped by code, hits per rule id (ignored entries included) | 5 min | 24 h window |
 
 The contract follows the prototype plan (schema 1):
-- `schema`, `generated_at`, `interval_sec`, `host`, `domain`;
+- `schema`, `generated_at`, `interval_sec`, `host`, `domain`, `product`,
+  `environment` (`prod | qa | test | dev`);
 - `collector` (version, duration, errors);
 - `overall` (level + reasons);
-- `components[]`, `metrics[]`;
+- `components[]`, `metrics[]`, `layout`, `daily`;
 - the series column-oriented.
+
+The fields added by the prototype (2026-11-19) are listed in section 3.5.
 
 Rules:
 - `level` is only `ok | warn | crit`. Anything else is shown as `stale`.
-- `display` is the formatted value, `value` the raw value.
+- `value` is a plain number (decimal point) and is formatted only in the
+  browser (`Intl`, `WLSMON_LOCALE`, interface design section 8) with
+  `decimals`. `display` only for composite or text values such as
+  `3 · 1 · 0` or `n/a`.
+- Texts in the JSON are English.
 
 A data host serves only these files – no logic, no query parameters.
 
@@ -158,13 +168,20 @@ time of the last data. It never blocks the page.
 
 A click on a tile opens the host view (`?host=B`). It is the dashboard of the
 prototype:
-- traffic light with reasons;
-- components;
-- key figures with sparklines;
-- day / week / year charts;
-- the 12-hour rollup table.
+- header: product name in bold with the environment mark, below it thin
+  "Forms & Reports domain <domain>"; refresh button with a 5-minute
+  countdown (click = reload all data now), colour mode switch, project logo;
+- traffic light with reasons (collector errors as their own chips);
+- four tabs below the traffic light, each with its own status badge:
+  - **Overview:** components, key figures with sparklines, daily facts,
+    day / week / year charts, the 12-hour rollup table;
+  - **Patch level:** expected vs. installed CPU, version and patch level per
+    component, installed patches (`patch.json`);
+  - **Security:** checks sorted by severity (`security.json`);
+  - **Log viewer:** events grouped by code with filter by severity, server
+    and text, plus the hits per rule id (`logs.json`).
 
-It reads `hosts/B/{now,day,week,history}.json` **from A**:
+It reads `hosts/B/{now,day,week,history,patch,security,logs}.json` **from A**:
 - the browser never talks to B;
 - everything is same-origin (CSP `connect-src 'self'`, no CORS headers).
 
@@ -178,6 +195,61 @@ It reads `hosts/B/{now,day,week,history}.json` **from A**:
   B.
 - **One host only** (phase 1): A is also the data host. `hosts/<self>/` points
   to `$WLSMON_BASE/api/`, and the overview has one tile.
+
+### 3.5 Contract additions from the prototype (2026-11-19)
+
+**Components from outside to inside, with dependencies:**
+- one component `"type": "host"` (the server) with `since` (boot time, ISO);
+  the GUI shows "up since <date> · <n> days"; its level comes from the host
+  key figures (load, CPU, memory, disk);
+- `requires: [ids]` – the component cannot work when one of them is DOWN;
+- `parent: id` – shown nested inside that component (several Reports servers
+  such as `reptool01`, `itsutf8`, `def25` inside `WLS_REPORTS`, list from
+  `WLSMON_REPORTS_SERVERS`);
+- `down: true` and `word: "DOWN"` for a component that has failed;
+- `layout.stages` – the order from outside to inside, e.g.
+  `[["nginx"], ["AdminServer", "NodeManager"], ["WLS_FORMS"], ["WLS_REPORTS"], ["DB"]]`.
+
+Rules: a component behind a DOWN one is shown as *blocked* (CRIT, "blocked
+by <root cause>"). Only the root cause becomes a reason ("nginx: not running
+· blocks WLS_FORMS, WLS_REPORTS, …"), so an outage does not flood the page.
+Only DOWN propagates, WARN does not. AdminServer and Node Manager are the
+management plane: the managed servers keep running without them, so nothing
+`requires` them by default.
+
+**Key figures per component block:**
+- `group` on every metric, `layout.metric_groups` for order and titles:
+  Server (load, CPU, memory, disk) | nginx (requests per minute, log errors)
+  | Forms (sessions with prestart pool, heap, stuck · hogging threads, log
+  errors, core dumps) | Reports (jobs, engines busy · idle, heap, threads,
+  log errors, core dumps) | Database (JDBC connections active · waiting,
+  RCU login: green = DB reachable and login ok, red = login refused);
+- log errors and core dumps are counted **per component**, the series per
+  component (`log_errors_forms`, `core_dumps_reports`, …) plus the totals for
+  the rollup table;
+- `label` – full name for the reasons ("Heap WLS_REPORTS"), `short` – name on
+  the tile inside its block ("Heap");
+- `items[]` – a list inside a tile, e.g. the disks (domain, logs, Reports
+  cache, `/tmp`, core directory) with value and level each.
+
+**Other fields:**
+- `collector.errors[]` – objects `{level, text}`, e.g. "monitor login
+  refused (HTTP 401), paused for 30 min" or "rule my_rule skipped: invalid
+  regex"; shown as chips, they do not change the host level;
+- `daily` – `{generated_at, facts[]}` with the daily facts (days until the
+  next certificate expiry, patch cycle from the inventory files, Derby
+  running, GUI library paths valid);
+- `logs.json` – `events[]` (`severity`, `code`, `rule`, `server`, `count`,
+  `first_seen`, `last_seen`, short `text` per code – never a raw log line),
+  `rules[]` (`id`, `type`, `level`, `source`, `hits`, `reason`) and `ignored`;
+- `patch.json` – `baseline` (`cpu` expected from `WLSMON_PATCH_BASELINE`,
+  `installed`), `components[]`, `patches[]`; read from the inventory files,
+  no OPatch JVM;
+- `security.json` – `checks[]` (`area`, `name`, `result`, `level`, `hint`):
+  TLS certificate days and protocols, Basic Auth active, `/console` and
+  `/management` not reachable, HTTP 401 in 24 h, production mode, demo
+  certificates, user lockout, monitor user only in Monitors, file
+  permissions, listening ports against the expected list.
 
 ## 3a. Security and simple password handling
 
@@ -304,9 +376,10 @@ then `os.replace`).
 | Fallback when the AdminServer is down | `http://localhost:<port>/weblogic/ready` per server, port checks | `70-Customer-Projects/tools/bash/status.sh` (ready probe), `01-Run/startStop.sh` (`_port_listening`) |
 | Reports server: engines busy / idle, queue, failed jobs | `getserverinfo` per POST with the existing Reports user `monUser` (role `RW_MONITOR`) | the request (POST, all parameters in the body) and the verdict rules of `01-Run/reports_server_lib.sh` (`rws_fetch_serverinfo`, `rws_http_verdict`) and the XML fields of `01-Run/rwserver_status.sh`, ported to Python |
 | Forms: sessions vs. prestart pool | `frmweb` processes from `/proc/<pid>/cmdline` + `ss` (a runtime with a client connection = session) | rule of `06-FormsDiag/forms_perf_analyse.sh` |
-| Host | `/proc/loadavg`, `os.cpu_count()`, `/proc/meminfo`, `shutil.disk_usage` of a configured list | – |
+| Host | uptime from the boot time (`btime` in `/proc/stat`), `/proc/loadavg`, `os.cpu_count()`, CPU % as the average over the interval from the `/proc/stat` delta between two runs (counters in `state/`, with iowait and steal), `/proc/meminfo`, `shutil.disk_usage` of a configured list | – |
 | Log errors | server and Reports logs, read from the offset of the last run (inode + byte offset in `$WLSMON_BASE/state/`; rotation = start again) – evaluated per log entry with the rules file (section 4.3); only counters and codes: `<Error>`, `<Critical>`, `BEA-000337`, `OutOfMemoryError`, `REP-`, `REP-50171` + LDAP error 49 (failed Reports logins) | patterns of `70-Customer-Projects/tools/bash/show_errors.sh`; the REP-50171 monitor is an open item of the security hardening (TODO) |
 | Core dumps | directory from `sysctl -n kernel.core_pattern` (our hosts: `/var/tmp/core/coredump_%h_…`), new files since the last run; a pattern starting with `\|` (systemd-coredump) → `coredumpctl list --since`; plus `hs_err_pid*.log` in the domain directory; free space of the core directory as a disk figure (a JVM core ≈ heap size) | `09-Install/01-root_os_baseline.sh` sets `kernel.core_pattern`, `fs.suid_dumpable`, `kernel.core_uses_pid` and creates `/var/tmp/core`; `docs/03-root_user_oracle.md` sets the `core` limit of `oracle` |
+| RCU schemas (STB, OPSS, IAU, MDS, WLS …) | a failed RCU login shows only at the next start of the domain – the running servers keep their pooled connections. Checked on its own, once an hour: (1) account status and expiry date of the RCU schemas from `DBA_USERS` with a read-only DB monitor user, through the `sqlplus` of the F&R Oracle Home, connect string from the STB data source: `OPEN` = ok, expiry in < 30 days = warn, `LOCKED` / `EXPIRED` = crit; (2) optional a real login with the RCU schema password (systemd credential), at most once an hour and paused after the first refusal, so that wlsmon never locks the schema itself; (3) log rule `rcu_login` (ORA-01017, ORA-28000, ORA-28001) and the state of the RCU data sources from the REST call | new; connect data from the domain configuration (`jdbc/*.xml`, STB data source) |
 | Daily facts (once a day, cheap) | days until the next certificate expiry, patch cycle stamp from the inventory files (no OPatch JVM), Derby running, GUI library paths still valid | `10-Monitoring/cert_expiry_check.sh`, the facts of `collect_fmw_env.sh` |
 
 ### 4.2 Key figures and thresholds (proposal)
@@ -319,11 +392,13 @@ then `os.replace`).
 | Forms sessions | from experience, per environment |
 | Reports queue · failed jobs | queue > 5 / failed > 0 |
 | Load 1 min | > cores / > 2 × cores |
+| CPU % (average over 5 min) | 80 / 95 |
 | Memory used, swap | 85 / 95 %, swap in use = warn |
 | Disk (domain, logs, Reports cache, /tmp) | 80 / 90 % |
 | Log errors since the last run | > 0 / critical or > 9 |
 | New core dumps | ≥ 1 = crit |
 | Days until a certificate expires (daily) | < 30 / < 7 |
+| RCU schema login (hourly) | password expires in < 30 days = warn / login refused, `LOCKED` or `EXPIRED` = crit |
 
 The thresholds are `WLSMON_*` keys in `$WLSMON_BASE/etc/wlsmon.conf`, with
 defaults in the program. The interview offers the values of
@@ -441,13 +516,13 @@ The template has two blocks, switched on or off with the marker technique of
 the Nginx template:
 
 - **GUI role (A):**
-  - `/wlsmon/` (static GUI) and `/wlsmon/hosts/<h>/(now|day|week|history).json`
+  - `/wlsmon/` (static GUI) and `/wlsmon/hosts/<h>/(now|day|week|history|patch|security|logs).json`
     plus `hosts.json`;
   - `allow ADMIN_IP_RANGE` + `deny all` (the same handling as `/console` in
     `04-root_nginx.sh`);
   - Basic Auth for people.
 - **Data role (B, C, D):**
-  - only `/wlsmon/api/(now|day|week|history).json`;
+  - only `/wlsmon/api/(now|day|week|history|patch|security|logs).json`;
   - `allow <IP of A>` + `deny all`;
   - Basic Auth for the one pull user;
   - no GUI.
@@ -531,14 +606,14 @@ and the security rules:
   switchable with `WLSMON_LOCALE` (interface design, section 8).
 - **Pages:**
   - overview (tiles per host);
-  - host view (dashboard of the prototype, plus Reports busy / queue / failed
-    and a row with the daily facts).
+  - host view (dashboard of the prototype with the four tabs of section 3.3,
+    Reports engines busy / idle, queue, failed and a row with the daily facts).
 
 ## 8. Data retention and rollups
 
 | Series | day (5 min) | week (1 h) | history (12 h) |
 |---|---|---|---|
-| Forms sessions, heap, load | raw | maximum | maximum |
+| Forms sessions, heap, load, CPU, nginx requests | raw | maximum | maximum |
 | Free memory | raw | **minimum** | **minimum** |
 | Log errors, core dumps, Reports jobs | raw | **sum** | **sum** |
 | Level | – | – | worst level of the 12 h |
@@ -665,6 +740,10 @@ Planned files in the repository:
 - Customer domains: the WebLogic monitor user is one change of the realm –
   agree it per customer.
 - JET without Knockout bindings under the strict CSP – proof in P1.
+- RCU check: is `sqlplus` part of the F&R 14.1.2 Oracle Home on every host;
+  read-only DB monitor user (`SELECT` on `DBA_USERS` for the RCU schemas
+  only) – agree it with the DBA per customer; the optional real login needs
+  the RCU password as one more systemd credential.
 
 Answered by the repository:
 - the Reports figures come from `getserverinfo` with `monUser`;
