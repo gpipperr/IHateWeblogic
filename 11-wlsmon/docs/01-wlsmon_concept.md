@@ -155,10 +155,31 @@ A data host serves only these files – no logic, no query parameters.
 
 ### 3.2 Entry point: the overview on A
 
-The first page shows one tile per host:
+The first page (`index.html`) shows one tile per host:
 - overall level and domain;
 - age of the data;
 - the two or three most important reasons.
+
+Prototype details (2026-11-19):
+- the tiles are grouped by **product**, inside a group ordered by
+  environment (Production, QA, Test, Development) and then worst level first;
+  each group has the badge of its worst host;
+- a tile shows host name, level (or `STALE <n> min`), environment mark,
+  domain, "updated 15:20 · 2 min ago", up to three reasons, the number of
+  collector errors and a short line (Forms sessions, heap, load, CPU,
+  uptime); the whole tile is the link to `host.html?host=<id>`;
+- above the tiles: number of hosts per level, a filter by environment and a
+  search over host, product and domain; same refresh button (5 minutes),
+  colour mode switch and logo as the host view; the host view has a link
+  "← All hosts" back.
+
+`hosts.json` (schema 1): `generated_at`, `interval_sec`, `hosts[]` with `id`,
+`name`, `product`, `environment`, `domain`, `level`, `generated_at` and
+`interval_sec` of the host's own `now.json`, `reasons[]` (max. 3),
+`collector_errors` (count) and `summary` (`forms_sessions`,
+`heap_forms_pct`, `load1`, `cpu_pct`, `since`). The GUI computes STALE
+itself from `generated_at`, so a host whose pull fails turns grey even when
+`hosts.json` is fresh.
 
 `wlsmon.py pull` writes the tiles to `hosts.json` after each round. A host
 whose data is older than two intervals is shown as **stale**: grey, with the
