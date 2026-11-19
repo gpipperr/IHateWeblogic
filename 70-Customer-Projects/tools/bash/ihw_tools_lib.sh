@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-19.1"
+IHWT_LIB_VERSION="2026-11-19.2"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1345,11 +1345,11 @@ $(getent passwd | awk -F: -v g="$gid" '$4 == g {print $1}')"
             "$(_ihwt_x "$v" min-numeric-or-special-characters)" "$(_ihwt_x "$v" reject-equal-or-contain-username)" \
             | sed 's/=;/=-;/g; s/=$/=-/'
     fi
-    printf 'security;config_audit;%s\n' "$(_ihwt_x "$cx" configuration-audit-type | sed 's/^$/none/')"
+    v="$(_ihwt_x "$cx" configuration-audit-type)"; printf 'security;config_audit;%s\n' "${v:-none}"
     printf '%s' "$cx" | grep -q '<auditor' && printf 'security;auditor;yes\n' || printf 'security;auditor;no\n'
     unset -f _ihwt_x
     # OPSS audit: the audit service instance of the default jpsContext counts
-    jc="$dh/config/fmwconfig/jps-config.xml"
+    jc="$dh/config/fmwconfig/jps-config.xml"; [ -f "$jc" ] || jc=/dev/null
     ai="$(tr -d '\n' < "$jc" 2>/dev/null | grep -o '<jpsContext name="default">.*' | sed 's#</jpsContext>.*##' | grep -o 'serviceInstanceRef ref="audit[^"]*"' | head -1 | sed 's/.*ref="//; s/"$//')"
     fp="$(tr -d '\n' < "$jc" 2>/dev/null | grep -o "<serviceInstance name=\"${ai:-audit}\"[^>]*>.*" | sed 's#</serviceInstance>.*##' | grep -o 'name="audit.filterPreset" value="[^"]*"' | head -1 | sed 's/.*value="//; s/"$//')"
     printf 'security;opss_audit;instance=%s;filterPreset=%s\n' "${ai:--}" "${fp:--}"

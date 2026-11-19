@@ -10,6 +10,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **`ihw_tools_lib` 2026-11-19.2:** `ihwt_security` writes `config_audit;none` instead of an empty value and no
+  longer prints an error when `jps-config.xml` is missing (found with the first real customer collection).
+
 - **`update_tools_from_git.ps1`** (Windows twin of `update_tools_from_git.sh`, PowerShell 5.1 / 7): Windows tools ZIP
   with the certificate check off, `-Zip` offline, `-Proxy`, installed → repository per file, `-Apply` with backup,
   no downgrade, self-update; no `setdb` part. `make_customer_zip.sh` now also reads `$SCRIPT_VERSION = "…"`, so the
