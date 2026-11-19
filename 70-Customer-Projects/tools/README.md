@@ -403,7 +403,7 @@ $ORACLE_BASE/tools/update_tools_from_git.sh --zip /tmp/ihw_customer_tools_linux.
 | `--apply` | backup of every replaced file to `tools/backup/tools_<ts>/` (incl. the old `ihw_env.sh` – not into `~/.bashrc.d`, everything there is sourced; the newest 3 are kept), then each file as a temp file + `mv` (new inode – the running script, also this one, keeps its old copy, so it can update itself); `~/.bashrc.d` (700) / `ihw_env.sh` (644); template `ihw_shell_env.sh` deleted; `~/.ihw_env.conf` untouched. Ends with "Bitte ab- und neu anmelden" when `setdb` changed |
 
 Exit 0 = up to date / applied, 1 = updates available, 2 = error. Not as
-root. Road map: [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
+root. Windows: [update_tools_from_git.ps1](powershell/README.md#update_tools_from_gitps1) (same, without `setdb`). Road map: [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
 step 2 (first `setdb` install with `--zip`) and step 7 (update). Tested
 2026-11-19 in a scratch copy with a fake `HOME`: old tools state → read-only
 (exit 1) → `--apply` incl. self-update → second run "nothing to do"; download

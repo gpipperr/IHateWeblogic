@@ -24,6 +24,7 @@ copy the whole folder / the Windows ZIP.
 | [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
+| [update_tools_from_git.ps1](#update_tools_from_gitps1) | update the tools of this directory from the repository: Windows ZIP (certificate check off, `-Zip` offline, `-Proxy`), installed → repository per file, `-Apply` replaces / unpacks with backup | [update_tools_from_git.sh](../README.md#update_tools_from_gitsh) |
 
 ## Starting a script (ExecutionPolicy)
 
@@ -44,6 +45,39 @@ script has a `-Version` switch.
 The scripts contain only ASCII characters, so Windows PowerShell 5.1 reads
 them correctly without a BOM. Git checks out `*.ps1` with CRLF line endings
 (`.gitattributes`).
+
+## update_tools_from_git.ps1
+
+Keeps the tools directory current – the twin of
+[update_tools_from_git.sh](../README.md#update_tools_from_gitsh) (2026-11-19), without the
+`setdb` part (no shell switcher on Windows).
+
+```powershell
+.\update_tools_from_git.ps1                     # show: installed -> repository (exit 1 = updates)
+.\update_tools_from_git.ps1 -Apply              # replace / unpack (backup first)
+.\update_tools_from_git.ps1 -Zip C:\temp\ihw_customer_tools_windows.zip -Apply   # offline
+.\update_tools_from_git.ps1 -Proxy http://proxy:8080                             # proxy with the logged-on user
+```
+
+- Download of `ihw_customer_tools_windows.zip` + `.sha256` (branch `main`;
+  `-Url` / `IHW_TOOLS_URL` for a mirror) with the **certificate check off**
+  (PowerShell 7 `-SkipCertificateCheck`, 5.1 certificate callback + TLS 1.2) –
+  customer networks often intercept TLS. The SHA-256 proves a complete
+  transfer, not the origin.
+- Compare per file of `VERSIONS.txt` (since 2026-11-19 with the `.ps1`
+  versions – `make_customer_zip.sh` reads `$SCRIPT_VERSION = "…"` too):
+  `changed`, `new`, `local newer` (kept – never a downgrade); files not in the
+  ZIP (`patch_env.ps1`, own scripts) stay ("local only").
+- `-Apply`: backup to `backup\tools_<ts>\` (newest 3 kept), temp file +
+  move per file. PowerShell parses the whole script before it runs, so the
+  script can update itself. Files unpacked by .NET carry no "downloaded" mark;
+  if the policy still blocks: `Get-ChildItem .\*.ps1 | Unblock-File`.
+- Exit 0 = up to date / applied, 1 = updates available, 2 = error.
+
+Tested 2026-11-19 with pwsh 7.7 on the Linux test host (old tools state →
+read-only exit 1 → `-Apply` incl. self-update → "nothing to do"; download from
+GitHub; local newer kept; wrong `.sha256` → exit 2, nothing changed). Not yet
+on a Windows host (Windows PowerShell 5.1 path).
 
 ## collect_fmw_env.ps1
 

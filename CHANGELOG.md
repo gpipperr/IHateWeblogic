@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **`update_tools_from_git.ps1`** (Windows twin of `update_tools_from_git.sh`, PowerShell 5.1 / 7): Windows tools ZIP
+  with the certificate check off, `-Zip` offline, `-Proxy`, installed → repository per file, `-Apply` with backup,
+  no downgrade, self-update; no `setdb` part. `make_customer_zip.sh` now also reads `$SCRIPT_VERSION = "…"`, so the
+  Windows `VERSIONS.txt` carries the `.ps1` versions. Tested with pwsh on Linux.
+  [powershell README](70-Customer-Projects/tools/powershell/README.md#update_tools_from_gitps1)
+
 - **`update_tools_from_git.sh`** (new, customer tools `$ORACLE_BASE/tools`): downloads the Linux tools ZIP from the
   repository (wget `--no-check-certificate` because of TLS interception at customers, curl `-k` fallback, `--zip`
   offline), checks SHA-256 / `unzip -t`, shows per file installed → repository version; `--apply` replaces / unpacks

@@ -77,8 +77,8 @@ if $SOURCES; then
     exit 0
 fi
 
-# _version FILE - first VERSION="..." / *_VERSION="..." of a script
-_version() { grep -m1 -oE '[A-Z_]*VERSION="[0-9][^"]*"' "$1" 2>/dev/null | sed 's/.*="//; s/"$//'; }
+# _version FILE - first VERSION="..." / *_VERSION="..." (ps1: $X_VERSION = "...") of a script
+_version() { grep -m1 -oE '[A-Z_]*VERSION *= *"[0-9][^"]*"' "$1" 2>/dev/null | sed 's/.*= *"//; s/"$//'; }
 
 # _build PLATFORM OUT_ZIP - deterministic ZIP into OUT_ZIP
 _build() {
