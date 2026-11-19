@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-19
 
+- **`update_tools_from_git.sh`** (new, customer tools `$ORACLE_BASE/tools`): downloads the Linux tools ZIP from the
+  repository (wget `--no-check-certificate` because of TLS interception at customers, curl `-k` fallback, `--zip`
+  offline), checks SHA-256 / `unzip -t`, shows per file installed → repository version; `--apply` replaces / unpacks
+  with backup (`tools/backup/tools_<ts>`, newest 3), never downgrades a locally newer file, installs `setdb` as
+  `~/.bashrc.d/ihw_env.sh` and removes the template `ihw_shell_env.sh` from the tools directory ("bitte neu
+  anmelden"). Start road map step 2 uses it, new step 7 "Tools aktualisieren"; `ihw_shell_env.sh` 2026-11-19.1
+  (help line). [tools README](70-Customer-Projects/tools/README.md#update_tools_from_gitsh)
+
 - **Collector security facts (`46_security.txt`):** `collect_fmw_env.sh` / `.ps1` 2026-11-19.1, `ihw_tools_lib`
   2026-11-19.1 (`ihwt_security` / `ihwt-security`, identical lines bash / pwsh on the test host) – the checks of
   `02-Checks/domain_secret_check.sh` as facts: mode / owner / further group members of the domain key,

@@ -18,7 +18,9 @@
 #                   selected here): $ORACLE_BASE/tools, tools above a known home, or
 #                   IHW_TOOLS_DIR=/path in ~/.ihw_env.conf - put in PATH
 #
-# Install (as oracle):  mkdir -p ~/.bashrc.d
+# Install (as oracle):  <tools>/update_tools_from_git.sh --apply  (installs this file
+#                       as ~/.bashrc.d/ihw_env.sh and removes the template from the
+#                       tools directory) - by hand: mkdir -p ~/.bashrc.d
 #                       cp ihw_shell_env.sh ~/.bashrc.d/ihw_env.sh
 # The OL9 default ~/.bashrc sources ~/.bashrc.d/*; open a new shell.
 # Only the current shell is changed - no file of the installation, no
@@ -33,7 +35,7 @@
 # only interactive shells - scp / sftp / cron stay silent and unchanged
 [[ $- == *i* ]] || return 0 2>/dev/null
 
-IHW_SHELL_ENV_VERSION="2026-11-11.1"
+IHW_SHELL_ENV_VERSION="2026-11-19.1"
 IHW_ENV_CONF="${IHW_ENV_CONF:-$HOME/.ihw_env.conf}"
 
 # ---------------------------------------------------------------- output ----
@@ -470,6 +472,7 @@ Patch|make_patch_install_ini.sh| [--apply]|create patch_install.ini from the dom
 Patch|. set_script_env.sh||values of patch_install.ini for the cookbook commands
 Patch|fmw_patch_env.sh||variables of the manual patch cookbooks
 Patch|mos_patch_download.sh||download a patch list from My Oracle Support
+Update|update_tools_from_git.sh| [--apply]|newer tools from the repository (read-only without --apply)
 EOF
     printf "   patch_install.ini: optional for status / logs (they use the selected domain),\n"
     printf "     needed by the cookbooks. Missing: t / cdt offer once per session to create it.\n"

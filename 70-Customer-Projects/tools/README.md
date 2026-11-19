@@ -56,6 +56,7 @@ runtime, never by a second copy of the script.
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
 | [bash/export_forms_reports_conf.sh](#export_forms_reports_confsh) | read-only: export the customer-specific Forms & Reports **configuration** (formsweb.cfg, env files, cgicmd.dat, Reports servers, uifont.ali, custom fonts, customer jars, web tier, source paths + dependencies) into one encrypted archive – everything to build the environment again |
 | [bash/ihw_shell_env.sh](#ihw_shell_envsh) | interactive: `setdb` / `setfmw` / `setfw` – one menu to switch the **current shell** between the FMW home, its domains and DB homes (with / without SID); `c` clear, `h` help, `wlst`, `cdlog` …, `domain`; puts `$ORACLE_BASE/tools` into the PATH (installed as `~/.bashrc.d/ihw_env.sh`) |
+| [bash/update_tools_from_git.sh](#update_tools_from_gitsh) | update the tools of `$ORACLE_BASE/tools` from the repository: download the Linux ZIP (wget `--no-check-certificate`, curl `-k` fallback, or `--zip FILE` offline), show per file installed → repository version; `--apply` replaces / unpacks (backup first), installs `setdb` as `~/.bashrc.d/ihw_env.sh` and removes the template `ihw_shell_env.sh` from the tools directory |
 | [bash/set_script_env.sh](#set_script_envsh-and-the-operation-tools) | sourced: load the customer's [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) into the session for the cookbook commands; `set_script_env_show` lists the values |
 | [bash/make_patch_install_ini.sh](#make_patch_install_inish) | create [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) from the existing domain, for the cookbooks (dry run shows the values, `--apply` writes; offered by `setdb` at `t`) |
 | [bash/status.sh, show_log.sh, show_errors.sh, show_all_logs.sh](#set_script_envsh-and-the-operation-tools) | operation (German output): status in three stages (ports, processes, HTTP + Node Manager, rc 0/1/2), the log of one component, all current logs live, only the error lines – read [`patch_install.ini`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Reports14_linux_manual_install/patch_install.ini) next to them |
@@ -382,6 +383,32 @@ domain, run as root. Read-only without `--apply`; with it only the four
 directories and `patch_env.sh` in the base directory are created.
 Tested 2026-10-29 on the 14c test host (executed, sourced, `--apply`).
 
+## update_tools_from_git.sh
+
+Keeps `$ORACLE_BASE/tools` current at the customer – no git clone, no manual
+unzip over the old directory (2026-11-19). Lies in the tools directory and
+works on that directory.
+
+```bash
+$ORACLE_BASE/tools/update_tools_from_git.sh            # show: installed -> repository (exit 1 = updates)
+$ORACLE_BASE/tools/update_tools_from_git.sh --apply    # replace / unpack, install setdb
+$ORACLE_BASE/tools/update_tools_from_git.sh --zip /tmp/ihw_customer_tools_linux.zip [--apply]   # offline
+```
+
+| Step | What happens |
+|---|---|
+| Download | the Linux ZIP + `.sha256` from the repository (branch `main`, the documented link; `--url` / `IHW_TOOLS_URL` for a mirror) with `wget --no-check-certificate`, `curl -fsSLk` when there is no wget – customer networks often intercept TLS with their own CA. The SHA-256 proves a complete transfer, not the origin. Proxy: `https_proxy` from the environment |
+| Check | SHA-256 against the `.sha256`, `unzip -t`, `tools/VERSIONS.txt` must be in the ZIP |
+| Compare | per file of `VERSIONS.txt`: `changed` (version installed → repository), `new`, current; a **locally newer** version (test / maintainer host) is kept – never a downgrade; files not in the ZIP (`patch_install.ini`, own scripts) stay as they are ("local only"). `ihw_shell_env.sh` is compared with the **installed** `~/.bashrc.d/ihw_env.sh`; a template still in the tools directory is reported for removal. Hints: a second switcher copy in `~/.bashrc.d`, no `bashrc.d` loop in `~/.bashrc` (never edited) |
+| `--apply` | backup of every replaced file to `tools/backup/tools_<ts>/` (incl. the old `ihw_env.sh` – not into `~/.bashrc.d`, everything there is sourced; the newest 3 are kept), then each file as a temp file + `mv` (new inode – the running script, also this one, keeps its old copy, so it can update itself); `~/.bashrc.d` (700) / `ihw_env.sh` (644); template `ihw_shell_env.sh` deleted; `~/.ihw_env.conf` untouched. Ends with "Bitte ab- und neu anmelden" when `setdb` changed |
+
+Exit 0 = up to date / applied, 1 = updates available, 2 = error. Not as
+root. Road map: [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt)
+step 2 (first `setdb` install with `--zip`) and step 7 (update). Tested
+2026-11-19 in a scratch copy with a fake `HOME`: old tools state → read-only
+(exit 1) → `--apply` incl. self-update → second run "nothing to do"; download
+from GitHub with wget and with curl only.
+
 ## ihw_shell_env.sh
 
 Environment switcher for the oracle user, after the model of `setdb` in
@@ -391,6 +418,8 @@ changes **only the current shell** – no installation file, no
 `00-Setup/detect_env_conf.sh --select`).
 
 **Install** (as oracle, also on customer hosts – the file is standalone):
+`update_tools_from_git.sh --apply` does it and removes the template from the
+tools directory ([above](#update_tools_from_gitsh)); by hand:
 
 ```bash
 mkdir -p ~/.bashrc.d
