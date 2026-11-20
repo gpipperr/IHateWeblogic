@@ -607,4 +607,4 @@ class GuiLibsFactTest(unittest.TestCase):
             os.utime(os.path.join(env.base, "www", "ui.json"))
             f = self.fact(env.collect())
             self.assertEqual((f["display"], f["level"]), ("found", "ok"))
-            self.assertIn("oraclejet 20.1.4", f["sub"])
+            self.assertEqual(f["sub"].count("oraclejet 20.1.4"), 1)            # knockout path: no double

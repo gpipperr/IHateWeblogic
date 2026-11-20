@@ -1653,8 +1653,14 @@ def daily_facts(rnd, patch):
             confs = "\n".join(read_text(f) or "" for f in nginx_conf_files(cfg))
             served = local_probe(cfg.get("WLSMON_NGINX_PORT"), libs["jet"].rstrip("/") + "/js/libs/require/require.js",
                                  nginx_server_name(confs) or socket.getfqdn())
-        versions = " · ".join(v.split("/")[3] + " " + v.split("/")[4] for v in libs.values()
-                              if v.count("/") >= 4 and "jquery" not in v)
+        # one entry per library and version - knockout lies below the JET path
+        versions = []
+        for v in libs.values():
+            if v.count("/") >= 4 and "jquery" not in v:
+                name = v.split("/")[3] + " " + v.split("/")[4]
+                if name not in versions:
+                    versions.append(name)
+        versions = " · ".join(versions)
         if missing:
             display, sub, lv = "moved", "run 01-install-wlsmon_fmw.sh --apply: " + ", ".join(missing), "warn"
         elif served is not None and served not in (200, 401, 403):
