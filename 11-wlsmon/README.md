@@ -47,11 +47,7 @@ a 4-hour trend, daily facts (certificate, patch cycle), trend over 24 h /
 7 days / 1 year and the summary per 12 h; tabs for patch level, security and
 the log viewer.
 
-<details markdown="block"><summary>Show the host view (long page)</summary>
-
 ![wlsmon host view of one host in state WARN](docs/images/wlsmon_host_view.png)
-
-</details>
 
 ## In short
 
