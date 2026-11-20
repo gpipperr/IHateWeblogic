@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **11-wlsmon tiles say what they measure:** the memory tile names the
+  cause of WARN / CRIT (used % or swap); "Heap used" names the max heap and
+  the JVM (without frmweb / engines); the JDBC tile counts RCU vs. own data
+  sources. `03-set-thresholds.sh` shows the memory limit as free %, and
+  `10,5` is refused with the hint `90,95`. Ops page: table "What the tiles
+  refer to" ([04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
 - **11-wlsmon at the first customer, `03-set-thresholds.sh`:** fix for a
   missing monitor user (01- now creates it); new operation script to show
   and change the WARN / CRIT limits next to the measured values of the last

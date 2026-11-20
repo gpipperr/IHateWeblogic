@@ -229,8 +229,8 @@ def now_file(gen, sc, day):
 
         {"id": "forms_sessions", "group": "forms", "label": "Forms sessions", "short": "Sessions", "value": sess, "decimals": 0,
          "unit": "active", "sub": "prestart pool 10 · 4 idle", "level": "ok", "series": "forms_sessions"},
-        {"id": "heap_forms_pct", "group": "forms", "label": "Heap WLS_FORMS", "short": "Heap", "value": heap_forms, "decimals": 0,
-         "unit": "%", "sub": "limits 80 / 90 %", "level": level(heap_forms, 80, 90), "series": "heap_pct_WLS_FORMS"},
+        {"id": "heap_forms_pct", "group": "forms", "label": "Heap used WLS_FORMS", "short": "Heap used", "value": heap_forms, "decimals": 0,
+         "unit": "%", "sub": "of max heap 2 GB · WLS_FORMS JVM w/o frmweb · limits 80 / 90 %", "level": level(heap_forms, 80, 90), "series": "heap_pct_WLS_FORMS"},
         {"id": "threads_forms", "group": "forms", "label": "Stuck · hogging threads WLS_FORMS", "short": "Stuck · hogging threads",
          "value": None, "display": "0 · 2" if warn else "0 · 0", "unit": "threads", "sub": "thread pool",
          "level": "warn" if warn else "ok", "series": None},
@@ -247,9 +247,9 @@ def now_file(gen, sc, day):
         {"id": "reports_engines", "group": "reports", "label": "Reports engines busy · idle", "short": "Engines busy · idle",
          "value": None, "display": "0 · 0" if crit else "3 · 5", "unit": "engines",
          "sub": "no engine reachable" if crit else "getserverinfo · 8 configured", "level": "crit" if crit else "ok", "series": None},
-        {"id": "heap_reports_pct", "group": "reports", "label": "Heap WLS_REPORTS", "short": "Heap", "value": None if crit else 61,
+        {"id": "heap_reports_pct", "group": "reports", "label": "Heap used WLS_REPORTS", "short": "Heap used", "value": None if crit else 61,
          "decimals": 0, "display": "n/a" if crit else None, "unit": "" if crit else "%",
-         "sub": "server FAILED" if crit else "limits 80 / 90 %", "level": "crit" if crit else "ok", "series": "heap_pct_WLS_REPORTS"},
+         "sub": "server FAILED" if crit else "of max heap 2 GB · WLS_REPORTS JVM w/o engines · limits 80 / 90 %", "level": "crit" if crit else "ok", "series": "heap_pct_WLS_REPORTS"},
         {"id": "threads_reports", "group": "reports", "label": "Stuck · hogging threads WLS_REPORTS", "short": "Stuck · hogging threads",
          "value": None, "display": "2 · 6" if crit else "0 · 1", "unit": "threads", "sub": "thread pool",
          "level": "crit" if crit else "ok", "series": None},
@@ -260,7 +260,7 @@ def now_file(gen, sc, day):
          "value": 0, "decimals": 0, "unit": "new", "sub": "rwEngine core* · hs_err_pid*", "level": "ok", "series": "core_dumps_reports"},
 
         {"id": "jdbc", "group": "db", "label": "JDBC connections", "short": "JDBC connections", "value": None,
-         "display": "14 · 0", "unit": "active · waiting", "sub": "2 data sources", "level": "ok", "series": None},
+         "display": "14 · 0", "unit": "active · waiting", "sub": "4 RCU data sources · not the Forms / Reports app sessions", "level": "ok", "series": None},
         # RCU: a failed schema login shows only at the next restart of the domain,
         # so it is checked on its own (concept 4.1)
         {"id": "rcu", "group": "db", "label": "RCU schema login", "short": "RCU login", "value": None,

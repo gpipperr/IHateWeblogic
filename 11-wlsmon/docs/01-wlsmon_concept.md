@@ -251,7 +251,7 @@ management plane: the managed servers keep running without them, so nothing
 - log errors and core dumps are counted **per component**, the series per
   component (`log_errors_forms`, `core_dumps_reports`, …) plus the totals for
   the rollup table;
-- `label` – full name for the reasons ("Heap WLS_REPORTS"), `short` – name on
+- `label` – full name for the reasons ("Heap used WLS_REPORTS"), `short` – name on
   the tile inside its block ("Heap");
 - `items[]` – a list inside a tile, e.g. the disks (domain, logs, Reports
   cache, `/tmp`, core directory) with value and level each.

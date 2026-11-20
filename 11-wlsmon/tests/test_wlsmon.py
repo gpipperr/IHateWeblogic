@@ -504,6 +504,36 @@ class ThresholdTest(unittest.TestCase):
             env.conf({"WLSMON_SWAP_MB": "1024,4096"})
             self.assertEqual(metric(env.collect()["now"], "mem_free_pct")["level"], "ok")
 
+    def test_memory_cause_named(self):
+        """the tile shows FREE %, the limit counts USED % and swap sets the level
+        on its own -> sub line and overall reason name the cause"""
+        mc = wlsmon.memory_cause
+        self.assertEqual(mc(19, 2201, [85, 95], [512, 2048]),
+                         ("CRIT swap 2201 MB >= 2048", "crit",
+                          "Memory: CRIT swap 2201 MB >= 2048 (free 19 %)"))
+        sub, lv, reason = mc(9, 0, [90, 95], [512, 2048])
+        self.assertEqual((sub, lv), ("WARN used 91 % >= 90 · swap 0 MB", "warn"))
+        self.assertIn("free 9 %", reason)
+        self.assertEqual(mc(50, 0, [85, 95], [512, 2048]), ("swap 0 MB", "ok", None))
+        with TempDir() as d, Env(d) as env:
+            self.swap(env, 600 * 1024)
+            now = env.collect()["now"]
+            self.assertEqual(metric(now, "mem_free_pct")["sub"], "WARN swap 600 MB >= 512")
+            texts = [r["text"] for r in now["overall"]["reasons"]]
+            self.assertTrue(any(t.startswith("Memory: WARN swap 600 MB >= 512") for t in texts), texts)
+
+    def test_heap_sub_names_base(self):
+        self.assertEqual(wlsmon.heap_sub("WLS_FORMS", 2147483648, [80, 90], "forms"),
+                         "of max heap 2 GB · WLS_FORMS JVM w/o frmweb · limits 80 / 90 %")
+        self.assertIn("of max heap 1.5 GB", wlsmon.heap_sub("WLS_REPORTS", 1610612736, [80, 90], "reports"))
+        self.assertIn("(-Xmx)", wlsmon.heap_sub("AdminServer", None, [80, 90], "x"))
+
+    def test_jdbc_sub_names_sources(self):
+        self.assertEqual(wlsmon.jdbc_sub(["LocalSvcTblDataSource", "opss-audit-DBDS", "opss-data-source"]),
+                         "3 RCU data sources · not the Forms / Reports app sessions")
+        self.assertEqual(wlsmon.jdbc_sub(["APPDS", "opss-data-source"]),
+                         "1 RCU data source + 1 own (APPDS) · not the Forms / Reports app sessions")
+
     def test_unreadable_threshold_is_reported(self):
         with TempDir() as d, Env(d) as env:
             env.conf({"WLSMON_HEAP_PCT": "85;95"})
@@ -525,6 +555,7 @@ class ThresholdTest(unittest.TestCase):
         self.assertEqual(c("WLSMON_RCU_DAYS", "14"), "")
         self.assertIn("not a threshold", c("WLSMON_ROLE", "both"))
         self.assertEqual(c("WLSMON_SWAP_MB", "512,2048"), "")
+        self.assertIn("= 90,95", c("WLSMON_MEM_USED_PCT", "10,5"))     # free % given -> hint
 
     def test_overview(self):
         with TempDir() as d, Env(d) as env:

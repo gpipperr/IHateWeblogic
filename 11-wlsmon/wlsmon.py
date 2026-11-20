@@ -391,9 +391,11 @@ class Round(object):
         return kw
 
     def metric(self, mid, group, label, short, value=None, display=None, unit="", sub="",
-               level="ok", series=None, decimals=0, items=None):
+               level="ok", series=None, decimals=0, items=None, reason=None):
         m = {"id": mid, "group": group, "label": label, "short": short, "value": value,
              "decimals": decimals, "unit": unit, "sub": sub, "level": level, "series": series}
+        if reason:
+            m["reason"] = reason          # text of the overall reason, instead of "label: value"
         if value is None:
             m["display"] = display if display is not None else "n/a"
             if m["display"] == "n/a":
@@ -402,6 +404,29 @@ class Round(object):
             m["items"] = items
         self.metrics.append(m)
         return m
+
+
+def memory_cause(free_pct, swap_mb, thr_used, thr_swap):
+    """(sub, level, reason) of the memory tile: the tile shows FREE memory, the
+    limit WLSMON_MEM_USED_PCT counts USED memory, and swap can set the level on
+    its own - so sub and reason name what caused WARN / CRIT"""
+    used = round(100 - free_pct, 1)
+    lv_used = level_of(used, thr_used)
+    lv_swap = level_of(swap_mb, thr_swap)
+    level = worst([lv_used, lv_swap])
+    causes = []
+    if lv_used != "ok":
+        lim = thr_used[1] if lv_used == "crit" else thr_used[0]
+        causes.append((lv_used, "used %g %% >= %g" % (used, lim)))
+    if lv_swap != "ok":
+        lim = thr_swap[1] if lv_swap == "crit" else thr_swap[0]
+        causes.append((lv_swap, "swap %d MB >= %g" % (swap_mb, lim)))
+    if not causes:
+        return "swap %d MB" % swap_mb, level, None
+    causes.sort(key=lambda c: -RANK[c[0]])
+    txt = " · ".join("%s %s" % (lv.upper(), t) for lv, t in causes)
+    sub = txt if lv_swap != "ok" else "%s · swap %d MB" % (txt, swap_mb)
+    return sub, level, "Memory: %s (free %g %%)" % (txt, free_pct)
 
 
 def part(fn):
@@ -481,16 +506,18 @@ def part_host(rnd):
 
     mi = meminfo()
     free_pct, swap_used, mem_lv = None, 0, "ok"
+    mem_sub, mem_reason = "swap 0 MB", None
     if mi.get("MemTotal"):
         avail = mi.get("MemAvailable", mi.get("MemFree", 0))
         free_pct = round(100.0 * avail / mi["MemTotal"], 1)
         swap_used = max(0, mi.get("SwapTotal", 0) - mi.get("SwapFree", 0)) // 1024
-        mem_lv = worst([level_of(100 - free_pct, cfg.pair("WLSMON_MEM_USED_PCT", [85, 95])),
-                        level_of(swap_used, cfg.pair("WLSMON_SWAP_MB", [512, 2048]))])
+        mem_sub, mem_lv, mem_reason = memory_cause(free_pct, swap_used,
+                                                   cfg.pair("WLSMON_MEM_USED_PCT", [85, 95]),
+                                                   cfg.pair("WLSMON_SWAP_MB", [512, 2048]))
     rnd.series["mem_free_pct"] = free_pct
     rnd.series["swap_mb"] = swap_used
     rnd.metric("mem_free_pct", "host", "Memory free", "Memory free", free_pct, decimals=0, unit="%",
-               sub="swap %d MB" % swap_used, level=mem_lv, series="mem_free_pct")
+               sub=mem_sub, level=mem_lv, series="mem_free_pct", reason=mem_reason)
 
     thr_disk = cfg.pair("WLSMON_DISK_PCT", [80, 90])
     disks = []
@@ -561,6 +588,27 @@ def items(obj, key):
     if isinstance(v, dict):
         return v.get("items", []) or []
     return v if isinstance(v, list) else []
+
+
+def heap_sub(name, heap_max, thr, group):
+    """line under the heap tile: the % is USED heap of the managed server JVM,
+    relative to its maximum heap (-Xmx, heapSizeMax) - the Forms runtime
+    processes (frmweb) and the Reports engines are separate processes"""
+    of = "of max heap %s" % fmt_size(heap_max) if heap_max else "of max heap (-Xmx)"
+    other = {"forms": "frmweb", "reports": "engines"}.get(group)
+    jvm = "%s JVM%s" % (name, " w/o " + other if other else "")
+    return "%s · %s · limits %s / %s %%" % (of, jvm, thr[0], thr[1])
+
+
+def fmt_size(b):
+    """bytes -> '2 GB' / '1.5 GB' / '512 MB'"""
+    try:
+        b = float(b)
+    except (TypeError, ValueError):
+        return "n/a"
+    if b >= 1 << 30:
+        return "%g GB" % round(b / (1 << 30), 1)
+    return "%d MB" % round(b / (1 << 20))
 
 
 def heap_pct(jvm):
@@ -646,6 +694,7 @@ def part_wls(rnd):
                 jdbc.append((name, ds))
             rnd.info.setdefault("threads", {})[name] = (stuck, hog)
             rnd.info.setdefault("heap", {})[name] = hp
+            rnd.info.setdefault("heap_max", {})[name] = (rt.get("JVMRuntime") or {}).get("heapSizeMax")
         else:
             # not in serverRuntimes (or REST not usable): port / ready probe
             listening = port_open("localhost", port) if port else False
@@ -683,9 +732,10 @@ def part_wls(rnd):
         rnd.series.setdefault("heap_pct_" + name, None)
         hp = rnd.info.get("heap", {}).get(name)
         down = any(c.get("down") for c in rnd.components if c["id"] == name)
-        rnd.metric("heap_%s_pct" % group, group, "Heap " + name, "Heap", None if down else hp,
+        rnd.metric("heap_%s_pct" % group, group, "Heap used " + name, "Heap used", None if down else hp,
                    display="n/a", unit="%" if hp is not None and not down else "",
-                   sub="server DOWN" if down else "limits %s / %s %%" % tuple(thr_heap),
+                   sub="server DOWN" if down else heap_sub(name, rnd.info.get("heap_max", {}).get(name),
+                                                           thr_heap, group),
                    level="crit" if down else level_of(hp, thr_heap), series="heap_pct_" + name)
         stuck, hog = rnd.info.get("threads", {}).get(name, (None, None))
         if stuck is None and hog is None:
@@ -761,6 +811,23 @@ def rcu_check(rnd):
     return m
 
 
+# data sources the FMW infrastructure creates from the RCU schemas (OPSS,
+# audit, service table, MDS, WLS schema, UMS ...) - everything else is "own"
+RCU_DS_PREFIX = ("opss-", "LocalSvcTbl", "mds-", "WLSSchema", "wlsbjmsrp", "IAU", "OraSDPM", "leasing")
+
+
+def jdbc_sub(names):
+    """line under the JDBC tile: which data sources are counted. In a plain
+    Forms & Reports domain they are all RCU (OPSS, audit, service table); the
+    DB sessions of frmweb and the Reports engines (TNS / OCI) are not in it"""
+    rcu = [n for n in names if n.startswith(RCU_DS_PREFIX)]
+    own = [n for n in names if n not in rcu]
+    txt = "%d RCU data source%s" % (len(rcu), "" if len(rcu) == 1 else "s")
+    if own:
+        txt += " + %d own (%s)" % (len(own), ", ".join(own[:3]) + (" ..." if len(own) > 3 else ""))
+    return txt + " · not the Forms / Reports app sessions"
+
+
 @part
 def part_db(rnd):
     jdbc = rnd.info.get("jdbc") or []
@@ -790,7 +857,7 @@ def part_db(rnd):
     if rnd.info.get("rest_ok"):
         rnd.metric("jdbc", "db", "JDBC connections", "JDBC connections", None,
                    display="%d · %d" % (active, waiting), unit="active · waiting",
-                   sub="%d data sources" % total, level="warn" if waiting > 0 else "ok")
+                   sub=jdbc_sub(sorted(n for n in seen if n)), level="warn" if waiting > 0 else "ok")
     else:
         rnd.metric("jdbc", "db", "JDBC connections", "JDBC connections", None, display="n/a",
                    unit="", sub="REST n/a", level="ok")
@@ -1929,7 +1996,8 @@ def topology(rnd):
         if gc is not None and gc.get("down"):
             continue
         v = m["display"] if m["value"] is None else m["value"]
-        reasons.append({"level": m["level"], "text": ("%s: %s %s" % (m["label"], v, m["unit"])).strip()})
+        reasons.append({"level": m["level"],
+                        "text": m.get("reason") or ("%s: %s %s" % (m["label"], v, m["unit"])).strip()})
     reasons.sort(key=lambda r: -RANK[r["level"]])
     overall = worst([c["level"] for c in comps] + [m["level"] for m in metrics])
     return overall, reasons[:6]
@@ -2318,7 +2386,13 @@ def threshold_check(key, value):
         return "percent values must be 0..100"
     if kind == "rev":
         return "" if w > c else "warn must be greater than crit here (lower is worse: WARN at %g days, CRIT at %g)" % (w, c)
-    return "" if w < c else "warn must be lower than crit"
+    if w < c:
+        return ""
+    if key == "WLSMON_MEM_USED_PCT":
+        return ("warn must be lower than crit - the limit counts USED memory: "
+                "WARN at %g %% free, CRIT at %g %% free = %g,%g" % (w, c, 100 - w, 100 - c)
+                if w <= 50 else "warn must be lower than crit (used memory %)")
+    return "warn must be lower than crit"
 
 
 def thresholds(argv):

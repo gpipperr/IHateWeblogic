@@ -198,10 +198,10 @@ reported in `collector.errors` – shown in the GUI.
 
 | Key | Default | Measured value | Note |
 |---|---|---|---|
-| `WLSMON_HEAP_PCT` | `80,90` | heap used % of each WebLogic server | |
+| `WLSMON_HEAP_PCT` | `80,90` | heap used % of each WebLogic server = 100 − `heapFreePercent` of `JVMRuntime`, i.e. used heap relative to the **maximum** heap (`-Xmx`, `heapSizeMax`) | the tile "Heap used" names the max heap and the JVM; Forms: only the `WLS_FORMS` JVM – the `frmweb` runtime processes are separate (tile Forms sessions, host memory); Reports: only the `WLS_REPORTS` JVM, not the engine processes. A Java heap saws up to the next GC – look at the 24 h max **and** the low points before raising the limit |
 | `WLSMON_CPU_PCT` | `80,95` | CPU % since the last run | |
 | `WLSMON_LOAD` | cores, 2 × cores | load average 1 min | not asked by the interview – add the line by hand, e.g. `WLSMON_LOAD=6,12` |
-| `WLSMON_MEM_USED_PCT` | `85,95` | memory **used** % = 100 − `MemAvailable` % | the tile shows *free* %; its level is the worse of this and the swap limit |
+| `WLSMON_MEM_USED_PCT` | `85,95` | memory **used** % = 100 − `MemAvailable` % | the tile shows *free* %; its level is the worse of this and the swap limit. WARN at 10 % free, CRIT at 5 % free = `90,95` (`10,5` is refused with this hint; `03-` shows the free-% meaning) |
 | `WLSMON_SWAP_MB` | `512,2048` | swap in use, MB | shown under the memory tile; until 2026-11-20 any swap meant WARN |
 | `WLSMON_DISK_PCT` | `80,90` | fullest of the watched file systems | which ones: `WLSMON_DISKS` |
 | `WLSMON_LOG_ERRORS` | `1,10` | counted log errors per run and component | which messages count: log rules below |
@@ -231,6 +231,18 @@ A rule with a bad regex is skipped and reported in `collector.errors`.
 
 ---
 
+### What the tiles refer to
+
+| Tile | The value is | Not included |
+|---|---|---|
+| Memory free | `MemAvailable` in % of `MemTotal` of the host; the line below names the swap in use, and on WARN / CRIT the cause (`CRIT swap 2201 MB >= 2048`, `WARN used 91 % >= 90`) | – |
+| Heap used (Forms / Reports) | used heap of the managed server JVM (`WLS_FORMS`, `WLS_REPORTS`) in % of its **maximum** heap (`-Xmx`); the line below names the max heap | the `frmweb` runtime processes and the Reports engine processes – separate processes, visible in host memory and the sessions / engine tiles |
+| JDBC connections | active · waiting connections of all WebLogic data sources, summed over all servers; the line below says how many are RCU data sources (OPSS, audit, service table) and which are your own | the DB sessions of the Forms and Reports applications – `frmweb` and the engines connect through TNS / OCI, not through a data source |
+| RCU login | hourly login test of the RCU schemas with `sqlplus` (optional, `WLSMON_RCU_CHECK`) – catches an expired schema password before the next domain restart fails | – |
+
+In a plain Forms & Reports domain the JDBC tile therefore shows only the RCU
+data sources – the infrastructure, not the application load.
+
 ## 4. Known faults and their fix
 
 | Symptom | Cause | Fix |
@@ -238,7 +250,7 @@ A rule with a bad regex is skipped and reported in `collector.errors`.
 | **403** on JS / CSS / JSON, host page without data, overview **stale** | files below `www/`, `api/`, `hosts/` are not group `wlsmon` – the setgid bit of the directories is gone. Linux clears setgid on every `chmod` by an owner who is not in the file's group; an oracle login older than the `usermod -aG wlsmon` of `02-` is such an owner (2026-11-20) | `sudo 02-install-wlsmon_root.sh --apply` (group, 2750, 640). `01-install` changes modes only when they differ and warns when a file is not group `wlsmon` |
 | `hosts.json` 404 on a single host | collector older than 2026-11-20 (wrote no own tile) | `01-install-wlsmon_fmw.sh --apply` |
 | Disk WARN for the core directory, but the disk is fine | `PrivateTmp=yes` hides `/var/tmp/core` from the service | unit with `BindReadOnlyPaths=-<core dir>` – `02-install-wlsmon_root.sh --apply` |
-| Host WARN "Memory free" | used memory at or above `WLSMON_MEM_USED_PCT`, **or** swap in use at or above `WLSMON_SWAP_MB` (free memory may look fine while the host already swaps) | look at the swap figure under the tile; change the limits with `03-set-thresholds.sh` (section 3a) |
+| Host WARN "Memory free" | used memory at or above `WLSMON_MEM_USED_PCT`, **or** swap in use at or above `WLSMON_SWAP_MB` (free memory may look fine while the host already swaps) | the line under the tile and the reason name the cause, e.g. `CRIT swap 2201 MB >= 2048` or `WARN used 91 % >= 90`; change the limits with `03-set-thresholds.sh` (section 3a) – usually both, otherwise the other limit keeps the tile red |
 | nginx error count contains the monitor's own probe | older collector counted the security probe of `/management/weblogic/latest` from 127.0.0.1 | `01-install-wlsmon_fmw.sh --apply` |
 | REST components "n/a", 401 in `collector.errors` | monitor user password differs from the credential; the collector pauses 30 min after a 401 (`WLSMON_401_PAUSE_MIN`, avoids the realm lockout) | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
 | `rep_<server>` "not checked" in `collect --check` | the check by hand has no service credentials | normal – the service reads `reports_mon` |

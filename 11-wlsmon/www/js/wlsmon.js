@@ -35,9 +35,9 @@
 
   var CHARTS = [
     { title: 'Forms sessions', unit: '', decimals: 0, series: [{ key: 'forms_sessions' }] },
-    { title: 'Heap per managed server', unit: ' %', decimals: 0, fixedMax: 100, thr: 'heap_max_pct',
+    { title: 'Heap used per managed server (% of max heap)', unit: ' %', decimals: 0, fixedMax: 100, thr: 'heap_max_pct',
       series: [{ key: 'heap_pct_WLS_FORMS', entity: 'WLS_FORMS' }, { key: 'heap_pct_WLS_REPORTS', entity: 'WLS_REPORTS' }],
-      fallback: { key: 'heap_max_pct', title: 'Heap max over all servers' } },
+      fallback: { key: 'heap_max_pct', title: 'Heap used, highest server (% of max heap)' } },
     { title: 'Load (1 min)', unit: '', decimals: 1, thr: 'load1', series: [{ key: 'load1' }] }
   ];
 

@@ -148,6 +148,10 @@ while IFS='|' read -r k cur eff def nowv mx avg _lv label kind; do
     CUR[$k]="$cur"; DEF[$k]="$def"
     shown="${cur:-${eff}}"; [ -z "$cur" ] && [ "$eff" != "-" ] && shown="($eff)"
     [ -z "$cur" ] && [ "$eff" = "-" ] && shown="(none)"
+    # the memory tile shows FREE memory, the limit counts USED memory
+    if [ "$k" = "WLSMON_MEM_USED_PCT" ] && [[ "$eff" == *,* ]]; then
+        label="$label (= WARN at <= $(awk -v x="${eff%%,*}" 'BEGIN{printf "%g", 100-x}') % free, CRIT at <= $(awk -v x="${eff##*,}" 'BEGIN{printf "%g", 100-x}') % free)"
+    fi
     line="$(printf "  %-22s %-10s %-10s %-8s %-8s %-8s %s" "$k" "$shown" "${def:--}" "$nowv" "$mx" "$avg" "$label")"
     # a limit that the last 24 h reached is worth a look
     hit=""
