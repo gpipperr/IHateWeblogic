@@ -150,6 +150,9 @@ class MonitorUserTest(unittest.TestCase):
     def test_check_create_check(self):
         rc, r = self.call("check")
         self.assertEqual((rc, r["exists"]), (1, False))
+        # a missing user is a state, not a REST error - 01-install must go on to create
+        self.assertNotIn("error", r)
+        self.assertIn("does not exist", r["reason"])
         rc, r = self.call("create")
         self.assertEqual(rc, 0)
         self.assertTrue(r["created"])
@@ -162,6 +165,7 @@ class MonitorUserTest(unittest.TestCase):
         self.call("create")
         rc, r = self.call("check", mon_pw="other")
         self.assertEqual((rc, r["login"]), (1, 401))
+        self.assertNotIn("error", r)                                 # 01-install reaches the 401 / reset branch
         rc, r = self.call("reset", mon_pw="other")
         self.assertEqual((rc, r["login"]), (0, 200))
 

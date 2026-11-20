@@ -277,7 +277,7 @@ if ! $NO_USER; then
                     ok "$(printf "  %-20s %s created, group %s" "monitor user:" "$MON" "$(_mj groups)")"
                     [ "$(_mj login)" = "200" ] && MON_OK=true
                 else
-                    fail "$(printf "  %-20s %s" "createUser:" "$(_mj error)")"
+                    fail "$(printf "  %-20s %s" "createUser:" "$(_mj error)$(_mj reason)")"
                 fi
             else
                 info "$(printf "  %-20s %s would be created (group Monitors)" "monitor user:" "$MON")"
@@ -292,7 +292,7 @@ if ! $NO_USER; then
                          if _mon_call reset; then
                              ok "password of $MON reset to the wls_monitor secret"; MON_OK=true
                          else
-                             fail "resetUserPassword: $(_mj error)"
+                             fail "resetUserPassword: $(_mj error)$(_mj reason)"
                          fi
                      else
                          warn "login of $MON refused (HTTP 401) – password differs: --reset-monitor-password --apply"

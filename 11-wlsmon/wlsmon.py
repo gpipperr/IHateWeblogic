@@ -2127,6 +2127,9 @@ def monitor_user(argv):
                             None, mon, mp, {"Accept": "application/json", "X-Requested-By": "wlsmon"}, tmo)
             res["login"] = code
     ok_ = res.get("exists") and res.get("only_monitors") and res.get("login", 200) == 200
+    # "error" = the REST call itself failed (01-install stops); "reason" = the
+    # state is not as wanted (e.g. user missing -> 01-install creates it).
+    # Putting "user does not exist" into "error" stopped the create (2026-11-20).
     if not ok_ and "error" not in res:
         why = []
         if not res.get("exists"):
@@ -2137,7 +2140,7 @@ def monitor_user(argv):
             why.append("groups %s - expected only Monitors" % ",".join(res["groups"]))
         if res.get("login", 200) != 200:
             why.append("login test HTTP %s" % res["login"])
-        res["error"] = "; ".join(why)
+        res["reason"] = "; ".join(why)
     print(json.dumps(res))
     return 0 if ok_ else 1
 
