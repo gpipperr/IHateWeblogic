@@ -238,6 +238,7 @@ IHateWeblogic/
 ├── tools/hooks/                     – pre-commit hook (customer data, secrets, bash -n, stale ZIPs) + install.sh
 ├── tools/render_ascii/              – ASCII diagrams in Markdown → SVG (LLM → D2), `?v=` cache-busting
 ├── tools/check_pages_links.py       – link check for github.com + GitHub Pages (local / --live), code-link helper
+├── tools/crop_png.java             – cut a rectangle out of a PNG (screenshot examples), JDK only
 ├── _config.yml, _layouts/, assets/  – GitHub Pages: Cayman theme + own layout (menu, breadcrumb) and
 │                                      assets/css/ihw.css; assets/ also holds the logo
 ├── diagrams/                        – SVG diagrams of this README (target picture) + their sources
