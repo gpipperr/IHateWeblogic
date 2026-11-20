@@ -60,6 +60,52 @@ backup category). P2 (one GUI host, many data hosts) follows.
   - `02-install-wlsmon_root.sh` (root, last): group and ACLs, credentials,
     Nginx include from a template, systemd units and timers, first run.
 
+## Data flow – who collects what, and who reads it
+
+```ascii?name=wlsmon-dataflow
+  people                                      GUI host A (role gui / both)
+  +-----------+  HTTPS (TLS), Basic Auth      +--------------------------------------+
+  |  browser  | --------------------------->  |  Nginx  /wlsmon/   (GET only, CSP,   |
+  |  HTML+JS  |  allow WLSMON_ADMIN_IP_RANGE  |   allow-list of 7 JSON names)        |
+  |  JET /i/  | <---------------------------  |   reads www/  hosts/  api/           |
+  +-----------+  static files + JSON          |   (group wlsmon, read only)          |
+   no backend: the page reads the JSON        +------------------^-------------------+
+   and draws tiles, topology, charts                             | P2: wlsmon.py pull
+                                                                 | (timer, HTTPS, CA verified,
+                                                                 |  pull user, IP of A only)
+  every data host B, C, D (role data / both)                     |
+  +--------------------------------------------------------------+------------------------+
+  |  Nginx /wlsmon/api/*.json  <-- $WLSMON_BASE/api/  now day week history                |
+  |                                                   patch security logs   (+ state/)    |
+  |                                                          ^                            |
+  |                                                          | atomic write               |
+  |  systemd timer (5 min) -> wlsmon-collect.service -> wlsmon.py collect                 |
+  |    User=oracle, Nice 19, CPUQuota 10 %, MemoryMax 200M, secrets = systemd credentials |
+  |      |                                                                                |
+  |      +-- WebLogic REST  localhost:7001   state, health, heap, threads, JDBC           |
+  |      |                  (wlsmon_monitor, group Monitors, read only, no WLST)          |
+  |      +-- Reports        getserverinfo POST localhost:9002   engines, queue, jobs      |
+  |      |                  (monUser)                                                     |
+  |      +-- Forms          frmweb from /proc + ss   sessions, prestart pool              |
+  |      +-- Node Manager / ports   TCP probes, listening ports vs. expected list         |
+  |      +-- OS             /proc: uptime, load, CPU %, memory, swap; disks; core dumps   |
+  |      +-- logs           server / Forms / Reports logs by offset + rules file;         |
+  |      |                  Nginx access / error log (read ACL) -> requests, 5xx          |
+  |      +-- DB (hourly)    RCU schemas OPEN / expiry via sqlplus (optional, db_monitor)  |
+  |      +-- hourly         security checks (TLS, /console, lockout, permissions ...)     |
+  |      +-- daily          patch level from the inventory files, certificate expiry      |
+  +---------------------------------------------------------------------------------------+
+```
+
+- **Collected on each host, only there:** the collector talks to
+  `localhost` only – WebLogic, Reports and the logs never leave the host
+  except as the 7 aggregated JSON files (no raw log lines, no passwords).
+- **Read by people through Nginx:** the browser gets static files; all logic
+  of the page runs in JavaScript on these JSON files – there is no server
+  process behind `/wlsmon/`.
+- **One host (P1, live):** host A is its own data host – the collector also
+  writes the overview tile `hosts/hosts.json`. **Many hosts (P2):** A fetches
+  the JSON of B, C, D with `wlsmon.py pull` and shows them in one overview.
 
 ## What it looks like
 
