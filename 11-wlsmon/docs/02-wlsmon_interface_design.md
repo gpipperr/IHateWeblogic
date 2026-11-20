@@ -8,8 +8,10 @@ description: "Interface design of the wlsmon runtime monitor for Oracle Forms & 
 
 ← [11-wlsmon](../README.md) · [concept](01-wlsmon_concept.md)
 
-**State 2026-11-19: colour concept.** Layout, components and pages follow in
-later sections. This document is the master for the GUI files in
+**State 2026-11-19: colour concept** (examples added 2026-11-20). Layout,
+components and pages follow in later sections. The examples are cut from the
+screenshots of the GUI prototype v3 with demo data (whole pages:
+[README](../README.md#what-it-looks-like)). This document is the master for the GUI files in
 `11-wlsmon/www/` (Doc-as-Master, like the concept).
 
 ## 1. Basis: the colours of the project site
@@ -58,6 +60,13 @@ That gives three rules:
 3. **Status colours** (section 3) are only used for status and never for
    anything else – not for a series, not for decoration.
 
+*Example – the head of the host view:* the frame in the site colours (gold
+line under the header, black left border, the logo); the data area below
+starts with the overall status – WARN as an orange fill with black text, its
+reasons as outlined chips, a collector problem with a dashed outline.
+
+![Head of the host view: frame with gold line, overall status WARN with its reasons](images/design_header.png)
+
 ## 3. Status colours (reserved)
 
 Four states, from the levels of the concept: OK, WARN, CRIT and STALE (data
@@ -73,6 +82,12 @@ too old or missing). DOWN is shown as CRIT with its own word.
 **A status always has three signs:** colour, icon and word. Colour alone is
 never the only carrier – about one man in twelve sees red and green poorly,
 and an ops screen may be grey on a projector.
+
+*Example – a host tile of the overview:* the status as a top bar and a badge
+(colour + icon + word), the environment as a black badge (no status colour),
+the reasons each with the icon of their level, the key figures as plain text.
+
+![Host tile of the overview in state WARN](images/design_tile.png)
 
 Why these colours and not the usual traffic light:
 - **WARN is orange (`#e67700`), not yellow:** it stays clearly apart from the
@@ -146,6 +161,19 @@ Rules:
   value depends on colour – **the table view is not implemented yet** (state
   2026-11-20; the summary line above each chart gives max / avg, the tooltip
   each value).
+- *Example – key-figure tiles:* every tile carries its own status badge; the
+  sparkline is a single series in dark grey, the limits are written below
+  it – the colour of the line never changes with the status.
+
+  ![Key-figure tiles per component with status badges and sparklines](images/design_keyfig.png)
+
+- *Example – the trend card:* single series in dark grey with a light area
+  (Forms sessions, load), two series in blue and magenta with a legend (heap
+  per managed server), the dashed WARN (orange) and CRIT (red) limits, the
+  plot on `--wm-surface` inside the tinted card (`--wm-panel`, section 5).
+
+  ![Trend card: single and multi series, dashed limits](images/design_trend.png)
+
 - **Tooltips (implemented 2026-11-20):** Oracle JET data cursor
   (`dataCursor: 'on'`, `dataCursorBehavior: 'snap'`) on the large charts and
   the sparklines of the key-figure tiles – the nearest point of the time axis,
@@ -190,6 +218,11 @@ Rules:
   from it (2026-11-19).
 - **The table header** keeps the light gold tint of the site. It is a very
   pale area behind black text and does not look like a status.
+
+*Example – the summary per 12 h:* table header in the gold tint, the status
+column as badges, numbers right-aligned in the German format.
+
+![Summary table per 12 h with gold-tinted header](images/design_table.png)
 
 ## 6. CSS tokens
 
