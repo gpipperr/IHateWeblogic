@@ -110,3 +110,6 @@ ihw_export_*
 
 # render_ascii (checked in since 2026-11-11): only the local configuration stays out
 tools/render_ascii/render_ascii.conf
+
+# 11-wlsmon internal development plan / progress log (local only since 2026-11-20)
+11-wlsmon/docs/03-wlsmon_development.md

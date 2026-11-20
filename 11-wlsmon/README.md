@@ -17,14 +17,13 @@ live view of a Forms & Reports environment:
 
 **State 2026-11-20: phase P1 (one host, data + GUI role) live on the test
 host** – collector every 5 minutes, overview and host view in the browser.
-Open in P1: the 24-hour evaluation (step 12) and the integration (step 13,
-backup category). P2 (one GUI host, many data hosts) follows.
+Open in P1: the 24-hour evaluation on the test host, the backup category and
+a live test of `--remove`. P2 (one GUI host, many data hosts) follows.
 
 | Document | Content |
 |---|---|
 | [docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md) | **concept – master** of the scripts: architecture, JSON contract, security, collector, systemd, Nginx, GUI, layout, install scripts and their options, configuration reference |
 | [docs/02-wlsmon_interface_design.md](docs/02-wlsmon_interface_design.md) | interface design: colours, status, charts, tooltips, tokens, locale |
-| [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md) | development plan P1–P3 and progress log |
 | [docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md) | **operations:** install, update, remove, status and logs, known faults and their fix |
 
 ## In short

@@ -353,18 +353,16 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 - [ ] **11-wlsmon – lightweight runtime monitor** (concept:
   [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md);
-  steps 0–13, P2.1–P2.4 with done criteria:
-  [11-wlsmon/docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md);
   operations: [11-wlsmon/docs/04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
-  State 2026-11-20: P1 steps 0–11 live on the test host (one host, both
-  roles; 0f5de1b, d377d4a: JET tooltips, setgid fix). Open:
-  - [ ] step 12: 24-h evaluation (2026-11-21) – `systemd-cgtop` vs.
+  State 2026-11-20: P1 live on the test host and at the first customer (one
+  host, both roles; the step plan is local, not in git). Open:
+  - [ ] 24-h evaluation on the test host (2026-11-21) – `systemd-cgtop` vs.
     `MemoryMax`, curl matrix (200 with login, 404 outside the whitelist, 403
     from a foreign IP), browser console without CSP violations
-  - [ ] step 13: `backup_config.sh` category `wlsmon` (`etc/` without
+  - [ ] integration: `backup_config.sh` category `wlsmon` (`etc/` without
     `pending/`), `--remove` live test
   - [ ] table view per chart (interface design §4 – promised, not built)
-  - [ ] RCU check (6h) live only after the DB monitor user is agreed
+  - [ ] RCU check live on the test host only after the DB monitor user is agreed
   - [ ] P2: GUI host with `wlsmon.py pull` (stub today), data role on further
     hosts, TLS against the internal CA; P3: the three scripts in the customer
     tools ZIP

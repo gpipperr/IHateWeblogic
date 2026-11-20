@@ -28,7 +28,7 @@
 #            db_monitor    only with WLSMON_RCU_CHECK=true (hidden, twice)
 #            An existing secret (pending/ or creds/) is kept unless --secret names it.
 # Runs as  : FMW owner (oracle), never root - no sudo needed
-# Ref      : 11-wlsmon/docs/01-wlsmon_concept.md §9.2, docs/03-wlsmon_development.md step 9
+# Ref      : 11-wlsmon/docs/01-wlsmon_concept.md §9.2, docs/04-wlsmon_operations.md
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================

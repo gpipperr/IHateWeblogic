@@ -28,7 +28,7 @@
 #            --help
 # Runs as  : root, or the FMW owner with sudo
 # Ref      : 11-wlsmon/docs/01-wlsmon_concept.md §3b, §5, §6, §9,
-#            docs/03-wlsmon_development.md step 11
+#            docs/04-wlsmon_operations.md
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
 # =============================================================================

@@ -60,7 +60,7 @@ SUM_KEYS = ("log_errors", "core_dumps", "reports_jobs")
 MIN_KEYS = ("mem_free_pct",)
 
 # Test hook: a prefix for the system paths (/proc, /etc, /run ...), so every part
-# runs on fixtures (development plan step 5). Empty in production.
+# runs on fixtures in the unit tests. Empty in production.
 TEST_ROOT = os.environ.get("WLSMON_TEST_ROOT", "")
 
 

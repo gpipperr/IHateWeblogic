@@ -71,7 +71,7 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 ## 2026-11-19
 
 - **11-wlsmon steps 0–8 implemented** (not installed yet) – progress log in
-  [docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md#9-progress-log).
+  the internal development plan (local, not in git since 2026-11-20).
   - `wlsmon.py` (python3 stdlib, 3.6): collector parts host, WebLogic REST
     (field names still to verify), Reports `getserverinfo`, Forms sessions,
     nginx, logs with `rules/wlsmon_rules.cfg`, core dumps, RCU (off), daily
@@ -85,8 +85,7 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   - `tools/ci_lint.sh`: Python 3.6 syntax + unittest (46 tests), ES5 syntax
     of the GUI via Nashorn.
 
-- **11-wlsmon development plan:**
-  [docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md).
+- **11-wlsmon development plan** (internal, local only since 2026-11-20):
   - Ordered steps P1 0–13 and P2.1–P2.4, each with files, reuse from the repo
     and a done criterion.
   - Order: contract and GUI of the prototype v3 first, then the collector

@@ -257,7 +257,7 @@ data sources – the infrastructure, not the application load.
 | `rep_<server>` "not checked" in `collect --check` | the check by hand has no service credentials | normal – the service reads `reports_mon` |
 | Service does not start, `LoadCredentialEncrypted` error | a `.cred` file named in the unit is missing | `02-install-wlsmon_root.sh --apply` – it keeps only the credential blocks whose file exists |
 | Tile "GUI libraries" says "own SVG" although `01-` found font-apex / JET | the tile is a daily fact; a new `ui.json` or a new `bin/wlsmon.py` (both written by `01-`) refreshes the daily facts at the next run, not after 24 h | `01-install-wlsmon_fmw.sh --apply`, wait one run (≤ 5 min) |
-| Tile "GUI libraries" says "moved: knockout" | up to `0b7837b` a false alarm: `ui.json` holds knockout as a RequireJS module path without `.js`, the check looked for exactly that file | update (`01- --apply`) – the check accepts the path with `.js`; a real "moved" (APEX patch, new library version) is fixed by the same `01-` run |
+| Tile "GUI libraries" says "moved: knockout" | before `4d9e85d` a false alarm: `ui.json` holds knockout as a RequireJS module path without `.js`, the check looked for exactly that file | update (`01- --apply`) – the check accepts the path with `.js`; a real "moved" (APEX patch, new library version) is fixed by the same `01-` run |
 | Tile "GUI libraries" says "not served" | the APEX files are on disk, but nginx answers the `/i/` probe with 404 – `02-` ran before APEX was there, so the include has no `/i/` block (and no APEX / ORDS include routes `/i/`) | `sudo 02-install-wlsmon_root.sh --apply` (dry run first: "/i/: served by the wlsmon include") |
 | Charts drawn as plain SVG, no JET | `/i/libraries/oraclejet/<ver>` not found (APEX upgrade changed the version) | `01-install-wlsmon_fmw.sh --apply` rewrites `ui.json` with the newest versions |
 | No tooltip on the large charts | JET `hoverBehavior: 'dim'` suppresses the data-cursor tooltip (JET 20.1.4) | fixed in `wlsmon_charts.js` 2026-11-20 – update + Ctrl+F5 |
@@ -291,4 +291,4 @@ its end.
 `$WLSMON_BASE/etc/` (without `pending/`) holds the configuration and the
 local rules; the credentials are bound to the host and are created again by
 the interview + `02-`. Category `wlsmon` in
-`07-Maintenance/backup_config.sh` – **open** (development step 13).
+`07-Maintenance/backup_config.sh` – **open** (TODO.md block "11-wlsmon").

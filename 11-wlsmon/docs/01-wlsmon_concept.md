@@ -8,9 +8,8 @@ description: "Concept of a read-only runtime monitor for Oracle Forms & Reports 
 
 ← [11-wlsmon](../README.md)
 
-**State 2026-11-20: P1 steps 0–11 implemented and live on the test host**
-(one host, both roles) – build order and progress in the
-[development plan](03-wlsmon_development.md), operation and faults in
+**State 2026-11-20: P1 implemented, live on the test host and at the first
+customer** (one host, both roles) – operation and faults in
 [04-wlsmon_operations.md](04-wlsmon_operations.md). This document is the
 master for the scripts (Doc-as-Master, as in `09-Install/docs/`).
 
@@ -252,7 +251,7 @@ management plane: the managed servers keep running without them, so nothing
   component (`log_errors_forms`, `core_dumps_reports`, …) plus the totals for
   the rollup table;
 - `label` – full name for the reasons ("Heap used WLS_REPORTS"), `short` – name on
-  the tile inside its block ("Heap");
+  the tile inside its block ("Heap used");
 - `items[]` – a list inside a tile, e.g. the disks (domain, logs, Reports
   cache, `/tmp`, core directory) with value and level each.
 
@@ -404,20 +403,20 @@ then `os.replace`).
 | Log errors | server and Reports logs, read from the offset of the last run (inode + byte offset in `$WLSMON_BASE/state/`; rotation = start again) – evaluated per log entry with the rules file (section 4.3); only counters and codes: `<Error>`, `<Critical>`, `BEA-000337`, `OutOfMemoryError`, `REP-`, `REP-50171` + LDAP error 49 (failed Reports logins) | patterns of `70-Customer-Projects/tools/bash/show_errors.sh`; the REP-50171 monitor is an open item of the security hardening (TODO) |
 | Core dumps | directory from `sysctl -n kernel.core_pattern` (our hosts: `/var/tmp/core/coredump_%h_…`), new files since the last run; a pattern starting with `\|` (systemd-coredump) → `coredumpctl list --since`; plus `hs_err_pid*.log` in the domain directory; free space of the core directory as a disk figure (a JVM core ≈ heap size) | `09-Install/01-root_os_baseline.sh` sets `kernel.core_pattern`, `fs.suid_dumpable`, `kernel.core_uses_pid` and creates `/var/tmp/core`; `docs/03-root_user_oracle.md` sets the `core` limit of `oracle` |
 | RCU schemas (STB, OPSS, IAU, MDS, WLS …) | a failed RCU login shows only at the next start of the domain – the running servers keep their pooled connections. Checked on its own, once an hour: (1) account status and expiry date of the RCU schemas from `DBA_USERS` with a read-only DB monitor user, through the `sqlplus` of the F&R Oracle Home, connect string from the STB data source: `OPEN` = ok, expiry in < 30 days = warn, `LOCKED` / `EXPIRED` = crit; (2) optional a real login with the RCU schema password (systemd credential), at most once an hour and paused after the first refusal, so that wlsmon never locks the schema itself; (3) log rule `rcu_login` (ORA-01017, ORA-28000, ORA-28001) and the state of the RCU data sources from the REST call | new; connect data from the domain configuration (`jdbc/*.xml`, STB data source) |
-| Daily facts (once a day, cheap) | days until the next certificate expiry, patch cycle stamp from the inventory files (no OPatch JVM), Derby running, GUI library paths still valid | `10-Monitoring/cert_expiry_check.sh`, the facts of `collect_fmw_env.sh` |
+| Daily facts (once a day, cheap; at once after a new `ui.json` or `bin/wlsmon.py` of `01-`) | days until the next certificate expiry, patch cycle stamp from the inventory files (no OPatch JVM), Derby running, GUI library paths still valid and served by nginx | `10-Monitoring/cert_expiry_check.sh`, the facts of `collect_fmw_env.sh` |
 
 ### 4.2 Key figures and thresholds (proposal)
 
 | Key figure | Warn / crit |
 |---|---|
 | Components (server, Node Manager, Reports server, Nginx, data sources) | not RUNNING = crit |
-| Heap % per managed server | 80 / 90 |
+| Heap used, % of the max heap (`-Xmx`) per managed server JVM | 80 / 90 |
 | Stuck · hogging threads | hogging > 0 / stuck > 0 |
 | Forms sessions | from experience, per environment |
 | Reports queue · failed jobs | queue > 5 / failed > 0 |
 | Load 1 min | > cores / > 2 × cores |
 | CPU % (average over 5 min) | 80 / 95 |
-| Memory used, swap | 85 / 95 %, swap in use = warn |
+| Memory used, swap | used 85 / 95 %, swap in use 512 / 2048 MB – the worse one; the tile names the cause |
 | Disk (domain, logs, Reports cache, /tmp) | 80 / 90 % |
 | Log errors since the last run | > 0 / critical or > 9 |
 | New core dumps | ≥ 1 = crit |
@@ -629,8 +628,13 @@ and the security rules:
   of the interface design.
 - **JET only for the charts (decision 2026-11-19):** tiles, topology, tabs,
   tables, filters and badges stay the prototype's own HTML / CSS – no
-  `oj-tab-bar`, `oj-table` or other JET components (reasons:
-  [development plan section 1](03-wlsmon_development.md)).
+  `oj-tab-bar`, `oj-table` or other JET components. Reasons:
+  - the full Redwood theme would cover our own look;
+  - without a build chain JET means MVVM with Knockout, and the VDOM variant
+    needs node / npm – both against §2.1;
+  - every further component is one more thing an APEX update can break
+    (20.1.4 already has no `oj-spark-chart`);
+  - if JET does not load, our own SVG draws the charts.
 - **Charts:** Oracle JET (`/i/libraries/oraclejet/<ver>/`, `oj-chart`, loaded
   with the RequireJS of the JET folder), drawn in our own design: series and
   threshold colours, grid, axes, fonts and tooltips from the tokens of
@@ -803,6 +807,8 @@ Planned files in the repository:
 11-wlsmon/
 ├── README.md
 ├── docs/01-wlsmon_concept.md      this document (master)
+├── docs/02-wlsmon_interface_design.md   colours, status, charts, tooltips
+├── docs/04-wlsmon_operations.md   install, update, thresholds, tiles, known faults
 ├── 00-setup-interview.sh          oracle: questions, wlsmon.conf, secrets -> etc/pending/
 ├── 01-install-wlsmon_fmw.sh       oracle: bin/, share/, www/, ui.json, monitor user
 ├── 02-install-wlsmon_root.sh      root: group, systemd, Nginx include, htpasswd, pending -> creds, timers
@@ -875,7 +881,7 @@ the collector. Keys not in the template can be added by hand.
 | `WLSMON_ADMIN_IP_RANGE` | empty | GUI role: networks of the people, one `allow` each; `any` = no restriction (reported as WARN by the security check) |
 | `WLSMON_GUI_USERS` | empty | GUI role: Basic Auth users (passwords: `gui_htpasswd`) |
 | `WLSMON_GUI_IP` | empty | data role: IP of A, the only client of `/wlsmon/api/` |
-| `WLSMON_STYLE_SRC` | `'self'` | CSP `style-src` (JET needs no `'unsafe-inline'`, step 3) |
+| `WLSMON_STYLE_SRC` | `'self'` | CSP `style-src` (JET needs no `'unsafe-inline'`, measured 2026-11-19) |
 | **Pull (GUI role, P2)** | | |
 | `WLSMON_PULL_HOSTS` | empty | data hosts `id=https://host …` |
 | `WLSMON_PULL_CAFILE` | empty | CA of the internal PKI (TLS always verified) |
@@ -883,8 +889,10 @@ the collector. Keys not in the template can be added by hand.
 
 ## 10. Phases
 
-The ordered steps with files and done criteria:
-[03-wlsmon_development.md](03-wlsmon_development.md).
+State 2026-11-20: P1 live on the test host and at the first customer. Open:
+the 24-hour evaluation on the test host, the backup category `wlsmon`, a
+live test of `--remove`, the table view per chart – the list is in
+[TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md) block "11-wlsmon".
 
 | Phase | Content |
 |---|---|
@@ -909,7 +917,7 @@ Answered by the repository:
   `X-Requested-By`
   ([weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md));
 - JET charts without Knockout under the strict CSP (`style-src 'self'`) –
-  development step 3, tooltips through the data cursor (interface design §4);
+  measured 2026-11-19, tooltips through the data cursor (interface design §4);
 - the allowed networks of the GUI are a question of the interview
   (`WLSMON_ADMIN_IP_RANGE`);
 - the REST field names on 14.1.2 – verified 2026-11-20,

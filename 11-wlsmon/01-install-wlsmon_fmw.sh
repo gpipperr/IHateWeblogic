@@ -25,7 +25,7 @@
 #            --base DIR                WLSMON_BASE (default from wlsmon.conf search)
 #            --help
 # Runs as  : FMW owner (oracle), never root
-# Ref      : 11-wlsmon/docs/01-wlsmon_concept.md §9.2, docs/03-wlsmon_development.md step 10,
+# Ref      : 11-wlsmon/docs/01-wlsmon_concept.md §9.2, docs/04-wlsmon_operations.md,
 #            80-FMW-Architecture/weblogic_rest_monitoring.md §5
 # Author   : Gunther Pipperr | https://pipperr.de
 # License  : Apache 2.0
