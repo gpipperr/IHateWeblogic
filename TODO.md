@@ -351,32 +351,24 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Monitoring (phase 9)
 
-- [ ] **11-wlsmon – lightweight runtime monitor** (concept 2026-11-19:
+- [ ] **11-wlsmon – lightweight runtime monitor** (concept:
   [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md);
   steps 0–13, P2.1–P2.4 with done criteria:
   [11-wlsmon/docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md);
-  GUI base = prototype v3, Oracle JET only for the charts). State 2026-11-19:
-  steps 0–8 pushed (3b58cd6), REST verified, collector live; 2026-11-20 steps 9
-  + 10 live on the test host (c3409a7, `wlsmon_monitor` created), step 11
-  `02-install-wlsmon_root.sh` written, isolated test + dry-run on the test
-  host. Open: JET tooltip check (step 3), `02 --apply` live, steps 12–13.
-  P1 one host: contract schema 1; `wlsmon.py collect` – python3 stdlib only,
-  3.6-compatible, self-contained in `$WLSMON_BASE` = `$ORACLE_BASE/admin/wlsmon`
-  (config `etc/wlsmon.conf`, secrets as systemd credentials) – WebLogic REST
-  `domainRuntime/search` (field names on 14.1.2 to verify, fallback
-  `/weblogic/ready`); Reports `getserverinfo` with `monUser`; Forms session /
-  pool; host; logs by offset incl. REP-50171 / LDAP 49 per log entry with the
-  rules file `rules/wlsmon_rules.cfg` + `etc/wlsmon_rules.local.cfg` – first
-  ignore list from real logs; core dumps; daily facts; levels, rings, rollups.
-  Installation: `00-setup-interview.sh` (oracle: questions, defaults from
-  `environment.conf`, secrets to `etc/pending/`), `01-install-wlsmon_fmw.sh`
-  (oracle: `bin/`, `www/`, `ui.json`, WebLogic monitor user in group Monitors
-  – REST `createUser` to verify), `02-install-wlsmon_root.sh` (root, last: group
-  `wlsmon`, systemd units with limits, Nginx include GUI + data role from a
-  template, htpasswd, pending → `creds/`, timers, first run). GUI with the APEX
-  libraries from `/i/` (JET without Knockout bindings under the strict CSP – to
-  prove). P2: GUI host with `wlsmon.py pull`, overview + host view, data role on
-  further hosts. P3: the three scripts in the customer tools ZIP.
+  operations: [11-wlsmon/docs/04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
+  State 2026-11-20: P1 steps 0–11 live on the test host (one host, both
+  roles; 0f5de1b, d377d4a: JET tooltips, setgid fix). Open:
+  - [ ] step 12: 24-h evaluation (2026-11-21) – `systemd-cgtop` vs.
+    `MemoryMax`, curl matrix (200 with login, 404 outside the whitelist, 403
+    from a foreign IP), browser console without CSP violations
+  - [ ] step 13: `backup_config.sh` category `wlsmon` (`etc/` without
+    `pending/`), `--remove` live test
+  - [ ] table view per chart (interface design §4 – promised, not built)
+  - [ ] RCU check (6h) live only after the DB monitor user is agreed
+  - [ ] minor: favicon 404
+  - [ ] P2: GUI host with `wlsmon.py pull` (stub today), data role on further
+    hosts, TLS against the internal CA; P3: the three scripts in the customer
+    tools ZIP
 
 - [x] **CSPU November 2026** = first real run of
   `10-Monitoring/patch_cycle_analysis.sh` – done 2026-11-17 / 18 (prepare →

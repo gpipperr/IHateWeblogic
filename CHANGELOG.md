@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **11-wlsmon docs completed:** new
+  [operations page](11-wlsmon/docs/04-wlsmon_operations.md) (install / update /
+  remove, status and logs, known faults: 403 after lost setgid, stale, false
+  disk warning, tooltips, debugging without login); concept with the state
+  of P1, all script options and `wlsmon.py` commands, a configuration
+  reference of every `WLSMON_*` key, systemd credential blocks and core
+  directory binding, Nginx log ACL, setgid trap; interface design with the
+  tooltip behaviour; README with quick start; step states in the plan.
 - **New concept [80-FMW-Architecture/fmw_load_test.md](80-FMW-Architecture/fmw_load_test.md):**
   load tests for Reports (paths, profiles, stop criteria, proposed curl-based
   generator, result → `maxEngine` / engine heap / sizing) and the options and

@@ -8,9 +8,11 @@ description: "Concept of a read-only runtime monitor for Oracle Forms & Reports 
 
 ← [11-wlsmon](../README.md)
 
-**State 2026-11-19: concept; development steps 0–8 implemented** – build
-order and progress in the [development plan](03-wlsmon_development.md). This document is the
-master for the scripts that follow (Doc-as-Master, as in `09-Install/docs/`).
+**State 2026-11-20: P1 steps 0–11 implemented and live on the test host**
+(one host, both roles) – build order and progress in the
+[development plan](03-wlsmon_development.md), operation and faults in
+[04-wlsmon_operations.md](04-wlsmon_operations.md). This document is the
+master for the scripts (Doc-as-Master, as in `09-Install/docs/`).
 
 **Source:** a first plan and a frontend prototype by Gunther (2026-11-18):
 - JSON contract;
@@ -507,8 +509,18 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=##WLSMON_BASE##
+#@CORE_DIR_BEGIN@
+BindReadOnlyPaths=-##WLSMON_CORE_DIR##
+#@CORE_DIR_END@
+#@CRED_WLS_BEGIN@
 LoadCredentialEncrypted=wls_monitor:##WLSMON_BASE##/etc/creds/wls_monitor.cred
+#@CRED_WLS_END@
+#@CRED_REP_BEGIN@
 LoadCredentialEncrypted=reports_mon:##WLSMON_BASE##/etc/creds/reports_mon.cred
+#@CRED_REP_END@
+#@CRED_DB_BEGIN@
+LoadCredentialEncrypted=db_monitor:##WLSMON_BASE##/etc/creds/db_monitor.cred
+#@CRED_DB_END@
 ExecStart=/usr/bin/flock -n ##WLSMON_BASE##/state/collect.lock /usr/bin/python3 ##WLSMON_BASE##/bin/wlsmon.py collect
 
 # wlsmon-collect.timer
@@ -521,6 +533,14 @@ RandomizedDelaySec=20
 - Timeout of 20 s for every HTTP request in `wlsmon.py`: a slow AdminServer
   only makes the run report "no data".
 - `MemoryMax=200M` is ample for one python3 process (a few 10 MB).
+- **One marker block per credential:** a `LoadCredentialEncrypted` line whose
+  file is missing makes the start fail – `02-install-wlsmon_root.sh` keeps only
+  the blocks whose `.cred` exists (`db_monitor` only with `WLSMON_RCU_CHECK`).
+- **Core directory:** `PrivateTmp=yes` gives the service its own `/tmp` and
+  `/var/tmp` – the core directory below `/var/tmp` (`kernel.core_pattern`)
+  would look empty and its disk wrong. `BindReadOnlyPaths=-<dir>` maps the real
+  directory back, read-only (the `-` ignores a missing one); found live
+  2026-11-20.
 - Errors end up in `now.json.collector.errors`. The GUI shows **stale** when
   `generated_at` is older than two intervals, so the collector is monitored too.
 - The pull on A runs the same way (`wlsmon-pull.service` / `.timer`, with
@@ -560,14 +580,23 @@ Common rules:
   `add_header` inherits none from above (Nginx pitfall);
 - the headers only in the `/wlsmon/` locations, Forms and APEX stay unchanged;
 - no `Access-Control-Allow-Origin`;
-- `/management` and `/console` are never routed for wlsmon.
+- `/management` and `/console` are never routed for wlsmon;
+- the security check of section 3.5 probes `/console` and
+  `/management/weblogic/latest` anonymously through the own Nginx from
+  127.0.0.1 – the collector does not count these requests as Nginx errors.
 
 File permissions (layout in section 9.1):
 - Nginx reads only `www/`, `api/` and `hosts/` below `$WLSMON_BASE`, through
   the group `wlsmon` – it can read, never write;
 - `etc/`, `state/` and `log/` are for `oracle` only;
-- the `htpasswd` files stay in `/etc/nginx/` (`root:nginx` 640), not in the
-  Oracle tree: whoever takes over the FMW owner cannot add GUI logins.
+- the `htpasswd` files stay in `/etc/nginx/wlsmon/` (`htpasswd` for people,
+  `pull_htpasswd` for the pull user; `root:nginx` 640), not in the Oracle
+  tree: whoever takes over the FMW owner cannot add GUI logins;
+- the FMW owner reads the Nginx logs (requests per minute, 5xx, `error.log`)
+  through an ACL: `setfacl -m u:<owner>:rx` on the log directory plus a
+  default ACL `-d -m u:<owner>:r`, so files created by logrotate inherit the
+  right; the ACLs `02-` set are listed in `/etc/nginx/wlsmon/root_acl.list`
+  for `--remove`.
 
 Tests after the setup:
 - without login → 401;
@@ -663,10 +692,11 @@ $WLSMON_BASE/                 oracle:wlsmon  750
 ├── share/      wlsmon_rules.cfg (copy)   oracle only   700
 ├── etc/        wlsmon.conf, wlsmon_rules.local.cfg       oracle only   700
 │   ├── pending/  clear-text secrets until root encrypts them   700 / 600
-│   └── creds/    *.cred (systemd credentials)                  700
+│   └── creds/    *.cred (systemd credentials)          root:root 400 each
 ├── www/        GUI (role A)              Nginx reads   2750 / 640
 ├── api/        own JSON (data role)      Nginx reads   2750 / 640
 ├── hosts/<h>/  pulled JSON (role A)      Nginx reads   2750 / 640
+│               single host: hosts/<id> -> ../api (symlink) + hosts.json
 ├── state/      log offsets, pause after 401, lock    oracle only   700
 └── log/                                  oracle only   700
 ```
@@ -676,7 +706,13 @@ $WLSMON_BASE/                 oracle:wlsmon  750
 - **Nginx only reads,** and only `www/`, `api/`, `hosts/`:
   - through the group `wlsmon` (members: `nginx`, `oracle`), setgid on the
     three directories so that new files inherit the group;
-  - `nginx` never joins `oinstall` – it would read the whole Oracle tree.
+  - `nginx` never joins `oinstall` – it would read the whole Oracle tree;
+  - **setgid trap:** Linux clears the setgid bit on every `chmod` by an owner
+    who is not in the file's group – e.g. an oracle login older than the
+    `usermod -aG wlsmon`. `01-install` therefore changes a mode only when it
+    differs and creates new directories with `umask 027`; it warns when a file
+    below the three directories is not group `wlsmon` (Nginx would answer 403;
+    seen live 2026-11-20).
 - **Traversal of the parent directories:** `/u01/app/oracle` and `admin` are
   755 on the test host. A customer with 750 gets an ACL with the traverse
   right only (`setfacl -m u:nginx:x` on each parent) – Nginx can pass, not
@@ -697,6 +733,34 @@ the timers start only when everything is in place:
 | `00-setup-interview.sh` | FMW owner (`oracle`) | asks everything for wlsmon (below); without `--apply` it shows the resulting `wlsmon.conf` as a diff, with `--apply` it creates `$WLSMON_BASE/etc/` (oracle owns `admin/`, no root needed), writes `wlsmon.conf` and the secrets to `etc/pending/` |
 | `01-install-wlsmon_fmw.sh` | FMW owner (`oracle`) | copies `bin/wlsmon.py`, `share/wlsmon_rules.cfg`, `www/`; writes `ui.json` (APEX library paths, `WLSMON_LOCALE`); `etc/wlsmon_rules.local.cfg` skeleton (never overwritten); creates the WebLogic monitor user in the group Monitors with the password from `pending/` – a one-time call at installation only, never at runtime; asks for the WebLogic admin password for it (memory only) or takes it from the library if present; checks the Reports `monUser`; `wlsmon.py collect --check` |
 | `02-install-wlsmon_root.sh` | root | group `wlsmon` (members `nginx`, `oracle`); `chgrp` + setgid on `www/`, `api/`, `hosts/`; traverse ACLs on the parents if needed; SELinux context; systemd units + timers from templates (`##VARIABLE##` substitution as in `09-Install/04-root_nginx.sh`); Nginx include `/etc/nginx/oracle-wls.d/wlsmon.conf` + `conf.d/wlsmon_zone.conf` from `templates/wlsmon-nginx.conf.template`, blocks of the role switched on with `#@WLSMON_GUI_BEGIN@` / `#@WLSMON_DATA_BEGIN@` markers; `htpasswd` files in `/etc/nginx/` (`openssl passwd -6`); `pending/` → `creds/*.cred` and delete the clear text; `nginx -t` + reload; enable the timers; first run with `systemctl start` and its result |
+
+**Options** (all three: without `--apply` a dry run; `--base DIR` for
+another `WLSMON_BASE`; `--help`):
+
+| Script | Option | Effect |
+|---|---|---|
+| `00-` | `--defaults` | no questions, every default (re-runs, tests) |
+| `00-` | `--secret NAME` | change only this secret: `wls_monitor`, `reports_mon`, `pull_user`, `pull_hash`, `gui_htpasswd`, `db_monitor` |
+| `00-` | `--env-conf FILE` | `environment.conf` to take the defaults from |
+| `01-` | `--reset-monitor-password` | set the WebLogic password of the monitor user to the `wls_monitor` secret again |
+| `01-` | `--no-user` | skip the monitor user (GUI-only host, tests) |
+| `01-` | `--remove` | remove the runtime (`etc/` kept and listed) |
+| `02-` | `--no-start` | install, but do not enable the timers and skip the first run |
+| `02-` | `--remove` | reverse everything `02-` did |
+| `02-` | `--test-root DIR` | **tests only:** `/etc` and `/var/log` below DIR, root commands from a fake `PATH` |
+
+**`wlsmon.py` commands:** `collect [--check]` (one round; `--check` prints
+and writes nothing), `pull` (GUI role, P2), `rules --test LOGFILE` (which
+rule matches which line), `detect` (host facts for the interview: patch cycle of
+the stack patch bundle, fixed / random listeners, core directory, JET /
+font-apex versions below `/i/`), `defaults` (built-in `KEY=value`),
+`monitor-user check|create|reset` (the WebLogic monitor user through
+REST, secrets on stdin – used by `01-`), `version`.
+
+**Single host (role `both`):** the collector writes its own overview tile to
+`hosts/hosts.json` and the symlink `hosts/<id>` → `../api`, so the overview
+and the host view work without a pull. With `WLSMON_PULL_HOSTS` set (P2) the
+pull writes `hosts.json` instead.
 
 **The interview** (`00-setup-interview.sh`):
 - **Defaults**, in this order: an existing `wlsmon.conf` (a second run offers
@@ -752,6 +816,67 @@ Planned files in the repository:
                                    server with the production CSP), js_syntax_check.sh, jet_probe/
 ```
 
+### 9.3 Configuration reference (`wlsmon.conf`)
+
+`$WLSMON_BASE/etc/wlsmon.conf`, written by the interview from
+[`templates/wlsmon.conf.template`](https://github.com/gpipperr/IHateWeblogic/blob/main/11-wlsmon/templates/wlsmon.conf.template);
+`KEY=value`, no shell syntax. Defaults: `wlsmon.py defaults`. Thresholds are
+`warn,crit`. Keys marked *(install)* are read by the install scripts, not by
+the collector. Keys not in the template can be added by hand.
+
+| Key | Default | Meaning |
+|---|---|---|
+| **This host** | | |
+| `WLSMON_BASE` *(install)* | `$ORACLE_BASE/admin/wlsmon` | runtime directory (section 9.1) |
+| `WLSMON_ROLE` | `both` | `both` (one host), `data` (B, C, D), `gui` (A only) |
+| `WLSMON_HOST_ID` | short host name | id in URLs and `hosts.json` |
+| `WLSMON_PRODUCT`, `WLSMON_ENV` | `Forms & Reports`, `prod` | grouping and filter of the overview (`prod`, `qa`, `test`, `dev`) |
+| `WLSMON_LOCALE` | `de-DE` | number / date format of the GUI and JET |
+| **Domain** | | |
+| `WLSMON_DOMAIN_HOME`, `WLSMON_ORACLE_HOME` | library defaults | domain and Oracle Home |
+| `WLSMON_JAVA_HOME` | `ORACLE_HOME/oracle_common/jdk` | JDK whose version is reported |
+| `WLSMON_ADMIN_URL`, `WLSMON_ADMIN_SERVER` | `http://localhost:7001`, `AdminServer` | REST endpoint, AdminServer name |
+| `WLSMON_FORMS_SERVER`, `WLSMON_REPORTS_SERVER` | `WLS_FORMS`, `WLS_REPORTS` | managed servers for the Forms / Reports figures |
+| `WLSMON_SERVER_PORTS` | `AdminServer:7001 WLS_FORMS:9001 WLS_REPORTS:9002` | port probe when REST is not available |
+| `WLSMON_NM_HOST`, `WLSMON_NM_PORT` | `localhost`, `5556` | Node Manager probe |
+| `WLSMON_MON_USER` | `wlsmon_monitor` | WebLogic user, group Monitors only |
+| **Reports** | | |
+| `WLSMON_REPORTS_URL` | `http://localhost:9002/reports/rwservlet` | rwservlet for `getserverinfo` |
+| `WLSMON_REPORTS_SERVERS` | empty | Reports server names (empty = no Reports figures) |
+| `WLSMON_REPORTS_MON_USER` | `monUser` | Reports monitoring user (password: credential `reports_mon`) |
+| **Host, logs, Nginx** | | |
+| `WLSMON_DISKS` | empty = domain, logs, `/tmp`, core directory | `label=path …` |
+| `WLSMON_CORE_DIR` | from `kernel.core_pattern` | core dump directory (also mapped into the unit) |
+| `WLSMON_LOG_GLOBS`, `WLSMON_LOG_MAX_MB` | `servers/*/logs/*.log` + `*.out`, `20` | logs read per run, max. new bytes per file |
+| `WLSMON_NGINX_PORT`, `…_PID`, `…_ACCESS_LOG`, `…_ERROR_LOG`, `…_CONF_DIRS` | `443`, `/run/nginx.pid`, `/var/log/nginx/…`, `/etc/nginx …` | Nginx state, logs and config (certificates) |
+| `WLSMON_EXPECTED_PORTS` | `443 7001 5556 9001 9002` | fixed listeners; others are reported (random ports only counted) |
+| `WLSMON_CERT_FILES` | `ssl_certificate` of the Nginx config | certificates for the expiry check |
+| `WLSMON_APEX_DIR` | `/srv/apex/apex_1` | `/i/` on disk – library versions for `ui.json` |
+| **Daily / hourly** | | |
+| `WLSMON_PATCH_BASELINE` | empty | expected CPU / CSPU cycle `YYYY-MM` for the patch tab |
+| `WLSMON_RCU_CHECK`, `WLSMON_RCU_PREFIX`, `WLSMON_RCU_DAYS` | `false`, `DEV`, `30` | RCU schema expiry check (needs the DB monitor user) |
+| `WLSMON_RCU_CONNECT`, `WLSMON_SQLPLUS`, `WLSMON_DB_MON_USER` | STB data source, `ORACLE_HOME/bin/sqlplus`, empty | connection of that check |
+| **Thresholds `warn,crit`** | | |
+| `WLSMON_HEAP_PCT` | `80,90` | heap of the servers |
+| `WLSMON_LOAD` | `cores,2×cores` | load average 1 min |
+| `WLSMON_CPU_PCT`, `WLSMON_MEM_USED_PCT`, `WLSMON_DISK_PCT` | `80,95`, `85,95`, `80,90` | host |
+| `WLSMON_LOG_ERRORS` | `1,10` | counted log errors per run |
+| `WLSMON_FORMS_SESSIONS` | empty = no limit | Forms sessions (per environment) |
+| `WLSMON_REPORTS_QUEUE` | `5,20` | queued Reports jobs |
+| `WLSMON_CERT_DAYS` | `30,7` | days until certificate expiry |
+| **Runtime** | | |
+| `WLSMON_401_PAUSE_MIN` | `30` | REST pause after a 401 (protects the realm lockout) |
+| `WLSMON_HTTP_TIMEOUT` | `20` | seconds per HTTP request |
+| **Web tier** *(install, `02-`)* | | |
+| `WLSMON_ADMIN_IP_RANGE` | empty | GUI role: networks of the people, one `allow` each; `any` = no restriction (reported as WARN by the security check) |
+| `WLSMON_GUI_USERS` | empty | GUI role: Basic Auth users (passwords: `gui_htpasswd`) |
+| `WLSMON_GUI_IP` | empty | data role: IP of A, the only client of `/wlsmon/api/` |
+| `WLSMON_STYLE_SRC` | `'self'` | CSP `style-src` (JET needs no `'unsafe-inline'`, step 3) |
+| **Pull (GUI role, P2)** | | |
+| `WLSMON_PULL_HOSTS` | empty | data hosts `id=https://host …` |
+| `WLSMON_PULL_CAFILE` | empty | CA of the internal PKI (TLS always verified) |
+| `WLSMON_PULL_USER` | `wlsmon_pull` | technical pull user (credential `pull_user`) |
+
 ## 10. Phases
 
 The ordered steps with files and done criteria:
@@ -765,20 +890,24 @@ The ordered steps with files and done criteria:
 
 ## 11. Open points
 
-- Create the WebLogic monitor user with one REST call (`createUser`,
-  `addMemberToGroup` of the DefaultAuthenticator) instead of a WLST JVM –
-  to verify on 14.1.2.
 - Thresholds for Forms sessions and the Reports queue, per environment.
-- Allowed networks for the GUI.
 - Customer domains: the WebLogic monitor user is one change of the realm –
   agree it per customer.
-- JET without Knockout bindings under the strict CSP – proof in P1.
 - RCU check: is `sqlplus` part of the F&R 14.1.2 Oracle Home on every host;
   read-only DB monitor user (`SELECT` on `DBA_USERS` for the RCU schemas
   only) – agree it with the DBA per customer; the optional real login needs
   the RCU password as one more systemd credential.
 
 Answered by the repository:
+- the WebLogic monitor user is created with REST (`createUser`,
+  `addMemberToGroup`, no WLST JVM) – live 2026-11-20; on 14.1.2
+  `listMemberGroups` returns a cursor and every request needs
+  `X-Requested-By`
+  ([weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md));
+- JET charts without Knockout under the strict CSP (`style-src 'self'`) –
+  development step 3, tooltips through the data cursor (interface design §4);
+- the allowed networks of the GUI are a question of the interview
+  (`WLSMON_ADMIN_IP_RANGE`);
 - the REST field names on 14.1.2 – verified 2026-11-20,
   [weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md);
 - the Reports figures come from `getserverinfo` with `monUser`;
@@ -790,6 +919,8 @@ Answered by the repository:
 
 ## 12. Related
 
+- [04-wlsmon_operations.md](04-wlsmon_operations.md): install, update,
+  status, known faults.
 - [10-Monitoring](../../10-Monitoring/README.md): periodic analysis (CVE
   watch, certificate expiry, patch cycle). wlsmon is the live runtime view.
 - [reports_monitoring_getserverinfo.md](../../80-FMW-Architecture/reports_monitoring_getserverinfo.md),

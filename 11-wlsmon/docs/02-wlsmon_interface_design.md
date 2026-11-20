@@ -143,7 +143,17 @@ Rules:
 - **One y-axis per chart.** Heap % and the number of sessions are two charts,
   never one chart with two scales.
 - **Values in tooltips and tables:** every chart has a table view, so no
-  value depends on colour.
+  value depends on colour – **the table view is not implemented yet** (state
+  2026-11-20; the summary line above each chart gives max / avg, the tooltip
+  each value).
+- **Tooltips (implemented 2026-11-20):** Oracle JET data cursor
+  (`dataCursor: 'on'`, `dataCursorBehavior: 'snap'`) on the large charts and
+  the sparklines of the key-figure tiles – the nearest point of the time axis,
+  text `time · value unit` (multi-series: `time · entity value`) from the item
+  `shortDesc`. `hoverBehavior` stays `'none'`: with `'dim'` JET 20.1.4 showed
+  no data-cursor tooltip on the large charts (bisected on the test host). The
+  tooltip box uses the JET theme (`oj-dvt-datatip`), styled through CSSOM – no
+  conflict with `style-src 'self'`. The SVG fallback has no tooltip.
 
 ## 5. Surfaces and text
 

@@ -111,20 +111,20 @@ Overview of the steps; the details follow the table.
 
 | # | Step | Result |
 |---|---|---|
-| 0 | Skeleton and lint gate | folder tree, Python check in the gate |
-| 1 | Freeze the contract | sample data + `check_contract.py` |
-| 2 | Import the GUI | `www/` runs on sample data |
-| 3 | JET spike | proof: `oj-chart` under the strict CSP |
-| 4 | Chart layer | `wlsmon_charts.js` (JET + SVG fallback) |
-| 5 | `wlsmon.py` frame | subcommands, config, credentials, atomic writes |
-| 6a–6j | Collector parts | one source per part, each with fixtures |
-| 7 | Build | levels, topology, rollups, the 7 files |
-| 8 | Templates | `wlsmon.conf`, systemd, Nginx |
+| 0 | Skeleton and lint gate | folder tree, Python check in the gate – **done** |
+| 1 | Freeze the contract | sample data + `check_contract.py` – **done** |
+| 2 | Import the GUI | `www/` runs on sample data – **done**, live in the browser 2026-11-20 |
+| 3 | JET spike | proof: `oj-chart` under the strict CSP – **passed** 2026-11-20 (incl. tooltips) |
+| 4 | Chart layer | `wlsmon_charts.js` (JET + SVG fallback) – **done** |
+| 5 | `wlsmon.py` frame | subcommands, config, credentials, atomic writes – **done** |
+| 6a–6j | Collector parts | one source per part, each with fixtures – **done** (6h code done, off) |
+| 7 | Build | levels, topology, rollups, the 7 files – **done** |
+| 8 | Templates | `wlsmon.conf`, systemd, Nginx – **done** |
 | 9 | `00-setup-interview.sh` | `wlsmon.conf` + secrets to `etc/pending/` – **done 2026-11-20** |
-| 10 | `01-install-wlsmon_fmw.sh` | program, GUI, `ui.json`, monitor user – **prepared 2026-11-20** |
-| 11 | `02-install-wlsmon_root.sh` | group, systemd, Nginx, credentials, timers |
-| 12 | Test on the test host | security, CSP, 24-h run, resources |
-| 13 | Integration | backup category, docs, `--remove` |
+| 10 | `01-install-wlsmon_fmw.sh` | program, GUI, `ui.json`, monitor user – **live 2026-11-20** |
+| 11 | `02-install-wlsmon_root.sh` | group, systemd, Nginx, credentials, timers – **live 2026-11-20** |
+| 12 | Test on the test host | security, CSP, 24-h run, resources – **running** (24-h evaluation 2026-11-21) |
+| 13 | Integration | backup category, docs, `--remove` – open (docs: operations page 04 done 2026-11-20) |
 
 ### Step 0 – skeleton and lint gate
 
@@ -481,9 +481,9 @@ One part per source. Each part:
 |---|---|---|
 | 0 | done | `tools/ci_lint.sh` step P (py_compile, Python 3.6 syntax via `tools/py36_check.py`, unittest) and step J (ES5 syntax of `www/js` via Nashorn, `11-wlsmon/tools/js_syntax_check.sh` – skipped without a `jjs`). Python 3.9's parser does not enforce `feature_version` for everything, so `py36_check.py` walks the AST itself (walrus, positional-only, `X \| Y`, `capture_output=`, `fromisoformat` …) |
 | 1 | done | `tools/gen_sample_data.py` (from the prototype, `--out` mandatory), `tools/check_contract.py` – all 6 scenarios + demo `hosts.json` pass, 10 negative tests fail as they should |
-| 2 | done, **browser check open** | `www/` from the prototype v3; icons through `js/wlsmon_libs.js` (font-apex from `ui.json`, inline SVG fallback); `tests/test_gui_rules.py` enforces the CSP rules (no inline code / style, no `innerHTML`, no `eval`, no external URL, plain ES5). Test server `tools/devserver.py` with the production CSP; it prints CSP violations and browser JS errors in its terminal |
-| 3 | **nearly passed** (2026-11-19 17:45: charts render under the strict CSP without violations, ~450 ms, ~2.7 MB incl. theme; tooltip with `dataCursor` still to confirm) – findings: `data-oj-binding-provider="none"` (otherwise JET waits for Knockout), `knockout` path for the DVT template engine (`ui.json` `libs.knockout`, loaded, never bound), `groupId` is an array, reference lines `location: front`, the theme `oj-redwood-notag` is required (without it only the unstyled "loading" text) | `oj-chart` needs `jquery` and `jqueryui-amd/*`, which JET 20.1.4 does not ship – APEX defines them as AMD shims over its global jQuery / jQuery UI (`libraries/apex/requirejs.jetConfig.js`); `wlsmon_charts.js` does the same (no inline script). The 44 modules of `ojchart` + `ojarraydataprovider` contain no `eval` / `new Function`; whether `oj-chart` writes style attributes (CSP `style-src`) shows only in the browser. Size: about 1.1 MB JET modules + 250 KB jQuery / jQuery UI, theme CSS (0.9 MB) optional (`ui.json` `jet_theme`). Probe page `tools/jet_probe/` |
-| 4 | done (JET path unproven until 3) | `www/js/wlsmon_charts.js`: `init(ui)`, `line()`, `spark()`; JET renderer, the prototype SVG as fallback per chart; colours from the CSS tokens, redraw on theme switch |
+| 2 | done, **live in the browser 2026-11-20** (overview + host view on the test host) | `www/` from the prototype v3; icons through `js/wlsmon_libs.js` (font-apex from `ui.json`, inline SVG fallback); `tests/test_gui_rules.py` enforces the CSP rules (no inline code / style, no `innerHTML`, no `eval`, no external URL, plain ES5). Test server `tools/devserver.py` with the production CSP; it prints CSP violations and browser JS errors in its terminal |
+| 3 | **passed** (2026-11-19 17:45: charts render under the strict CSP without violations, ~450 ms, ~2.7 MB incl. theme; 2026-11-20: data-cursor tooltips on charts and sparklines confirmed, `hoverBehavior` must stay `'none'`, `style-src 'self'` is enough) – findings: `data-oj-binding-provider="none"` (otherwise JET waits for Knockout), `knockout` path for the DVT template engine (`ui.json` `libs.knockout`, loaded, never bound), `groupId` is an array, reference lines `location: front`, the theme `oj-redwood-notag` is required (without it only the unstyled "loading" text) | `oj-chart` needs `jquery` and `jqueryui-amd/*`, which JET 20.1.4 does not ship – APEX defines them as AMD shims over its global jQuery / jQuery UI (`libraries/apex/requirejs.jetConfig.js`); `wlsmon_charts.js` does the same (no inline script). The 44 modules of `ojchart` + `ojarraydataprovider` contain no `eval` / `new Function`; whether `oj-chart` writes style attributes (CSP `style-src`) shows only in the browser. Size: about 1.1 MB JET modules + 250 KB jQuery / jQuery UI, theme CSS (0.9 MB) optional (`ui.json` `jet_theme`). Probe page `tools/jet_probe/` |
+| 4 | done, JET path live 2026-11-20 | `www/js/wlsmon_charts.js`: `init(ui)`, `line()`, `spark()`; JET renderer, the prototype SVG as fallback per chart; colours from the CSS tokens, redraw on theme switch |
 | 5 | done | `wlsmon.py` (one file, stdlib, 3.6): `collect [--check] [--out] [--state]`, `rules --test`, `version`; `pull` is a stub (P2); config with defaults, credentials (`$CREDENTIALS_DIRECTORY`, OL8 fallback only with mode 400), atomic writes, own lock file (`state/run.lock` – the unit's `flock` holds `collect.lock`) |
 | 6a–6g | done | real `collect --check` on the test host in 0.9 s, read-only, without credentials: host, nginx, ports / ready probes, Forms sessions from `/proc` (5 frmweb, all prestart pool), logs, core dumps |
 | 6b | **done, verified 2026-11-20** | one read-only search POST on the test host (admin user through the library loader, password only on curl's stdin): the field names of the prototype plan are right on 14.1.2 (`healthState` object, collections as `items`); the real answer is the fixture `tests/fixtures/wls/search_real_14.1.2.json`. The first search after an AdminServer start took 11.3 s (REST initialised lazily), then 0.17 – 0.22 s |

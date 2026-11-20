@@ -15,12 +15,17 @@ live view of a Forms & Reports environment:
   queue, load, memory, disk, log errors, core dumps;
 - the history over a day, a week and a year.
 
-**State 2026-11-19: concept** –
-[docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md), interface design
-(colour concept): [docs/02-wlsmon_interface_design.md](docs/02-wlsmon_interface_design.md),
-development plan (steps P1–P3): [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md).
-Steps 0–8 of P1 are implemented (`wlsmon.py`, GUI, rules, templates, tests);
-not installed anywhere yet – the install scripts are steps 9–11.
+**State 2026-11-20: phase P1 (one host, data + GUI role) live on the test
+host** – collector every 5 minutes, overview and host view in the browser.
+Open in P1: the 24-hour evaluation (step 12) and the integration (step 13,
+backup category). P2 (one GUI host, many data hosts) follows.
+
+| Document | Content |
+|---|---|
+| [docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md) | **concept – master** of the scripts: architecture, JSON contract, security, collector, systemd, Nginx, GUI, layout, install scripts and their options, configuration reference |
+| [docs/02-wlsmon_interface_design.md](docs/02-wlsmon_interface_design.md) | interface design: colours, status, charts, tooltips, tokens, locale |
+| [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md) | development plan P1–P3 and progress log |
+| [docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md) | **operations:** install, update, remove, status and logs, known faults and their fix |
 
 ## In short
 
@@ -35,7 +40,8 @@ not installed anywhere yet – the install scripts are steps 9–11.
   - one read-only REST call per 5 minutes on `localhost`, no WLST;
   - the collector runs with low priority and hard systemd limits.
 - **Data and GUI separated:**
-  - every host writes 4 static JSON files;
+  - every host writes 7 static JSON files (now, day, week, history, patch,
+    security, logs);
   - one GUI host fetches them from many hosts and shows an overview with a
     drill-down per host.
 - **Simple passwords:**
@@ -47,12 +53,26 @@ not installed anywhere yet – the install scripts are steps 9–11.
 - **Self-contained at runtime:** everything below `$ORACLE_BASE/admin/wlsmon`
   (program, rules, configuration, credentials); the repository and the
   library are only needed to install it. Nginx only reads it.
-- **Installation (planned):**
+- **Installation** – three scripts, each a dry run without `--apply`:
   - `00-setup-interview.sh` (FMW owner): asks everything, defaults from
     `environment.conf` when present;
   - `01-install-wlsmon_fmw.sh` (FMW owner): program, GUI, monitor user;
-  - `02-install-wlsmon_root.sh` (root, last): systemd units, Nginx include
-    from a template, credentials, timers.
+  - `02-install-wlsmon_root.sh` (root, last): group and ACLs, credentials,
+    Nginx include from a template, systemd units and timers, first run.
+
+## Quick start
+
+```bash
+./11-wlsmon/00-setup-interview.sh --apply          # FMW owner
+./11-wlsmon/01-install-wlsmon_fmw.sh --apply       # FMW owner
+sudo ./11-wlsmon/02-install-wlsmon_root.sh --apply # root, last
+# GUI: https://<host>/wlsmon/   (login from the interview)
+```
+
+Update: `01-install-wlsmon_fmw.sh --apply` (+ `02-` when a template changed),
+then Ctrl+F5 in the browser. Remove: `02- --remove --apply`, then
+`01- --remove --apply`. Details and faults:
+[docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md).
 
 ## Relation to 10-Monitoring
 
