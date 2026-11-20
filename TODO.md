@@ -365,7 +365,6 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
     `pending/`), `--remove` live test
   - [ ] table view per chart (interface design §4 – promised, not built)
   - [ ] RCU check (6h) live only after the DB monitor user is agreed
-  - [ ] minor: favicon 404
   - [ ] P2: GUI host with `wlsmon.py pull` (stub today), data role on further
     hosts, TLS against the internal CA; P3: the three scripts in the customer
     tools ZIP
