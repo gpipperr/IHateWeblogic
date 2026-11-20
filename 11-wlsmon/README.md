@@ -37,7 +37,11 @@ backup category). P2 (one GUI host, many data hosts) follows.
     JET charts), so they are patched with APEX; the look is our own, in the
     colours of the project site.
 - **No side effects on WebLogic:**
-  - one read-only REST call per 5 minutes on `localhost`, no WLST;
+  - one read-only REST call per 5 minutes on `localhost`, no WLST –
+    fields, monitor user and lockout rules:
+    [weblogic_rest_monitoring.md](../80-FMW-Architecture/weblogic_rest_monitoring.md);
+    the Reports figures come from `getserverinfo`
+    ([reports_monitoring_getserverinfo.md](../80-FMW-Architecture/reports_monitoring_getserverinfo.md));
   - the collector runs with low priority and hard systemd limits.
 - **Data and GUI separated:**
   - every host writes 7 static JSON files (now, day, week, history, patch,
@@ -170,8 +174,8 @@ sudo ./11-wlsmon/02-install-wlsmon_root.sh --apply # root, last
 # GUI: https://<host>/wlsmon/   (login from the interview)
 ```
 
-Update: `01-install-wlsmon_fmw.sh --apply` (+ `02-` when a template changed),
-then Ctrl+F5 in the browser. Remove: `02- --remove --apply`, then
+Update – new wlsmon version, Oracle patch cycle (`WLSMON_PATCH_BASELINE`),
+APEX patch: [docs/04-wlsmon_operations.md §1a](docs/04-wlsmon_operations.md#1a-update). Remove: `02- --remove --apply`, then
 `01- --remove --apply`. Details and faults:
 [docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md).
 

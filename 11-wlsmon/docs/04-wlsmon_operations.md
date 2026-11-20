@@ -42,7 +42,7 @@ stays untouched).
 
 ---
 
-## 1. Install, update, remove
+## 1. Install and remove
 
 ```bash
 # 1. FMW owner: questions -> etc/wlsmon.conf + etc/pending/ (dry-run shows the diff)
@@ -63,14 +63,53 @@ Every script shows what it would do without `--apply`. Options:
 
 | Task | Command |
 |---|---|
-| **Update** (new repository state / tools ZIP) | `01-install-wlsmon_fmw.sh --apply` – copies only changed files; `02-install-wlsmon_root.sh` (dry run) shows whether a template changed, then `--apply` |
 | Change a setting | `00-setup-interview.sh --apply` (offers the current values), then `02-install-wlsmon_root.sh --apply` for web-tier keys (section 3) |
 | Change one secret | `00-setup-interview.sh --secret NAME --apply`, then `02-install-wlsmon_root.sh --apply` (encrypts it) |
 | Monitor user lost its password | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
 | **Remove** | `sudo 02-install-wlsmon_root.sh --remove --apply`, then `01-install-wlsmon_fmw.sh --remove --apply` – `etc/` stays and is listed, the WebLogic monitor user is listed for manual removal |
 
-After an update of `www/`: reload the page with **Ctrl+F5** – the browser
-keeps the old JS and CSS otherwise.
+Updates (new wlsmon version, Oracle patch cycle, APEX patch): section 1a.
+
+---
+
+## 1a. Update
+
+No reinstall – what to do depends on what changed. `etc/` (configuration,
+local rules, credentials), `state/` (time series) and the JSON files are
+never touched, so the history simply goes on.
+
+**New wlsmon version** (repository or tools ZIP):
+
+```bash
+git pull
+./11-wlsmon/01-install-wlsmon_fmw.sh --apply        # copies only changed files ("installed" vs "unchanged")
+sudo ./11-wlsmon/02-install-wlsmon_root.sh          # dry run: did an nginx / systemd template change?
+sudo ./11-wlsmon/02-install-wlsmon_root.sh --apply  # only when the dry run shows a change
+```
+
+`01-` copies `bin/wlsmon.py`, `share/wlsmon_rules.cfg` and `www/`; the next
+timer run already uses the new program. Then reload the page with
+**Ctrl+F5** – the browser keeps the old JS and CSS otherwise.
+
+**New Oracle patch cycle (CPU / CSPU) applied:** nothing to copy – the
+collector reads the patch level once a day from the inventory files. Raise
+the **expected** cycle, otherwise the patch tab reports the new level as
+off-baseline (or keeps reporting the old one as current):
+
+```bash
+./11-wlsmon/00-setup-interview.sh --apply   # "Expected patch cycle YYYY-MM", e.g. 2026-12
+```
+
+or set `WLSMON_PATCH_BASELINE=2026-12` in `$WLSMON_BASE/etc/wlsmon.conf` –
+read at the next run, no restart. For the library this is a step of the cycle
+switch ([update_lib_to_act_cpu.md](../../docs/update_lib_to_act_cpu.md), J).
+
+**APEX patched** (new JET / font-apex version below `/i/`):
+`01-install-wlsmon_fmw.sh --apply` rewrites `www/ui.json` with the newest
+library paths, then Ctrl+F5. Hosts without APEX use the own SVG charts and
+icons – nothing to do.
+
+**Changed setting, secret or monitor password:** table in section 1.
 
 ---
 

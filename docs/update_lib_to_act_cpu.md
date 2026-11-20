@@ -234,6 +234,11 @@ bump its `VERSION`, then
 
 - `10-Monitoring/cve_inventory.sh` follows the conf – its output must show
   the new cycle.
+- **11-wlsmon** on every host where it runs: raise the expected cycle
+  `WLSMON_PATCH_BASELINE` (`11-wlsmon/00-setup-interview.sh --apply` or
+  `etc/wlsmon.conf`), and after an APEX patch run
+  `11-wlsmon/01-install-wlsmon_fmw.sh --apply` (new `/i/` library paths in
+  `ui.json`) – [04-wlsmon_operations.md §1a](../11-wlsmon/docs/04-wlsmon_operations.md#1a-update).
 - New lessons of the cycle → `10-Monitoring/patch_cycle_analysis_skill.md`
   §4 (rules learned), new alert types / product names in the phase-1
   filter.

@@ -99,8 +99,10 @@ curl -s --max-time 20 -K - \
 ```
 
 Rules:
-- **`X-Requested-By`** is required for POST (CSRF protection of the REST
-  services). The value does not matter. Without it the answer is HTTP 400.
+- **`X-Requested-By`** is required (CSRF protection of the REST services):
+  for every POST, and on 14.1.2 also for the GET of the monitor's login test
+  (`domainRuntime/serverRuntimes`) – live 2026-11-20. The value does not
+  matter. Without it the answer is HTTP 400. Simplest rule: always send it.
 - **`"links": []`** everywhere: without it, every object carries its
   hypermedia links, and the answer gets several times larger.
 - **The password goes on stdin** (`-K -` reads a curl config from stdin).
@@ -117,7 +119,7 @@ is simply missing from the answer, so a monitor also needs the configured
 list:
 
 ```bash
-curl -s --max-time 20 -K - -H 'Accept: application/json' \
+curl -s --max-time 20 -K - -H 'Accept: application/json' -H 'X-Requested-By: monitor' \
      'http://localhost:7001/management/weblogic/latest/domainConfig/servers?fields=name&links=none' \
      <<< 'user = "wlsmon_monitor:<PASSWORD>"'
 ```
@@ -279,8 +281,15 @@ from "open". The configuration can.
 
 ## 8. Open points
 
-- REST `createUser` for the monitor user in the group `Monitors` (wlsmon
-  development plan step 10) – the call is to be verified read-only first.
+Answered: the monitor user is created with REST – `createUser` +
+`addMemberToGroup Monitors` of the `DefaultAuthenticator` (no WLST), live on
+the test host and at a first customer 2026-11-20. On 14.1.2
+`listMemberGroups` returns a cursor name (read it with `haveCurrent` /
+`getCurrentName` / `advance`, then `close`), and every request needs
+`X-Requested-By` – also a GET, otherwise HTTP 400 (§2.1).
+
+Still open:
+
 - Behaviour of the REST services with the **Remote Console** of 14.1.2
   (hosted `wls-remote-console.war`): it uses the same `/management` base
   path; to be checked whether a domain without the REST services still
