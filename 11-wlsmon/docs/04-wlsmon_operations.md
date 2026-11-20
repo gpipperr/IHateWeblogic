@@ -238,6 +238,7 @@ A rule with a bad regex is skipped and reported in `collector.errors`.
 | Memory free | `MemAvailable` in % of `MemTotal` of the host; the line below names the swap in use, and on WARN / CRIT the cause (`CRIT swap 2201 MB >= 2048`, `WARN used 91 % >= 90`) | – |
 | Heap used (Forms / Reports) | used heap of the managed server JVM (`WLS_FORMS`, `WLS_REPORTS`) in % of its **maximum** heap (`-Xmx`); the line below names the max heap | the `frmweb` runtime processes and the Reports engine processes – separate processes, visible in host memory and the sessions / engine tiles |
 | JDBC connections | active · waiting connections of all WebLogic data sources, summed over all servers; the line below says how many are RCU data sources (OPSS, audit, service table) and which are your own | the DB sessions of the Forms and Reports applications – `frmweb` and the engines connect through TNS / OCI, not through a data source |
+| nginx log errors (5 min) | new `[error]` / `[crit]` / `[alert]` / `[emerg]` lines of the nginx `error.log` since the last run | our own hourly `/management` probe from the loopback, and a missing static file (`open() … No such file or directory`, e.g. the browser's `/favicon.ico`) – that is a plain 404, already in the 4xx of the requests tile |
 | RCU login | hourly login test of the RCU schemas with `sqlplus` (optional, `WLSMON_RCU_CHECK`) – catches an expired schema password before the next domain restart fails | – |
 
 In a plain Forms & Reports domain the JDBC tile therefore shows only the RCU

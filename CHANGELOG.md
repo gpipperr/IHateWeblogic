@@ -16,6 +16,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   sources. `03-set-thresholds.sh` shows the memory limit as free %, and
   `10,5` is refused with the hint `90,95`. Ops page: table "What the tiles
   refer to" ([04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
+- **11-wlsmon nginx log errors:** a missing static file (`open() … No such
+  file or directory`, e.g. the browser's `/favicon.ico`) is a 404, counted as
+  4xx – no longer a log error that turns the host WARN.
 - **11-wlsmon at the first customer, `03-set-thresholds.sh`:** fix for a
   missing monitor user (01- now creates it); new operation script to show
   and change the WARN / CRIT limits next to the measured values of the last

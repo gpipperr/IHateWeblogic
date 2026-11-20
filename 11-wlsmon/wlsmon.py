@@ -1128,14 +1128,19 @@ def part_nginx(rnd):
         # not counted: our own hourly security probe (security.json mgmt_rest_proxied)
         # from the loopback - nginx logs its 404 / "forbidden" as [error]
         own = re.compile(r'client: (127\.0\.0\.1|::1), .*request: "GET /management/weblogic/latest HTTP')
+        # not counted either: a missing static file (open() ... "No such file or
+        # directory") is a plain 404 - the browser's /favicon.ico, scanners - and
+        # already counted as 4xx of the access log
+        enoent = re.compile(r'open\(\) ".*" failed \(2: No such file or directory\)')
         errs = sum(1 for l in text.splitlines()
-                   if re.search(r"\[(error|crit|alert|emerg)\]", l) and not own.search(l))
+                   if re.search(r"\[(error|crit|alert|emerg)\]", l) and not own.search(l)
+                   and not enoent.search(l))
     rnd.series["log_errors_nginx"] = errs
     rnd.info.setdefault("log_errors", {})["nginx"] = errs or 0
     thr = cfg.pair("WLSMON_LOG_ERRORS", [1, 10])
     rnd.metric("log_errors_nginx", "nginx", "nginx log errors (5 min)", "Log errors (5 min)", errs,
                display="n/a", unit="entries" if errs is not None else "",
-               sub="error.log" if errs is not None else "error.log %s" % note,
+               sub="error.log (404 = 4xx, not here)" if errs is not None else "error.log %s" % note,
                level=level_of(errs, thr) if errs else "ok", series="log_errors_nginx")
 
 
