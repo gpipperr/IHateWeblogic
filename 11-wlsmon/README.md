@@ -27,6 +27,32 @@ backup category). P2 (one GUI host, many data hosts) follows.
 | [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md) | development plan P1–P3 and progress log |
 | [docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md) | **operations:** install, update, remove, status and logs, known faults and their fix |
 
+## What it looks like
+
+Screenshots of the GUI prototype v3 (2026-11-19) with the demo data of
+[`tools/gen_sample_data.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/11-wlsmon/tools/gen_sample_data.py) –
+no real hosts. The live GUI is the same code, its charts are drawn by Oracle
+JET.
+
+**Overview – many hosts** (GUI role with data hosts, P2): one tile per host,
+grouped by product, filter by environment, the reasons of a WARN / CRIT on
+the tile, STALE when a host sends no new data.
+
+![wlsmon overview with six hosts in two products](docs/images/wlsmon_overview_hosts.png)
+
+**Host view – one host:** overall status with its reasons, components as a
+topology from outside to inside (Nginx → AdminServer / Node Manager →
+managed servers → Reports servers → database), key figures per component with
+a 4-hour trend, daily facts (certificate, patch cycle), trend over 24 h /
+7 days / 1 year and the summary per 12 h; tabs for patch level, security and
+the log viewer.
+
+<details markdown="block"><summary>Show the host view (long page)</summary>
+
+![wlsmon host view of one host in state WARN](docs/images/wlsmon_host_view.png)
+
+</details>
+
 ## In short
 
 - **No extra software:**
