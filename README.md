@@ -41,9 +41,11 @@ Independent community project – not affiliated with Oracle. See
 
 > **Work in Progress** – This library is under active development.
 
-**`[███████████████████░]` ~96 % complete** (state 2026-11-06) – phases 1–7
+**`[███████████████████░]` ~97 % complete** (state 2026-11-20) – phases 1–7
 are implemented and the whole install chain is live-tested end-to-end incl.
-the smoke test; phase table, how the ~96 % is estimated and what ran live at
+the smoke test; phase 9 got its runtime monitor
+([11-wlsmon](11-wlsmon/README.md), one host live on the test host
+2026-11-20); phase table, how the ~97 % is estimated and what ran live at
 customers: [docs/project_status.md](docs/project_status.md).
 
 ## Target Picture – Forms and APEX side by side – the main idea behind this installation
@@ -106,6 +108,7 @@ Ways in:
 | patch a running installation (monthly CPU / CSPU) | [07-Maintenance/docs/02-patching.md](07-Maintenance/docs/02-patching.md) – the steps per cycle; current patch numbers: [00-patch-references.md](09-Install/docs/00-patch-references.md) |
 | check and harden security | [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md) – patch cycle, hardening by layer with fix + check scripts, residual risks |
 | understand why it behaves that way | [80-FMW-Architecture/](80-FMW-Architecture/README.md) – background articles with diagrams |
+| watch the running environment (traffic light, heap, sessions, Reports queue, logs) | [11-wlsmon](11-wlsmon/README.md) – runtime monitor, three install scripts; operation: [04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md) |
 | fix a known problem | DB login `ORA-12154` / `ORA-12162`: [tns_admin_check.sh](02-Checks/README.md#tns_admin_checksh) · fonts in PDF / HTML parameter form: [04-ReportsFonts §11](04-ReportsFonts/README.md#11-troubleshooting) · Reports slow, jobs waiting: [05-ReportsPerformance](05-ReportsPerformance/README.md) · Forms sessions dropped, timeouts: [06-FormsDiag](06-FormsDiag/README.md) |
 
 ## Moving from 12c to Forms & Reports 14c – the process in three steps
@@ -158,7 +161,8 @@ scripts and the residual risks.
 > and a VM clone with a new RCU prefix (2026-11-09/10), the CSPU November 2026
 > cycle (FMW home, repository DB MRP, APEX 26.2.1 / ORDS 26.3.1) and the
 > security hardening of the realm – audit trail, password rule, account
-> lockout, Java4Shell mitigation (2026-11-18) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
+> lockout, Java4Shell mitigation (2026-11-18), the runtime monitor 11-wlsmon
+> on one host (2026-11-20) – [Folder Roles](docs/forms_reports_installation_steps.md#folder-roles), background in
 > [`80-FMW-Architecture/`](80-FMW-Architecture/README.md). Details of every
 > fix: `git log`; what is still open: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 > Use with caution and verify output before applying any changes (`--apply`).
@@ -202,7 +206,7 @@ environment (analyse + fix): the order of the first scripts –
 | [`08-SSL/`](08-SSL/README.md)             | SSL certificate lifecycle: prepare, deploy, audit    |
 | [`09-Install/`](09-Install/README.md)         | Full installation flow: OS → WLS → Forms/Reports → Domain → runtime config |
 | [`10-Monitoring/`](10-Monitoring/README.md)      | CVE inventory + early warning ([`cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh), [`cve_watch.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_watch.sh)), certificate expiry, patch-cycle analysis with Claude ([`patch_cycle_analysis.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/patch_cycle_analysis.sh)); concept: notification, AI-assisted log analysis |
-| [`11-wlsmon/`](11-wlsmon/README.md)          | **concept** 2026-11-19: lightweight runtime monitor – traffic light, components, key figures and history per host as static JSON, GUI with the APEX libraries behind Nginx, one GUI host for many data hosts, no extra software ([concept](11-wlsmon/docs/01-wlsmon_concept.md)) |
+| [`11-wlsmon/`](11-wlsmon/README.md)          | Lightweight runtime monitor – traffic light, components, key figures and history per host as static JSON every 5 min, GUI with the APEX libraries (font-apex, Oracle JET) behind Nginx, python3 stdlib + systemd, no extra software; phase P1 (one host) **live on the test host 2026-11-20**, P2 (one GUI host for many data hosts) open ([concept](11-wlsmon/docs/01-wlsmon_concept.md), [operations](11-wlsmon/docs/04-wlsmon_operations.md)) |
 | [`12-APEX-Ords/`](12-APEX-Ords/README.md)       | Oracle APEX 26.2 + ORDS 26.3 standalone beside Forms – scripts `01-` … `06-` (prepare DB, install / patch APEX, install / patch ORDS, Nginx), live-tested 2026-10-23, patched 2026-11-18 (APEX 26.2.1, ORDS 26.3.1) |
 | [`14-ReportsBuilder/`](14-ReportsBuilder/README.md)  | Oracle Reports Builder 14.1.2 on a central Windows Server (builder-only domain, RDP) and the report deployment with GitLab: rdf → xml, one report per check-in, PowerShell scripts + menu, push → DEV, `prod-*` tag → production, SSH forced-command queue; live at a customer since 2026-11-13 |
 | [`60-RCU-DB-19c/`](60-RCU-DB-19c/README.md)     | Oracle 19c minimal RCU database: config interview → OS baseline → CVU pre-check → install already patched (gold image, or 19.3 image + opatch RU) → listener → create DB (RCU requirements checked) → Unified Audit → RCU profile → autostart; RU patch out-of-place, monthly MRP in-place (`09-db_patch_rcu.sh --mrp`) |
@@ -448,9 +452,18 @@ IHateWeblogic/
 │   │                                   skills/ template of the Claude Code skill (copied to the untracked .claude/)
 │   └── cert_expiry_check.sh         – Certificate expiry (Nginx served cert, local CA, codesign), cron --apply
 │
-├── 11-wlsmon/
-│   ├── README.md                    – lightweight runtime monitor (concept 2026-11-19)
-│   └── docs/01-wlsmon_concept.md    – master spec: JSON contract, collector, GUI host / data hosts, Nginx, security
+├── 11-wlsmon/                       – runtime monitor (P1 live 2026-11-20); runtime below $ORACLE_BASE/admin/wlsmon
+│   ├── README.md                    – overview, documents, quick start
+│   ├── 00-setup-interview.sh        – oracle: questions -> etc/wlsmon.conf, secrets -> etc/pending/
+│   ├── 01-install-wlsmon_fmw.sh     – oracle: program, GUI, ui.json, WebLogic monitor user (REST), collect --check
+│   ├── 02-install-wlsmon_root.sh    – root: group + setgid, ACLs, systemd credentials, Nginx include, units + timers
+│   ├── wlsmon.py                    – the program (python3 stdlib, 3.6+): collect, pull, rules --test, detect
+│   ├── rules/wlsmon_rules.cfg       – default log rules (match / ignore with reason)
+│   ├── templates/                   – wlsmon.conf, Nginx include / headers / zone, collect + pull service / timer
+│   ├── www/                         – GUI: index.html (overview), host.html, js/ (charts: Oracle JET + SVG fallback), css/
+│   ├── tests/                       – unittest (stdlib) + demo fixtures
+│   ├── tools/                       – sample data, contract check, template renderer, dev server, JS syntax check
+│   └── docs/                        – 01 concept (master), 02 interface design, 03 development plan, 04 operations
 │
 ├── 12-APEX-Ords/
 │   ├── README.md                    – APEX 26.2 + ORDS standalone (Jetty) beside Forms: homes ords_1/ords_2,
@@ -538,6 +551,7 @@ IHateWeblogic/
 │   ├── reports_error_trace.md       – Reports error analysis and trace levels
 │   ├── reports_job_queue_monitoring.md – Reports job queue in the database
 │   ├── forms_performance_analyse_tuning.md – "Forms is slow": method, what to measure, tuning
+│   ├── fmw_load_test.md             – load test concept: Reports first (paths, profiles, generator), Forms options
 │   ├── em_principal_search_libovd.md – EM "Add Principal" empty, libOVD lock
 │   ├── apex_architecture.md         – APEX: request path, 26.2 accounts, f?p= -> SYS wrapper, removal, export
 │   ├── ords_architecture.md         – ORDS: Jetty, APEXlang compiler, config levels, proxy right, features + risks
