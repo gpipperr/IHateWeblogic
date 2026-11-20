@@ -195,5 +195,151 @@ class InstallFmwTest(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(base)), ["etc"])
 
 
+class LocalHostsTest(unittest.TestCase):
+    """single GUI host (role both, no pull hosts): hosts.json + hosts/<id> -> ../api"""
+
+    def now(self):
+        return {"host": "orafusion01", "product": "Forms & Reports", "environment": "prod", "domain": "fr_domain",
+                "generated_at": "2026-11-20T12:00:00+01:00", "interval_sec": 300,
+                "overall": {"level": "warn", "reasons": [{"level": "warn", "text": "Memory free: 17 %"}]},
+                "collector": {"errors": []}, "components": [{"id": "host", "type": "host", "since": "x"}],
+                "metrics": [{"id": "load1", "value": 0.5}, {"id": "cpu_pct", "value": None, "display": "n/a"}]}
+
+    def run_local(self, role, pull=""):
+        import json as _j
+        d = TempDir()
+        base = d.__enter__()
+        self.addCleanup(d.__exit__, None, None, None)
+        for sub in ("api", "hosts", "etc"):
+            os.makedirs(os.path.join(base, sub))
+        with open(os.path.join(base, "etc", "wlsmon.conf"), "w") as fh:
+            fh.write("WLSMON_ROLE=%s\nWLSMON_PULL_HOSTS=%s\n" % (role, pull))
+        cfg = wlsmon.Config(base)
+        rnd = wlsmon.Round(cfg, {}, wlsmon.now_ts(), False)
+        wlsmon.local_hosts(cfg, base, os.path.join(base, "api"), self.now(), rnd)
+        hj = os.path.join(base, "hosts", "hosts.json")
+        if not os.path.exists(hj):
+            return base, None
+        with open(hj) as fh:
+            return base, _j.load(fh)
+
+    def test_both_writes_own_tile(self):
+        base, hj = self.run_local("both")
+        self.assertEqual([h["id"] for h in hj["hosts"]], ["orafusion01"])
+        self.assertEqual(hj["hosts"][0]["summary"]["load1"], 0.5)
+        self.assertEqual(os.readlink(os.path.join(base, "hosts", "orafusion01")), "../api")
+        import check_contract
+        c = check_contract.Checker(real=True)
+        c.check_hosts(hj)
+        self.assertEqual(c.findings, [])
+
+    def test_data_role_and_pull_hosts_write_nothing(self):
+        self.assertIsNone(self.run_local("data")[1])
+        self.assertIsNone(self.run_local("both", "hostb.example.com")[1])
+
+
+INSTALL_ROOT = os.path.join(BASE, "02-install-wlsmon_root.sh")
+
+# fake root commands: sudo runs the command as this user, everything that would
+# change the system only logs; systemd-creds "encrypts" by copying
+FAKES = {
+    "sudo": 'while [ "${1#-}" != "$1" ]; do shift; done; exec "$@"',
+    "systemctl": '[ "$1" = "--version" ] && { echo "systemd 252 (252-1)"; exit 0; }; echo "systemctl $*" >> "$FAKE_LOG"',
+    "systemd-creds": 'echo "systemd-creds $*" >> "$FAKE_LOG"; '
+                     'for a; do :; done; n=$#; in="${@:n-1:1}"; cp "$in" "$a"',
+    "install": 'a=(); while [ $# -gt 0 ]; do case "$1" in -o|-g) shift 2 ;; *) a+=("$1"); shift ;; esac; done; '
+               'exec /usr/bin/install "${a[@]}"',
+    "getent": 'exit 2',
+    "runuser": 'exit 1',
+    "getfacl": 'exit 0',
+}
+for _c in ("chown", "chgrp", "groupadd", "groupdel", "usermod", "setfacl", "semanage", "restorecon", "nginx"):
+    FAKES[_c] = 'echo "%s $*" >> "$FAKE_LOG"' % _c
+
+
+@unittest.skipIf(os.geteuid() == 0, "the test needs a non-root user (fake sudo)")
+class InstallRootTest(unittest.TestCase):
+
+    def run_root(self, d, base, *args):
+        fake = os.path.join(d, "fakebin")
+        os.makedirs(fake, exist_ok=True)
+        for name, body in FAKES.items():
+            p = os.path.join(fake, name)
+            with open(p, "w") as fh:
+                fh.write("#!/bin/bash\n%s\n" % body)
+            os.chmod(p, 0o755)
+        env = dict(os.environ, PATH=fake + ":" + os.environ["PATH"], FAKE_LOG=os.path.join(d, "fake.log"))
+        p = subprocess.run(["bash", INSTALL_ROOT, "--base", base, "--test-root", os.path.join(d, "root")]
+                           + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, universal_newlines=True, timeout=120, env=env)
+        return p.returncode, p.stdout
+
+    def prepared(self, d):
+        base = os.path.join(d, "w")
+        run(["--defaults", "--apply", "--base", base, "--env-conf", "/dev/null"])
+        subprocess.run(["bash", INSTALL_FMW, "--apply", "--no-user", "--base", base], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+        pend = os.path.join(base, "etc", "pending")
+        for n, v in (("reports_mon", "rep-pw"), ("gui_htpasswd", "wlsmon:$6$salt$hash")):
+            with open(os.path.join(pend, n), "w") as fh:
+                fh.write(v)
+        os.makedirs(os.path.join(d, "root", "var", "log", "nginx"))
+        return base
+
+    def test_dry_run_changes_nothing(self):
+        with TempDir() as d:
+            base = self.prepared(d)
+            before = sorted(os.listdir(os.path.join(base, "etc", "pending")))
+            rc, out = self.run_root(d, base)
+            self.assertIn("Dry-run", out)
+            self.assertEqual(sorted(os.listdir(os.path.join(base, "etc", "pending"))), before)
+            self.assertFalse(os.path.exists(os.path.join(d, "root", "etc", "nginx", "oracle-wls.d", "wlsmon.conf")))
+            self.assertFalse(os.path.exists(os.path.join(d, "fake.log")), "dry-run ran a root command")
+
+    def test_apply_rerun_remove(self):
+        with TempDir() as d:
+            base = self.prepared(d)
+            rc, out = self.run_root(d, base, "--apply")
+            self.assertNotIn("mFAIL\x1b", out, out)
+            root = os.path.join(d, "root")
+            # secrets: credentials written, clear text gone
+            self.assertTrue(os.path.isfile(os.path.join(base, "etc", "creds", "wls_monitor.cred")))
+            self.assertTrue(os.path.isfile(os.path.join(base, "etc", "creds", "reports_mon.cred")))
+            pend = os.listdir(os.path.join(base, "etc", "pending"))
+            for n in ("wls_monitor", "reports_mon", "gui_htpasswd"):
+                self.assertNotIn(n, pend)
+            ht = os.path.join(root, "etc", "nginx", "wlsmon", "htpasswd")
+            self.assertEqual(mode(ht), 0o640)
+            # nginx files, GUI role, test-root paths in the include
+            inc = open(os.path.join(root, "etc", "nginx", "oracle-wls.d", "wlsmon.conf")).read()
+            self.assertIn("location ^~ /wlsmon/", inc)
+            self.assertIn(os.path.join(root, "etc", "nginx", "wlsmon", "headers.conf"), inc)
+            self.assertIn("alias                %s/www/;" % base, inc)
+            self.assertTrue(os.path.isfile(os.path.join(root, "etc", "nginx", "conf.d", "wlsmon_zone.conf")))
+            # units: credentials only for what exists (no db_monitor -> no CRED_DB line)
+            svc = open(os.path.join(root, "etc", "systemd", "system", "wlsmon-collect.service")).read()
+            self.assertIn("LoadCredentialEncrypted=wls_monitor:", svc)
+            self.assertIn("LoadCredentialEncrypted=reports_mon:", svc)
+            self.assertNotIn("db_monitor", "\n".join(l for l in svc.splitlines() if not l.startswith("#")))
+            self.assertTrue(os.path.isfile(os.path.join(root, "etc", "systemd", "system", "wlsmon-collect.timer")))
+            self.assertFalse(os.path.exists(os.path.join(root, "etc", "systemd", "system", "wlsmon-pull.service")))
+            log = open(os.path.join(d, "fake.log")).read()
+            self.assertIn("groupadd -r wlsmon", log)
+            self.assertIn("setfacl -d -m u:", log)                    # nginx log default ACL
+            self.assertEqual(mode(os.path.join(base, "www")), 0o2750)
+            # second run: nothing to change
+            rc, out = self.run_root(d, base, "--apply")
+            self.assertNotIn("mFAIL\x1b", out, out)
+            self.assertIn("present (etc/creds)", out)
+            self.assertNotRegex(out, r"(\.conf|\.service|\.timer)\s+installed")   # files unchanged
+            # remove
+            rc, out = self.run_root(d, base, "--remove", "--apply")
+            self.assertFalse(os.path.exists(os.path.join(root, "etc", "nginx", "oracle-wls.d", "wlsmon.conf")))
+            self.assertFalse(os.path.exists(os.path.join(root, "etc", "nginx", "wlsmon")))
+            self.assertFalse(os.path.exists(os.path.join(root, "etc", "systemd", "system", "wlsmon-collect.service")))
+            self.assertEqual(os.listdir(os.path.join(base, "etc", "creds")), [])
+            self.assertIn("setfacl -x u:", open(os.path.join(d, "fake.log")).read())
+
+
 if __name__ == "__main__":
     unittest.main()

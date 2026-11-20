@@ -3,7 +3,7 @@
 # /etc/systemd/system/. GUI role (P2): fetches the 7 JSON files of every data
 # host into WLSMON_BASE/hosts/<id>/ and writes hosts.json. Same limits as
 # wlsmon-collect.service; the pull password only as a systemd credential
-# (OL8: the #@CREDS_ block is removed, etc/creds/pull_user mode 400).
+# (OL8: the #@CRED_PULL_ block is removed, etc/creds/pull_user mode 400).
 # =============================================================================
 [Unit]
 Description=wlsmon - pull the data hosts (GUI role)
@@ -26,7 +26,7 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=##WLSMON_BASE##
 UMask=0027
-#@CREDS_BEGIN@
+#@CRED_PULL_BEGIN@
 LoadCredentialEncrypted=pull_user:##WLSMON_BASE##/etc/creds/pull_user.cred
-#@CREDS_END@
+#@CRED_PULL_END@
 ExecStart=/usr/bin/flock -n ##WLSMON_BASE##/state/pull.lock /usr/bin/python3 -I ##WLSMON_BASE##/bin/wlsmon.py pull

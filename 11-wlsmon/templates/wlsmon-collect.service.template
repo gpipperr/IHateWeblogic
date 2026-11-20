@@ -3,7 +3,9 @@
 # /etc/systemd/system/. One round of the data role every 5 minutes (timer).
 # Concept section 5: low priority, hard limits, read-only file system except
 # WLSMON_BASE, secrets only as systemd credentials (concept 3b).
-# OL8 (systemd 239, no credentials): the #@CREDS_ blocks are removed, wlsmon.py
+# One #@CRED_<name>_ block per credential: kept only when its .cred file exists
+# (a missing LoadCredentialEncrypted file makes the start fail).
+# OL8 (systemd 239, no credentials): every #@CRED_ block is removed, wlsmon.py
 # reads WLSMON_BASE/etc/creds/<name> (mode 400) - the weaker variant.
 # =============================================================================
 [Unit]
@@ -27,11 +29,19 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=##WLSMON_BASE##
 UMask=0027
-#@CREDS_BEGIN@
+# PrivateTmp hides the real /tmp and /var/tmp - the core directory of
+# kernel.core_pattern (e.g. /var/tmp/core) is bound back read-only, else the
+# collector reports it "not found" and misses new core dumps (2026-11-20)
+#@CORE_DIR_BEGIN@
+BindReadOnlyPaths=-##WLSMON_CORE_DIR##
+#@CORE_DIR_END@
+#@CRED_WLS_BEGIN@
 LoadCredentialEncrypted=wls_monitor:##WLSMON_BASE##/etc/creds/wls_monitor.cred
+#@CRED_WLS_END@
+#@CRED_REP_BEGIN@
 LoadCredentialEncrypted=reports_mon:##WLSMON_BASE##/etc/creds/reports_mon.cred
-#@CREDS_END@
-#@DBMON_BEGIN@
+#@CRED_REP_END@
+#@CRED_DB_BEGIN@
 LoadCredentialEncrypted=db_monitor:##WLSMON_BASE##/etc/creds/db_monitor.cred
-#@DBMON_END@
+#@CRED_DB_END@
 ExecStart=/usr/bin/flock -n ##WLSMON_BASE##/state/collect.lock /usr/bin/python3 -I ##WLSMON_BASE##/bin/wlsmon.py collect

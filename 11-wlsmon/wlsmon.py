@@ -1054,7 +1054,11 @@ def part_nginx(rnd):
     text, note = read_new(cfg.get("WLSMON_NGINX_ERROR_LOG"), offsets, maxb)
     errs = None
     if text is not None:
-        errs = sum(1 for l in text.splitlines() if re.search(r"\[(error|crit|alert|emerg)\]", l))
+        # not counted: our own hourly security probe (security.json mgmt_rest_proxied)
+        # from the loopback - nginx logs its 404 / "forbidden" as [error]
+        own = re.compile(r'client: (127\.0\.0\.1|::1), .*request: "GET /management/weblogic/latest HTTP')
+        errs = sum(1 for l in text.splitlines()
+                   if re.search(r"\[(error|crit|alert|emerg)\]", l) and not own.search(l))
     rnd.series["log_errors_nginx"] = errs
     rnd.info.setdefault("log_errors", {})["nginx"] = errs or 0
     thr = cfg.pair("WLSMON_LOG_ERRORS", [1, 10])
@@ -2292,6 +2296,8 @@ def collect_round(argv, cfg, base, out, state_dir, check):
             write_json(os.path.join(out, name + ".json"), files[name])
     write_json(state_path, state, 0o600)
     write_json(series_path, rnd.series_state, 0o600)
+    if not check:
+        local_hosts(cfg, base, out, files["now"], rnd)
     if check:
         now = files["now"]
         print("wlsmon %s collect --check  host %s  overall %s  (%d ms)" % (
@@ -2308,6 +2314,50 @@ def collect_round(argv, cfg, base, out, state_dir, check):
         else:
             shutil.rmtree(state_dir, ignore_errors=True)     # temporary - nothing left behind
     return 0
+
+
+def host_tile(now, cfg):
+    """one entry of hosts.json (concept 3.2) from a now.json - also for pull (P2)"""
+    m = {x["id"]: x for x in now.get("metrics", [])}
+    host = next((c for c in now.get("components", []) if c.get("type") == "host"), {})
+
+    def val(i):
+        x = m.get(i, {})
+        return x.get("value") if x.get("value") is not None else x.get("display")
+    return {"id": now.get("host"), "name": now.get("host"), "product": now.get("product"),
+            "environment": now.get("environment"), "domain": now.get("domain"),
+            "level": now["overall"]["level"], "generated_at": now["generated_at"],
+            "interval_sec": now.get("interval_sec"), "reasons": now["overall"]["reasons"][:3],
+            "collector_errors": len(now.get("collector", {}).get("errors", [])),
+            "summary": {"forms_sessions": val("forms_sessions"), "heap_forms_pct": val("heap_forms_pct"),
+                        "load1": val("load1"), "cpu_pct": val("cpu_pct"), "since": host.get("since")}}
+
+
+def local_hosts(cfg, base, out, now, rnd):
+    """GUI role on a single host (gui | both, no WLSMON_PULL_HOSTS): this host is
+    the only data host. hosts/<id> -> ../api (the host view reads hosts/<id>/,
+    the same path as a pulled host) and hosts/hosts.json with its own tile.
+    With pull hosts, "wlsmon.py pull" owns hosts.json (P2)."""
+    if cfg.get("WLSMON_ROLE") == "data" or cfg.get("WLSMON_PULL_HOSTS"):
+        return
+    hosts_dir = os.path.join(base, "hosts")
+    if not os.path.isdir(hosts_dir):
+        return
+    hid = now.get("host") or ""
+    if not re.match(r"^[A-Za-z0-9._-]+$", hid) or hid.startswith("."):
+        return
+    link = os.path.join(hosts_dir, hid)
+    target = os.path.relpath(out, hosts_dir)
+    try:
+        if os.path.islink(link) and os.readlink(link) != target:
+            os.remove(link)
+        if not os.path.lexists(link):
+            os.symlink(target, link)
+    except OSError as exc:
+        rnd.error("hosts/%s: %s" % (hid, exc))
+    write_json(os.path.join(hosts_dir, "hosts.json"),
+               {"schema": SCHEMA, "generated_at": now["generated_at"], "interval_sec": now.get("interval_sec"),
+                "hosts": [host_tile(now, cfg)]})
 
 
 def rules_test(argv):

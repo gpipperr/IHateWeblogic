@@ -348,9 +348,10 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   steps 0–13, P2.1–P2.4 with done criteria:
   [11-wlsmon/docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md);
   GUI base = prototype v3, Oracle JET only for the charts). State 2026-11-19:
-  steps 0–8 pushed (3b58cd6), REST verified, collector live; 2026-11-20 step 9
-  done, step 10 prepared. Open: JET tooltip check (step 3), interview
-  interactively + `01 --apply` live (creates `wlsmon_monitor`), steps 11–13.
+  steps 0–8 pushed (3b58cd6), REST verified, collector live; 2026-11-20 steps 9
+  + 10 live on the test host (c3409a7, `wlsmon_monitor` created), step 11
+  `02-install-wlsmon_root.sh` written, isolated test + dry-run on the test
+  host. Open: JET tooltip check (step 3), `02 --apply` live, steps 12–13.
   P1 one host: contract schema 1; `wlsmon.py collect` – python3 stdlib only,
   3.6-compatible, self-contained in `$WLSMON_BASE` = `$ORACLE_BASE/admin/wlsmon`
   (config `etc/wlsmon.conf`, secrets as systemd credentials) – WebLogic REST

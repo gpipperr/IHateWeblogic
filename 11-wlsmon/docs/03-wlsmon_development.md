@@ -529,6 +529,64 @@ Found for later steps:
   admin network. Test host: all three ok. Documentation:
   [weblogic_rest_monitoring.md §7](../../80-FMW-Architecture/weblogic_rest_monitoring.md#7-security-management-belongs-to-localhost-only).
 
+### 2026-11-20 – step 11 live on the test host
+
+- Gunther ran `02-install-wlsmon_root.sh --apply` as root (11:48): 35 OK,
+  1 WARN (`WLSMON_ADMIN_IP_RANGE=any`), 0 FAIL. Group, setgid, nginx log ACL,
+  3 credentials encrypted (`pending/` empty), htpasswd, nginx `-t` + reload,
+  timer active, first run 5 s (collector 3.6 s), `collector.errors` empty;
+  local test: `/wlsmon/` 401 without login, POST 401.
+- `systemd-creds` notes "credential.secret is not located on encrypted
+  media, using anyway" – expected without TPM2 / encrypted disk; the `.cred`
+  files stay bound to this host.
+- Browser check: `/wlsmon/hosts.json` 404 – not a permission problem; only
+  `wlsmon.py pull` (P2) writes it, so a single GUI host had no overview.
+  Fix: `collect` in role `gui` / `both` without `WLSMON_PULL_HOSTS` writes
+  `hosts/hosts.json` with its own tile (`host_tile()`, reused by pull later)
+  and the symlink `hosts/<id>` → `../api` – the host view link
+  `host.html?host=<id>` reads the same path as for a pulled host.
+- 12:02 overview and host view live in the browser (Gunther): `orafusion01`
+  as tile, host view with real values; the `CORE_DIR` bind removed the false
+  "Disk max" WARN. Remaining WARN "nginx log errors 1": our own hourly
+  security probe (`GET /management/weblogic/latest` from 127.0.0.1) lands
+  in `error.log` as 404 – now not counted (would be a WARN every hour).
+- Found in the first service round: "Disk max" WARN because the core
+  directory `/var/tmp/core` was "not found" – `PrivateTmp=yes` gives the unit
+  its own `/var/tmp`. Fix: `BindReadOnlyPaths=-<core dir>` (block `CORE_DIR`,
+  the directory from `kernel.core_pattern` or `WLSMON_CORE_DIR`); needs one
+  more `02 --apply`.
+
+### 2026-11-20 – step 11 written, isolated test + dry-run
+
+- `02-install-wlsmon_root.sh` (root, or the FMW owner with `sudo -n`), in
+  this order:
+  1. group `wlsmon` (nginx + FMW owner), `WLSMON_BASE` owner:wlsmon 750,
+     `www/ api/ hosts/` setgid 2750 / files 640, the rest 700;
+  2. ACLs: traverse `u:nginx:x` only on parents nginx cannot pass; FMW owner
+     reads the nginx logs (`u:oracle:rx` + default `u:oracle:r` on the
+     directory – files logrotate creates inherit it); the ACLs set are listed
+     in `/etc/nginx/wlsmon/root_acl.list` for `--remove`; SELinux context only
+     when SELinux is on;
+  3. secrets: `etc/pending/<name>` → `systemd-creds encrypt` →
+     `etc/creds/<name>.cred` (root 400), clear text deleted; OL8 without
+     credentials: file 400 of the FMW owner (warned as the weaker variant);
+     `gui_htpasswd` / `pull_hash` → `/etc/nginx/wlsmon/htpasswd` /
+     `pull_htpasswd` (root:nginx 640);
+  4. nginx: headers, zone, include from the templates, diff + backup,
+     `nginx -t` with rollback, reload; `/i/` from our include only when no
+     other include routes it (test host: the ORDS include does);
+  5. systemd: units of the role, `daemon-reload`, timers enabled; first run
+     `systemctl start wlsmon-collect.service` + `now.json` summary;
+  6. local access test (curl `--resolve` on the loopback: 401 / 403, POST
+     refused).
+- Template change: one `#@CRED_<name>_` block per credential (`CRED_WLS`,
+  `CRED_REP`, `CRED_DB`, `CRED_PULL`) – a `LoadCredentialEncrypted` line for
+  a missing file makes the unit fail to start, so only existing ones go in.
+- Test: `--test-root DIR` puts `/etc` and `/var/log` below DIR; the test
+  puts fake `sudo`, `systemctl`, `systemd-creds` (copies), `groupadd`,
+  `setfacl` … first in `PATH` – apply, re-run (nothing changes), remove.
+  59 tests. Dry-run on the test host: 9 OK, 1 WARN (`WLSMON_ADMIN_IP_RANGE=any`).
+
 ### 2026-11-20 – steps 9 and 10 live on the test host
 
 - Gunther ran the interview interactively and `01-install-wlsmon_fmw.sh

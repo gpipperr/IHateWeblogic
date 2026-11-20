@@ -421,6 +421,19 @@ class CollectTest(unittest.TestCase):
             self.assertIn("blocks WLS_FORMS", down_reasons[0]["text"])
             self.assertFalse(any(r["text"].startswith("WLS_FORMS") for r in now["overall"]["reasons"]))
 
+    def test_nginx_own_probe_not_counted(self):
+        with TempDir() as d, Env(d) as env:
+            env.collect()                                            # first round sets the offset
+            with open(os.path.join(d, "nginx", "error.log"), "a") as fh:
+                fh.write('2026/11/20 12:02:05 [error] 1#1: *286 open() "/usr/share/nginx/html/management/weblogic'
+                         '/latest" failed (2: No such file or directory), client: 127.0.0.1, server: x, request: '
+                         '"GET /management/weblogic/latest HTTP/1.1", host: "x"\n'
+                         '2026/11/20 12:03:00 [error] 1#1: *290 upstream timed out, client: 192.0.2.17, server: x, '
+                         'request: "GET /forms/frmservlet HTTP/1.1", host: "x"\n')
+            now = env.collect()["now"]
+            m = [x for x in now["metrics"] if x["id"] == "log_errors_nginx"][0]
+            self.assertEqual(m["value"], 1)                          # only the real one
+
     def test_log_errors_counted_per_component(self):
         with TempDir() as d, Env(d) as env:
             env.collect()                                                    # offsets at the end

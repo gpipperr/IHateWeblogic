@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **11-wlsmon steps 9 + 10 live, step 11 written:** the interview and
+  `01-install-wlsmon_fmw.sh --apply` ran on the test host (monitor user
+  `wlsmon_monitor` created through REST, only in `Monitors`).
+  `02-install-wlsmon_root.sh` (root): group `wlsmon` + setgid on the
+  directories nginx reads, traverse ACLs only when needed, read ACL on the
+  nginx logs (default ACL, survives logrotate), SELinux context when on,
+  `etc/pending` → systemd credentials (clear text deleted), htpasswd in
+  `/etc/nginx/wlsmon/`, nginx include with `nginx -t` + rollback, units +
+  timers, first run, local access test; `--remove`. One credential block per
+  secret in the unit (a missing `.cred` would stop the start).
 - **11-wlsmon step 9 `00-setup-interview.sh`** (defaults from environment.conf
   and the host, secrets to `etc/pending/`, kept on re-runs) and **step 10
   prepared `01-install-wlsmon_fmw.sh`** (runtime below `WLSMON_BASE`,

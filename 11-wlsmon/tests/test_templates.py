@@ -31,7 +31,7 @@ def tpl(name):
 
 VALUES = {"WLSMON_BASE": "/u01/app/oracle/admin/wlsmon", "ADMIN_IP_RANGE": "10.10.10.0/24 127.0.0.1",
           "WLSMON_GUI_IP": "10.10.10.5", "WLSMON_STYLE_SRC": "'self'", "WLSMON_I_DIR": "/srv/i",
-          "FMW_OWNER": "oracle", "FMW_GROUP": "oinstall"}
+          "FMW_OWNER": "oracle", "FMW_GROUP": "oinstall", "WLSMON_CORE_DIR": "/var/tmp/core"}
 
 
 def free_port():
@@ -48,7 +48,7 @@ class RenderTest(unittest.TestCase):
         conf_values = dict((k, "x") for k in re.findall(r"##([A-Z0-9_]+)##", tpl("wlsmon.conf.template")))
         for name in sorted(os.listdir(TPL)):
             values = conf_values if name == "wlsmon.conf.template" else VALUES
-            text, errors = render_template.render(tpl(name), values, {"WLSMON_GUI", "CREDS"})
+            text, errors = render_template.render(tpl(name), values, {"WLSMON_GUI", "CRED_WLS", "CRED_REP", "CRED_DB", "CRED_PULL", "CORE_DIR"})
             self.assertEqual(errors, [], name)
             body = "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
             self.assertNotIn("##", body, name)
@@ -83,7 +83,8 @@ class RenderTest(unittest.TestCase):
 
     def test_ol8_without_credentials(self):
         text, _ = render_template.render(tpl("wlsmon-collect.service.template"), VALUES, set())
-        self.assertNotIn("LoadCredentialEncrypted", text)
+        body = "\n".join(l for l in text.splitlines() if not l.startswith("#"))
+        self.assertNotIn("LoadCredentialEncrypted", body)
         self.assertIn("ExecStart=/usr/bin/flock -n /u01/app/oracle/admin/wlsmon/state/collect.lock", text)
 
 
