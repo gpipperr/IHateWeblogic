@@ -159,13 +159,24 @@ _sync() {
         info "$(printf "  %-34s would be %s" "${dst#"$BASE"/}" "$([ -f "$dst" ] && printf updated || printf installed)")"
         return 0
     fi
-    install -D -m "$m" "$src" "$dst" && ok "$(printf "  %-34s installed" "${dst#"$BASE"/}")"
+    # umask 027: new parent dirs come out 750 (+ setgid inherited) - no chmod needed later
+    ( umask 027; install -D -m "$m" "$src" "$dst" ) && ok "$(printf "  %-34s installed" "${dst#"$BASE"/}")"
+}
+
+# _dirmode DIR MODE - chmod only when the permission bits differ, ignoring setgid.
+# Linux clears setgid on EVERY chmod by an owner who is not in the file's group
+# (here: an oracle login older than the usermod -aG wlsmon of 02) - an
+# unconditional chmod 750 removed the 2750 of 02 and nginx got 403 (2026-11-20).
+_dirmode() {
+    local d="$1" m="$2" cur
+    cur="$(stat -c %a "$d" 2>/dev/null)" || return 0
+    [ "${cur: -3}" = "$m" ] || chmod "$m" "$d"
 }
 
 if $APPLY; then
     mkdir -p "$BASE"/{bin,share,www,api,hosts,state,log} || { fail "Cannot create the directories below $BASE"; print_summary; exit "${EXIT_CODE:-2}"; }
-    chmod 700 "$BASE/bin" "$BASE/share" "$BASE/state" "$BASE/log"
-    chmod 750 "$BASE/www" "$BASE/api" "$BASE/hosts"    # 02-install: group wlsmon + setgid (2750)
+    for _d in bin share state log; do _dirmode "$BASE/$_d" 700; done
+    for _d in www api hosts; do _dirmode "$BASE/$_d" 750; done   # 02-install: group wlsmon + setgid (2750)
 fi
 _sync "$WLSMON_PY" "$BASE/bin/wlsmon.py" 700
 _sync "$SCRIPT_DIR/rules/wlsmon_rules.cfg" "$BASE/share/wlsmon_rules.cfg" 600
@@ -174,7 +185,14 @@ while IFS= read -r -d '' _f; do
     [ "$_rel" = "ui.json" ] && continue
     _sync "$_f" "$BASE/www/$_rel" 640
 done < <(find "$SCRIPT_DIR/www" -type f -print0 | sort -z)
-$APPLY && find "$BASE/www" -type d -exec chmod 750 {} +     # install -D creates them with the umask
+if $APPLY; then
+    while IFS= read -r -d '' _d; do _dirmode "$_d" 750; done < <(find "$BASE/www" -type d -print0)
+    # files of www/ / api/ / hosts/ must carry group wlsmon (nginx reads via the group)
+    _bad="$(find "$BASE/www" "$BASE/api" "$BASE/hosts" ! -group wlsmon -print -quit 2>/dev/null)"
+    if getent group wlsmon >/dev/null 2>&1 && [ -n "$_bad" ]; then
+        warn "Not group wlsmon: ${_bad#"$BASE"/} (setgid lost?) - nginx answers 403; run 02-install-wlsmon_root.sh --apply"
+    fi
+fi
 
 # ui.json: locale + the /i/ libraries of this host (newest versions, wlsmon.py detect)
 UI_TMP="$(mktemp)"

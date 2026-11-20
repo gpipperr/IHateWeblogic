@@ -504,6 +504,34 @@ Found for later steps:
   (Coherence, DB, NFS …) – `WLSMON_EXPECTED_PORTS` needs the interview,
   otherwise the check stays WARN.
 
+### 2026-11-20 – JET tooltips on sparklines and charts
+
+- Sparklines: tooltip (time · value) through the data cursor (`dataCursor: on`,
+  `snap`, item `shortDesc`), `wlsmon.js` passes the time axis.
+- Large charts: no tooltip with `hoverBehavior: 'dim'`; bisected on the test
+  host (type `line` + `none` → tooltip; `lineWithArea` + `none` → tooltip and
+  area) – `dim` is the cause, the charts keep `none` from `jetChart()`.
+- `wlsmon.css`: the SVG fallback rules are scoped to `.chart-box > svg`; the
+  plain `.chart-box svg` also hit the SVG inside `oj-chart`.
+- First test run looked broken only because nginx answered 403 on the new JS
+  (setgid entry below), the browser kept the old file.
+
+### 2026-11-20 – re-run of step 10 removed the setgid bit (403)
+
+- Symptom: after `01-install-wlsmon_fmw.sh --apply` (new `www/` for the
+  sparkline tooltip) nginx answered 403 for the changed JS files and for every
+  JSON file; the overview showed the host as STALE.
+- Cause: Linux clears the setgid bit on every `chmod` by an owner who is not
+  a member of the file's group. The oracle login was older than the
+  `usermod -aG wlsmon` of step 11, so the unconditional `chmod 750` of 01 turned
+  the 2750 of 02 into 750; new files (install, collector `os.replace`) then got
+  group `oinstall`, which nginx cannot read.
+- Fix in 01: `_dirmode` changes the mode only when the permission bits differ
+  (setgid ignored); `install -D` runs under `umask 027`, so new subdirectories
+  need no chmod; a WARN names the first file of `www/` / `api/` / `hosts/` that
+  is not group `wlsmon` and points to 02.
+- Live repair: group `wlsmon`, dirs 2750, files 640 again (the 02 commands).
+
 ### 2026-11-20 – collector live on the test host (Gunther: "Collector vorziehen")
 
 - `wlsmon.py collect --secrets-stdin`: secrets as `name=value` lines on stdin,

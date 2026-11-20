@@ -253,7 +253,9 @@
     return ch;
   }
 
-  function jetSpark(box, values) {
+  // tip(i, name, v) as for line(): with it the sparkline shows time + value
+  // under the data cursor; values keep their nulls so i matches the time axis
+  function jetSpark(box, values, tip) {
     var a = values.filter(num);
     if (a.length < 2) return false;
     var ch = jetChart(box, 'spark jet-spark', 28);
@@ -263,8 +265,13 @@
     ch.xAxis = { rendered: 'off' };
     ch.yAxis = { rendered: 'off', min: Math.min.apply(null, a), max: Math.max.apply(null, a) };
     ch.plotArea = { backgroundColor: 'rgba(0,0,0,0)', borderWidth: 0 };
-    ch.tooltip = { renderer: function () { return { preventDefault: true }; } };
-    ch.data = new charts.jet.ADP(jetItems([{ key: 's', values: a }]), { keyAttributes: 'id' });
+    if (tip) {
+      ch.dataCursor = 'on';
+      ch.dataCursorBehavior = 'snap';
+    } else {
+      ch.tooltip = { renderer: function () { return { preventDefault: true }; } };
+    }
+    ch.data = new charts.jet.ADP(jetItems([{ key: 's', values: values }], tip), { keyAttributes: 'id' });
     return true;
   }
 
@@ -305,15 +312,16 @@
     // ("auto" = touch devices only); snap = nearest point of the time axis
     ch.dataCursor = 'on';
     ch.dataCursorBehavior = 'snap';
-    ch.hoverBehavior = 'dim';
+    // hoverBehavior stays 'none' (jetChart): with 'dim' JET 20.1.4 showed the data
+    // cursor tooltip on sparklines but NOT on these charts (tested 2026-11-20)
     ch.data = new charts.jet.ADP(jetItems(spec.series, spec.tip), { keyAttributes: 'id' });
   }
 
   /* ---------- public, with fallback per chart ---------- */
 
-  charts.spark = function (box, values) {
+  charts.spark = function (box, values, tip) {
     if (charts.renderer === 'jet') {
-      try { return jetSpark(box, values); } catch (e) { charts.note = 'JET sparkline failed: ' + e.message; }
+      try { return jetSpark(box, values, tip); } catch (e) { charts.note = 'JET sparkline failed: ' + e.message; }
     }
     return svgSpark(box, values);
   };

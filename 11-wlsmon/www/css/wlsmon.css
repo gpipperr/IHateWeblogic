@@ -263,13 +263,15 @@ h2 {
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
 .chart-box { background: var(--wm-surface); position: relative; height: 110px; border-left: 1px solid var(--wm-axis); border-bottom: 1px solid var(--wm-axis); }
-.chart-box svg { position: absolute; inset: 0; width: 100%; height: 110px; overflow: visible; }
-.chart-box line.grid-line { stroke: var(--wm-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.chart-box line.thr-warn, .chart-box line.thr-crit { stroke-width: 1.5; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
-.chart-box line.thr-warn { stroke: var(--wm-warn); }
-.chart-box line.thr-crit { stroke: var(--wm-crit); }
-.chart-box polyline { fill: none; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.chart-box polygon { stroke: none; fill-opacity: .07; }
+/* own SVG fallback only: direct child; a plain ".chart-box svg" also hit the SVG
+   inside oj-chart and broke its data cursor tooltip (2026-11-20) */
+.chart-box > svg { position: absolute; inset: 0; width: 100%; height: 110px; overflow: visible; }
+.chart-box > svg line.grid-line { stroke: var(--wm-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-box > svg line.thr-warn, .chart-box > svg line.thr-crit { stroke-width: 1.5; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
+.chart-box > svg line.thr-warn { stroke: var(--wm-warn); }
+.chart-box > svg line.thr-crit { stroke: var(--wm-crit); }
+.chart-box > svg polyline { fill: none; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.chart-box > svg polygon { stroke: none; fill-opacity: .07; }
 .s-single { stroke: var(--wm-series-single); fill: var(--wm-series-single); color: var(--wm-series-single); }
 .s-1 { stroke: var(--wm-series-1); fill: var(--wm-series-1); color: var(--wm-series-1); }
 .s-2 { stroke: var(--wm-series-2); fill: var(--wm-series-2); color: var(--wm-series-2); }

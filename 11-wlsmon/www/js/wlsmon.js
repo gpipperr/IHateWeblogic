@@ -338,7 +338,11 @@
     if (m.unit) val.appendChild(el('span', 'kpi-unit', m.unit));
     card.appendChild(val);
     if (m.series && Array.isArray(ser[m.series])) {
-      window.WlsmonCharts.spark(card, ser[m.series].slice(-SPARK_POINTS));
+      var sts = (ser.ts || []).slice(-SPARK_POINTS);
+      window.WlsmonCharts.spark(card, ser[m.series].slice(-SPARK_POINTS), function (i, name, v) {
+        var when = num(sts[i]) ? fmtStamp(new Date(sts[i] * 1000).toISOString()) : '';
+        return when + ' · ' + fmtNum(v, m.decimals) + (m.unit ? ' ' + m.unit : '');
+      });
     }
     if (Array.isArray(m.items) && m.items.length) {
       var ul = el('ul', 'kpi-items');
