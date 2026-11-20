@@ -1639,7 +1639,9 @@ def daily_facts(rnd, patch):
     ui = load_json(os.path.join(rnd.info["base"], "www", "ui.json"), {}) or {}
     libs = ui.get("libs") or {}
     apex = cfg.get("WLSMON_APEX_DIR")
-    missing = [k for k, v in libs.items() if not os.path.exists(os.path.join(apex, v[len("/i/"):]))]
+    # knockout is a RequireJS module path - without ".js" in ui.json
+    missing = [k for k, v in libs.items()
+               if not any(os.path.exists(os.path.join(apex, v[len("/i/"):]) + ext) for ext in ("", ".js"))]
     if not libs:
         facts.append({"id": "gui_libs", "label": "GUI libraries", "display": "own SVG",
                       "sub": "no /i/ paths in ui.json", "level": "ok"})
@@ -1921,11 +1923,14 @@ def part_periodic(rnd):
     daily_due = rnd.ts - cache.get("daily_ts", 0) >= 86400 or not os.path.isfile(os.path.join(out, "patch.json"))
     # a re-run of 01-install (new ui.json: APEX found / patched) refreshes the daily facts at
     # once - otherwise the tile "GUI libraries" showed the old state for up to 24 h (2026-11-20)
-    try:
-        if os.path.getmtime(os.path.join(rnd.info["base"], "www", "ui.json")) > cache.get("daily_ts", 0):
-            daily_due = True
-    except OSError:
-        pass
+    # - and so does a new program (01-install copies bin/wlsmon.py), so a fixed check
+    # shows at the next run, not the next day
+    for f in (os.path.join(rnd.info["base"], "www", "ui.json"), os.path.abspath(__file__)):
+        try:
+            if os.path.getmtime(f) > cache.get("daily_ts", 0):
+                daily_due = True
+        except OSError:
+            pass
     if daily_due or "daily" not in cache:
         patch = patch_file(rnd)
         cache["patch"] = patch

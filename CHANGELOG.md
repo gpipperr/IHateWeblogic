@@ -19,6 +19,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 - **11-wlsmon nginx log errors:** a missing static file (`open() … No such
   file or directory`, e.g. the browser's `/favicon.ico`) is a 404, counted as
   4xx – no longer a log error that turns the host WARN.
+- **11-wlsmon GUI libraries "moved: knockout":** false alarm (module path
+  without `.js`) fixed; the daily facts now also refresh at the next run
+  after a new `bin/wlsmon.py`, not after 24 h.
 - **11-wlsmon at the first customer, `03-set-thresholds.sh`:** fix for a
   missing monitor user (01- now creates it); new operation script to show
   and change the WARN / CRIT limits next to the measured values of the last

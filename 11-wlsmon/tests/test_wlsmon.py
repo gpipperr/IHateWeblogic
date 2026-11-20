@@ -589,11 +589,16 @@ class GuiLibsFactTest(unittest.TestCase):
             apex = os.path.join(d, "apex")
             os.makedirs(os.path.join(apex, "libraries", "oraclejet", "20.1.4"))
             os.makedirs(os.path.join(apex, "libraries", "font-apex", "2.5.1"))
+            # knockout = RequireJS module path in ui.json, the file has ".js" (live false "moved")
+            write(os.path.join(apex, "libraries", "oraclejet", "20.1.4", "js", "libs", "knockout",
+                               "knockout-3.5.1.js"), "")
             env.conf({"WLSMON_APEX_DIR": apex})
             time.sleep(1.1)                                   # newer mtime than the daily stamp
             write(os.path.join(env.base, "www", "ui.json"), json.dumps(
                 {"locale": "de-DE", "libs": {"jet": "/i/libraries/oraclejet/20.1.4",
-                                             "font_apex": "/i/libraries/font-apex/2.5.1"}}))
+                                             "font_apex": "/i/libraries/font-apex/2.5.1",
+                                             "knockout": "/i/libraries/oraclejet/20.1.4/js/libs/knockout/"
+                                                         "knockout-3.5.1"}}))
             f = self.fact(env.collect())                      # same day - refreshed because of ui.json
             self.assertEqual((f["display"], f["level"]), ("not served", "warn"))   # Env: probe answers 404
             self.assertIn("02-install", f["sub"])
