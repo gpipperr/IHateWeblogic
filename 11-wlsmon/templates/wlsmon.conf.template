@@ -7,6 +7,8 @@
 # =============================================================================
 
 # --- this host ----------------------------------------------------------------
+# role: both (one host: data + GUI) | data (B, C, D) | gui (A only)
+WLSMON_BASE=##WLSMON_BASE##
 WLSMON_ROLE=##WLSMON_ROLE##
 WLSMON_HOST_ID=##WLSMON_HOST_ID##
 WLSMON_PRODUCT=##WLSMON_PRODUCT##
@@ -14,8 +16,8 @@ WLSMON_ENV=##WLSMON_ENV##
 WLSMON_LOCALE=##WLSMON_LOCALE##
 
 # --- domain -------------------------------------------------------------------
-WLSMON_DOMAIN_HOME=##DOMAIN_HOME##
-WLSMON_ORACLE_HOME=##ORACLE_HOME##
+WLSMON_DOMAIN_HOME=##WLSMON_DOMAIN_HOME##
+WLSMON_ORACLE_HOME=##WLSMON_ORACLE_HOME##
 WLSMON_ADMIN_URL=##WLSMON_ADMIN_URL##
 WLSMON_ADMIN_SERVER=##WLSMON_ADMIN_SERVER##
 WLSMON_FORMS_SERVER=##WLSMON_FORMS_SERVER##
@@ -55,6 +57,17 @@ WLSMON_FORMS_SESSIONS=##WLSMON_FORMS_SESSIONS##
 WLSMON_REPORTS_QUEUE=##WLSMON_REPORTS_QUEUE##
 WLSMON_CERT_DAYS=##WLSMON_CERT_DAYS##
 
+# --- web tier (read by 02-install-wlsmon_root.sh) --------------------------------
+# GUI role: networks of the people (one nginx allow each, "any" = no restriction)
+WLSMON_ADMIN_IP_RANGE=##WLSMON_ADMIN_IP_RANGE##
+# GUI role: Basic Auth users of the GUI (their hashes come from etc/pending/)
+WLSMON_GUI_USERS=##WLSMON_GUI_USERS##
+# data role: IP of the GUI host A - the only client of /wlsmon/api/
+WLSMON_GUI_IP=##WLSMON_GUI_IP##
+# CSP style-src of the GUI ('self'; + 'unsafe-inline' only if needed)
+WLSMON_STYLE_SRC=##WLSMON_STYLE_SRC##
+
 # --- GUI role (P2): data hosts "id=https://host ...", CA of the internal PKI ------
 WLSMON_PULL_HOSTS=##WLSMON_PULL_HOSTS##
 WLSMON_PULL_CAFILE=##WLSMON_PULL_CAFILE##
+WLSMON_PULL_USER=##WLSMON_PULL_USER##

@@ -120,8 +120,8 @@ Overview of the steps; the details follow the table.
 | 6a–6j | Collector parts | one source per part, each with fixtures |
 | 7 | Build | levels, topology, rollups, the 7 files |
 | 8 | Templates | `wlsmon.conf`, systemd, Nginx |
-| 9 | `00-setup-interview.sh` | `wlsmon.conf` + secrets to `etc/pending/` |
-| 10 | `01-install-wlsmon_fmw.sh` | program, GUI, `ui.json`, monitor user |
+| 9 | `00-setup-interview.sh` | `wlsmon.conf` + secrets to `etc/pending/` – **done 2026-11-20** |
+| 10 | `01-install-wlsmon_fmw.sh` | program, GUI, `ui.json`, monitor user – **prepared 2026-11-20** |
 | 11 | `02-install-wlsmon_root.sh` | group, systemd, Nginx, credentials, timers |
 | 12 | Test on the test host | security, CSP, 24-h run, resources |
 | 13 | Integration | backup category, docs, `--remove` |
@@ -528,4 +528,77 @@ Found for later steps:
   "open": from 127.0.0.1 `/console` answers 403 even when it is open for the
   admin network. Test host: all three ok. Documentation:
   [weblogic_rest_monitoring.md §7](../../80-FMW-Architecture/weblogic_rest_monitoring.md#7-security-management-belongs-to-localhost-only).
+
+### 2026-11-20 – steps 9 and 10 live on the test host
+
+- Gunther ran the interview interactively and `01-install-wlsmon_fmw.sh
+  --apply` live: `wlsmon_monitor` created (only in `Monitors`, login works),
+  `collect --check` with WebLogic REST complete (3 servers RUNNING, heap,
+  JDBC 4 / 4, Reports, Forms) – summary 19 OK / 0 FAIL.
+- The first live run created the user but reported `FAIL createUser:` with an
+  empty text. Three bugs in the final check, not in the password (20
+  characters, the realm rule len 12 / upper / lower / digit / special holds):
+  - `listMemberGroups` returns a **cursor name** (`Cursor_95`), not a list –
+    read with `haveCurrent` / `getCurrentName` / `advance`, then `close`;
+  - every REST call needs `X-Requested-By`, **also a GET** – without it
+    HTTP 400 (the login test sent only `Accept`);
+  - a failed final check had no `error` text – now always a reason.
+  The test fake answers like 14.1.2 (cursor, 400 without the header).
+- Also: the host tile was WARN without a detail (memory free 18 %) – the
+  build writes the names of the non-OK host metrics as detail now; the
+  check of 01 passes `db_monitor` too (the RCU check reported "credential
+  missing" although the interview had stored it).
+
+### 2026-11-20 – step 9 done, step 10 prepared
+
+**Step 9 – `00-setup-interview.sh` (done, tested in isolation):**
+- Defaults: built-in (`wlsmon.py defaults`) < `environment.conf` < the host
+  (`wlsmon.py detect`: patch cycle of the inventory, fixed ports, `/i/`
+  libraries) < an existing `wlsmon.conf`. Test host: every value right
+  (patch baseline 2026-11, expected ports `22 80 111 443 1521 7574`).
+- `wlsmon.conf` also holds the installation keys (`WLSMON_BASE`,
+  `WLSMON_ADMIN_IP_RANGE`, `WLSMON_GUI_USERS`, `WLSMON_GUI_IP`,
+  `WLSMON_STYLE_SRC`, `WLSMON_PULL_USER`) – known to `wlsmon.py`, so no
+  "unknown key" error. Fixed on the way: the config reader removed single
+  quotes too (`'self'` → `self`, a broken CSP) – now only double quotes.
+- Secrets to `etc/pending/` (700 / 600): `wls_monitor` generated (20
+  characters, checked with the realm rule of the library), `reports_mon` from
+  `reports_users.conf.des3` or asked, `pull_user` / `pull_hash` /
+  `gui_htpasswd` / `db_monitor` by role. An existing secret is kept (a second
+  run must not change the password of the WebLogic user), `--secret NAME`
+  changes exactly one. Dry-run writes nothing.
+- Interactive questions (`read -e -i` with the default) are not tested yet –
+  Gunther runs the interview on the test host.
+
+**Step 10 – `01-install-wlsmon_fmw.sh` (prepared, dry-run and `--no-user`
+tested in isolation, NOT run live):**
+- Read-only verification on the test host: realm `myrealm`,
+  `DefaultAuthenticator` offers `userExists`, `groupExists`, `isMember`,
+  `listMemberGroups`, `createUser`, `addMemberToGroup`, `resetUserPassword`,
+  `removeUser` under `serverConfig` – no edit session. `wlsmon_monitor` does
+  not exist yet, the group `Monitors` does.
+- `wlsmon.py monitor-user check|create|reset --secrets-stdin`: the REST user
+  calls in Python, passwords on stdin (they are in the JSON body); after an
+  admin 401 it stops at once (one call, no lockout); `create` is idempotent;
+  the check verifies "only in Monitors" and a login with the monitor password.
+- The script installs `bin/`, `share/`, `www/` + `ui.json` (from
+  `wlsmon.py detect`, incl. `libs.knockout`), the local rules skeleton, the
+  data directories; creates / checks the monitor user; ends with
+  `collect --check` – with the monitor password only for a verified user
+  (found: the first draft logged in with a user that did not exist yet).
+  `--remove` keeps `etc/` and only lists the WebLogic user.
+- `collect --check` removes its temporary directory now (5 left in `/tmp`
+  from earlier runs, removed).
+
+**Port check rebuilt (found while detecting the defaults):** the Forms
+prestart runtimes (`frmweb`) listen on **all interfaces** on random ports,
+like Coherence and the DB dispatcher. A fixed list would warn after every
+restart. Now only fixed ports below the ephemeral range
+(`ip_local_port_range`, test host from 9000) are compared with
+`WLSMON_EXPECTED_PORTS`; random listeners are counted per process, and a
+separate check `forms_listeners` reminds that the host firewall must block
+the ephemeral range from outside.
+
+Next with Gunther: interview interactively, then `01 --apply` live (creates
+`wlsmon_monitor`), then step 11.
 

@@ -71,47 +71,8 @@ REPORT_JS = b"""(function () {
 """
 
 
-def version_key(name):
-    return tuple(int(x) for x in name.split(".") if x.isdigit())
-
-
-def newest(directory):
-    """newest x.y.z subdirectory, or None"""
-    try:
-        names = [n for n in os.listdir(directory)
-                 if re.match(r"^\d+(\.\d+)+$", n) and os.path.isdir(os.path.join(directory, n))]
-    except OSError:
-        return None
-    return max(names, key=version_key) if names else None
-
-
-def find_libs(apex):
-    """The /i/ library paths for ui.json - the same rules as 01-install-wlsmon_fmw.sh."""
-    libs = {}
-    if not apex or not os.path.isdir(apex):
-        return libs
-    base = os.path.join(apex, "libraries")
-    v = newest(os.path.join(base, "font-apex"))
-    if v and os.path.isfile(os.path.join(base, "font-apex", v, "css", "font-apex.min.css")):
-        libs["font_apex"] = "/i/libraries/font-apex/" + v
-    v = newest(os.path.join(base, "oraclejet"))
-    if v and os.path.isfile(os.path.join(base, "oraclejet", v, "js", "libs", "require", "require.js")):
-        libs["jet"] = "/i/libraries/oraclejet/" + v
-    if "jet" in libs:
-        # DVT always loads a template engine for a DataProvider; for a page
-        # without Preact that is the Knockout one, so RequireJS needs the path
-        # (as APEX: libraries/apex/requirejs.jetConfig.js). No bindings are used.
-        kdir = os.path.join(base, libs["jet"][len("/i/libraries/"):], "js", "libs", "knockout")
-        ko = sorted(f for f in os.listdir(kdir) if re.match(r"^knockout-[\d.]+\.js$", f)) if os.path.isdir(kdir) else []
-        if ko:
-            libs["knockout"] = libs["jet"] + "/js/libs/knockout/" + ko[-1][:-3]
-    v = newest(os.path.join(base, "jquery"))
-    if v and os.path.isfile(os.path.join(base, "jquery", v, "jquery-%s.min.js" % v)):
-        libs["jquery"] = "/i/libraries/jquery/%s/jquery-%s.min.js" % (v, v)
-    v = newest(os.path.join(base, "jquery-ui"))
-    if v and os.path.isfile(os.path.join(base, "jquery-ui", v, "jquery-ui-apex.min.js")):
-        libs["jquery_ui"] = "/i/libraries/jquery-ui/%s/jquery-ui-apex.min.js" % v
-    return libs
+sys.path.insert(0, os.path.dirname(HERE))
+from wlsmon import find_libs  # noqa: E402 - one implementation for ui.json
 
 
 class Server(ThreadingMixIn, HTTPServer):

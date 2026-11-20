@@ -11,6 +11,10 @@
 #                        topology, rollups -> the 7 JSON files of the contract
 #              pull      GUI role (P2) - fetch the data hosts, write hosts.json
 #              rules     test the rules file against one log file
+#              defaults  the built-in configuration defaults (KEY=value)
+#              monitor-user check|create|reset  the WebLogic monitor user (REST)
+#              detect    state of this host as JSON for the install scripts
+#                        (patch cycle, listening ports, core dir, /i/ libraries)
 #              version
 # Call     : wlsmon.py collect [--check] [--out DIR] [--state DIR] [--secrets-stdin]
 #            wlsmon.py rules --test LOGFILE [--source wls|reports|forms|nginx]
@@ -122,6 +126,12 @@ DEFAULTS = {
     "WLSMON_PULL_HOSTS": "",               # GUI role (P2): "id=https://host ..."
     "WLSMON_PULL_CAFILE": "",
     "WLSMON_PULL_USER": "wlsmon_pull",
+    # installation keys - read by the install scripts, not by the collector
+    "WLSMON_BASE": "",
+    "WLSMON_ADMIN_IP_RANGE": "",           # GUI role: networks of the people (nginx allow)
+    "WLSMON_GUI_IP": "",                   # data role: IP of the GUI host A (nginx allow)
+    "WLSMON_GUI_USERS": "",                # GUI role: Basic Auth user names (hashes in etc/pending)
+    "WLSMON_STYLE_SRC": "'self'",          # CSP style-src of the nginx include
 }
 
 
@@ -143,7 +153,8 @@ class Config(object):
                     continue
                 key, val = line.split("=", 1)
                 key, val = key.strip(), val.strip()
-                if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+                # only double quotes are syntax - 'self' (CSP) keeps its single quotes
+                if len(val) >= 2 and val[0] == val[-1] == '"':
                     val = val[1:-1]
                 if key in DEFAULTS:
                     self.values[key] = val
@@ -1564,16 +1575,65 @@ def daily_facts(rnd, patch):
 # =============================================================================
 # 6j Security checks (hourly)
 # =============================================================================
-def listening_ports():
-    out = set()
+def listening_sockets():
+    """[(port, loopback, inode)] of the TCP LISTEN sockets (tcp + tcp6)"""
+    out = []
     for f in ("/proc/net/tcp", "/proc/net/tcp6"):
         for line in (read_text(P(f), 1 << 24) or "").splitlines()[1:]:
             parts = line.split()
             if len(parts) > 3 and parts[3] == "0A":           # LISTEN
                 addr, port = parts[1].rsplit(":", 1)
                 loop = addr in ("0100007F", "00000000000000000000000001000000") or addr.endswith("0100007F")
-                out.add((int(port, 16), loop))
+                out.append((int(port, 16), loop, parts[9] if len(parts) > 9 else ""))
     return out
+
+
+def listening_ports():
+    return set((p, loop) for p, loop, _i in listening_sockets())
+
+
+def ephemeral_start():
+    """first port of the ephemeral range (random ports of processes that bind to 0)"""
+    try:
+        return int((read_text(P("/proc/sys/net/ipv4/ip_local_port_range")) or "32768").split()[0])
+    except ValueError:
+        return 32768
+
+
+def socket_owners():
+    """{socket inode: process name} for the processes this user can read"""
+    out = {}
+    for d in glob.glob(P("/proc/[0-9]*")):
+        comm = (read_text(os.path.join(d, "comm")) or "?").strip()
+        for fd in glob.glob(os.path.join(d, "fd", "*")):
+            try:
+                m = re.match(r"socket:\[(\d+)\]", os.readlink(fd))
+            except OSError:
+                continue
+            if m:
+                out[m.group(1)] = comm
+    return out
+
+
+def port_survey():
+    """-> (fixed non-loopback ports below the ephemeral range, {process: count} of
+    non-loopback listeners on random ports) - the random ones change at every
+    restart (Forms prestart frmweb, Coherence, DB dispatchers), so they are
+    counted, not compared with a list"""
+    start = ephemeral_start()
+    owners = None
+    fixed, random_by = set(), {}
+    for port, loop, ino in listening_sockets():
+        if loop:
+            continue
+        if port < start:
+            fixed.add(port)
+            continue
+        if owners is None:
+            owners = socket_owners()
+        name = owners.get(ino, "other user")
+        random_by.setdefault(name, set()).add(port)
+    return sorted(fixed), dict((k, len(v)) for k, v in random_by.items())
 
 
 LOC_RE = re.compile(r"\blocation\s+(=|~\*?|\^~)?\s*([^\s{]+)\s*\{")
@@ -1746,13 +1806,18 @@ def security_file(rnd, daily):
     add("file_perms", "wlsmon", "wlsmon directory permissions", ", ".join(bad) if bad else "ok",
         "warn" if bad else "ok", "chmod as in concept 9.1" if bad else "")
     expected = set(int(x) for x in cfg.words("WLSMON_EXPECTED_PORTS") if x.isdigit())
-    ports = listening_ports()
-    open_ext = sorted(set(p for p, loop in ports if not loop))
-    unexpected = [p for p in open_ext if p not in expected and p > 1023 or p in (21, 23)]
-    add("ports", "OS", "Listening ports (not loopback)", ", ".join(str(p) for p in open_ext[:15]) or "-",
+    fixed, random_by = port_survey()
+    unexpected = [p for p in fixed if p not in expected]
+    rnd_txt = ", ".join("%s %d" % (k, v) for k, v in sorted(random_by.items()))
+    add("ports", "OS", "Listening ports (not loopback)",
+        ", ".join(str(p) for p in fixed) + (" · random ports: " + rnd_txt if rnd_txt else ""),
         "warn" if unexpected else "ok",
-        "unexpected: %s - compare with WLSMON_EXPECTED_PORTS" % ", ".join(str(p) for p in unexpected[:8])
-        if unexpected else "compared with WLSMON_EXPECTED_PORTS")
+        ("unexpected: %s - compare with WLSMON_EXPECTED_PORTS" % ", ".join(str(p) for p in unexpected))
+        if unexpected else "fixed ports as WLSMON_EXPECTED_PORTS; random ports (ephemeral range) are only counted")
+    if random_by.get("frmweb"):
+        add("forms_listeners", "Forms", "Forms prestart runtimes listen on all interfaces",
+            "%d frmweb listener(s) on random ports, not only on the loopback" % random_by["frmweb"], "ok",
+            "the host firewall must block the ephemeral range from outside (only nginx 443 open)")
     lv = worst(c["level"] for c in checks)
     return {"schema": SCHEMA, "generated_at": iso(rnd.ts), "level": lv, "checks": checks}
 
@@ -1813,6 +1878,9 @@ def topology(rnd):
     host = by_id.get("host")
     if host:
         host["level"] = worst(m["level"] for m in metrics if m["group"] == "host")
+        bad = [m["label"] for m in metrics if m["group"] == "host" and m["level"] != "ok"]
+        if bad and not host.get("detail"):
+            host["detail"] = ", ".join(bad)          # why the host tile is not green
     reasons = []
     for c in comps:
         if c.get("down"):
@@ -1962,6 +2030,205 @@ def build(rnd):
 
 
 # =============================================================================
+# monitor-user: the WebLogic monitor user through REST (01-install-wlsmon_fmw.sh)
+# =============================================================================
+# Verified on 14.1.2 (2026-11-20): realm myrealm, DefaultAuthenticator offers
+# userExists, groupExists, isMember, listMemberGroups (read) and createUser,
+# addMemberToGroup, resetUserPassword, removeUser (write) under serverConfig -
+# no edit session. Secrets on stdin (admin_user, admin_password, wls_monitor).
+def _auth_url(cfg, realm, provider):
+    return (cfg.get("WLSMON_ADMIN_URL").rstrip("/") + "/management/weblogic/latest/serverConfig/"
+            "securityConfiguration/realms/%s/authenticationProviders/%s" % (realm, provider))
+
+
+def _op(url, body, user, pwd, timeout):
+    code, text = http(url, json.dumps(body), user, pwd, REST_HDR, timeout)
+    try:
+        return code, json.loads(text) if text else {}
+    except ValueError:
+        return code, {"raw": text[:200]}
+
+
+def monitor_user(argv):
+    """wlsmon.py monitor-user check|create|reset --secrets-stdin [--realm R] [--provider P]
+    check  read-only: exists, member of Monitors, member of nothing else, login works
+    create createUser + addMemberToGroup Monitors (only when it does not exist)
+    reset  resetUserPassword to the wls_monitor secret
+    -> JSON on stdout; exit 0 ok, 1 action needed / failed, 2 usage"""
+    action = argv[0] if argv and not argv[0].startswith("--") else ""
+    if action not in ("check", "create", "reset"):
+        print("usage: wlsmon.py monitor-user check|create|reset --secrets-stdin", file=sys.stderr)
+        return 2
+    if "--secrets-stdin" in argv:
+        read_stdin_secrets()
+    cfg = Config(base_dir(), opt(argv, "--config"))
+    realm = opt(argv, "--realm") or "myrealm"
+    provider = opt(argv, "--provider") or "DefaultAuthenticator"
+    url = _auth_url(cfg, realm, provider)
+    tmo = cfg.int("WLSMON_HTTP_TIMEOUT", 20)
+    mon = cfg.get("WLSMON_MON_USER")
+    au, ap, mp = secret("admin_user"), secret("admin_password"), secret("wls_monitor")
+    res = {"user": mon, "realm": realm, "provider": provider}
+    if not (au and ap):
+        res["error"] = "admin_user / admin_password missing on stdin"
+        print(json.dumps(res))
+        return 1
+    code, r = _op(url + "/userExists", {"userName": mon}, au, ap, tmo)
+    if code != 200:
+        res["error"] = "userExists: %s" % ("no connection" if code == 0 else "HTTP %d" % code)
+        if code == 401:
+            res["error"] += " - admin login refused, stop (lockout 3/30/15)"
+        print(json.dumps(res))
+        return 1
+    res["exists"] = bool(r.get("return"))
+    if action == "create" and not res["exists"]:
+        if not mp:
+            res["error"] = "wls_monitor secret missing on stdin (00-setup-interview.sh --apply)"
+            print(json.dumps(res))
+            return 1
+        code, r = _op(url + "/createUser", {"userName": mon, "password": mp,
+                                             "description": "wlsmon read-only runtime monitor (11-wlsmon)"},
+                      au, ap, tmo)
+        if code not in (200, 201, 204):
+            res["error"] = "createUser: HTTP %d %s" % (code, json.dumps(r)[:200])
+            print(json.dumps(res))
+            return 1
+        code, r = _op(url + "/addMemberToGroup", {"groupName": "Monitors", "memberUserOrGroupName": mon},
+                      au, ap, tmo)
+        if code not in (200, 201, 204):
+            res["error"] = "addMemberToGroup Monitors: HTTP %d" % code
+            print(json.dumps(res))
+            return 1
+        res["created"] = True
+        res["exists"] = True
+    if action == "reset" and res["exists"]:
+        if not mp:
+            res["error"] = "wls_monitor secret missing on stdin"
+            print(json.dumps(res))
+            return 1
+        code, r = _op(url + "/resetUserPassword", {"userName": mon, "newPassword": mp}, au, ap, tmo)
+        if code not in (200, 201, 204):
+            res["error"] = "resetUserPassword: HTTP %d" % code
+            print(json.dumps(res))
+            return 1
+        res["password_reset"] = True
+    if res["exists"]:
+        res["groups"] = _member_groups(url, mon, au, ap, tmo)
+        res["only_monitors"] = res["groups"] == ["Monitors"]
+        if mp:
+            # login test with the monitor password: one read-only GET (X-Requested-By
+            # is required on 14.1.2 even for a GET - without it HTTP 400)
+            code, _t = http(cfg.get("WLSMON_ADMIN_URL").rstrip("/") +
+                            "/management/weblogic/latest/domainRuntime/serverRuntimes?fields=name&links=none",
+                            None, mon, mp, {"Accept": "application/json", "X-Requested-By": "wlsmon"}, tmo)
+            res["login"] = code
+    ok_ = res.get("exists") and res.get("only_monitors") and res.get("login", 200) == 200
+    if not ok_ and "error" not in res:
+        why = []
+        if not res.get("exists"):
+            why.append("user does not exist")
+        elif res.get("groups") is None:
+            why.append("groups not readable (listMemberGroups)")
+        elif not res.get("only_monitors"):
+            why.append("groups %s - expected only Monitors" % ",".join(res["groups"]))
+        if res.get("login", 200) != 200:
+            why.append("login test HTTP %s" % res["login"])
+        res["error"] = "; ".join(why)
+    print(json.dumps(res))
+    return 0 if ok_ else 1
+
+
+def _member_groups(url, mon, au, ap, tmo):
+    """listMemberGroups returns a cursor name (e.g. "Cursor_95"), not a list:
+    haveCurrent / getCurrentName / advance, then close. None = not readable."""
+    code, r = _op(url + "/listMemberGroups", {"memberUserOrGroupName": mon}, au, ap, tmo)
+    cur = r.get("return") if code == 200 else None
+    if isinstance(cur, list):                  # in case a release answers with a list
+        return sorted(cur)
+    if not cur:
+        return None
+    groups = []
+    try:
+        for _i in range(200):
+            code, h = _op(url + "/haveCurrent", {"cursor": cur}, au, ap, tmo)
+            if code != 200:
+                return None
+            if not h.get("return"):
+                break
+            code, n = _op(url + "/getCurrentName", {"cursor": cur}, au, ap, tmo)
+            if code != 200:
+                return None
+            groups.append(n.get("return"))
+            _op(url + "/advance", {"cursor": cur}, au, ap, tmo)
+    finally:
+        _op(url + "/close", {"cursor": cur}, au, ap, tmo)
+    return sorted(groups)
+
+
+# =============================================================================
+# detect: the state of this host for the install scripts (one place)
+# =============================================================================
+def _version_key(name):
+    return tuple(int(x) for x in name.split(".") if x.isdigit())
+
+
+def _newest(directory):
+    try:
+        names = [n for n in os.listdir(directory)
+                 if re.match(r"^\d+(\.\d+)+$", n) and os.path.isdir(os.path.join(directory, n))]
+    except OSError:
+        return None
+    return max(names, key=_version_key) if names else None
+
+
+def find_libs(apex):
+    """/i/ paths of the newest font-apex, Oracle JET (+ its knockout), jQuery and
+    jQuery UI below an APEX images directory -> dict for ui.json "libs".
+    Used by 01-install-wlsmon_fmw.sh (ui.json), devserver.py and the daily fact."""
+    libs = {}
+    if not apex or not os.path.isdir(apex):
+        return libs
+    base = os.path.join(apex, "libraries")
+    v = _newest(os.path.join(base, "font-apex"))
+    if v and os.path.isfile(os.path.join(base, "font-apex", v, "css", "font-apex.min.css")):
+        libs["font_apex"] = "/i/libraries/font-apex/" + v
+    v = _newest(os.path.join(base, "oraclejet"))
+    if v and os.path.isfile(os.path.join(base, "oraclejet", v, "js", "libs", "require", "require.js")):
+        libs["jet"] = "/i/libraries/oraclejet/" + v
+        # the DVT DataProvider path loads ojtemplateengine-ko -> RequireJS needs knockout
+        kdir = os.path.join(base, "oraclejet", v, "js", "libs", "knockout")
+        ko = sorted(f for f in os.listdir(kdir) if re.match(r"^knockout-[\d.]+\.js$", f)) \
+            if os.path.isdir(kdir) else []
+        if ko:
+            libs["knockout"] = libs["jet"] + "/js/libs/knockout/" + ko[-1][:-3]
+    v = _newest(os.path.join(base, "jquery"))
+    if v and os.path.isfile(os.path.join(base, "jquery", v, "jquery-%s.min.js" % v)):
+        libs["jquery"] = "/i/libraries/jquery/%s/jquery-%s.min.js" % (v, v)
+    v = _newest(os.path.join(base, "jquery-ui"))
+    if v and os.path.isfile(os.path.join(base, "jquery-ui", v, "jquery-ui-apex.min.js")):
+        libs["jquery_ui"] = "/i/libraries/jquery-ui/%s/jquery-ui-apex.min.js" % v
+    return libs
+
+
+def detect(argv):
+    """wlsmon.py detect [--oracle-home DIR] [--apex DIR] -> JSON on stdout"""
+    oh = opt(argv, "--oracle-home") or DEFAULTS["WLSMON_ORACLE_HOME"]
+    apex = opt(argv, "--apex") or DEFAULTS["WLSMON_APEX_DIR"]
+    patches = inventory_patches(oh)
+    spb = next((p for p in patches if "STACK PATCH BUNDLE" in p[1].upper()), None)
+    fixed, random_by = port_survey()
+    cdir, systemd = core_dir(Config("/nonexistent"))
+    libs = find_libs(apex)
+    out = {"host": socket.gethostname().split(".")[0], "fqdn": socket.getfqdn(),
+           "patch_cycle": bundle_cycle(spb[1]) if spb else None, "spb": spb[1] if spb else None,
+           "fixed_ports": fixed, "random_listeners": random_by, "core_dir": cdir, "core_systemd": systemd,
+           "apex_dir": apex if libs else None, "libs": libs,
+           "python": sys.version.split()[0], "systemd_creds": shutil.which("systemd-creds") is not None}
+    print(json.dumps(out, indent=1))
+    return 0
+
+
+# =============================================================================
 # Commands
 # =============================================================================
 def base_dir():
@@ -2036,7 +2303,10 @@ def collect_round(argv, cfg, base, out, state_dir, check):
             print("  %-5s %-22s %s %s  (%s)" % (m["level"].upper(), m["id"], v, m["unit"], m["sub"]))
         for e in now["collector"]["errors"]:
             print("  ERROR %s" % e["text"])
-        print("files: %s" % out)
+        if opt(argv, "--out"):
+            print("files: %s" % out)
+        else:
+            shutil.rmtree(state_dir, ignore_errors=True)     # temporary - nothing left behind
     return 0
 
 
@@ -2094,6 +2364,7 @@ def main(argv):
         print(__doc__ or "usage: wlsmon.py collect|pull|rules|version")
         print("usage: wlsmon.py collect [--check] [--out DIR] [--state DIR] [--config FILE] [--secrets-stdin]\n"
               "       wlsmon.py rules --test LOGFILE [--source wls,forms,reports] [--rules FILE]\n"
+              "       wlsmon.py detect [--oracle-home DIR] [--apex DIR]\n"
               "       wlsmon.py pull | version")
         return 2
     cmd = argv[1]
@@ -2103,6 +2374,15 @@ def main(argv):
         return rules_test(argv[2:])
     if cmd == "pull":
         return pull(argv[2:])
+    if cmd == "detect":
+        return detect(argv[2:])
+    if cmd == "monitor-user":
+        return monitor_user(argv[2:])
+    if cmd == "defaults":
+        # KEY=value of the built-in defaults - the interview starts from these
+        for k in sorted(DEFAULTS):
+            print("%s=%s" % (k, DEFAULTS[k]))
+        return 0
     if cmd == "version":
         print("wlsmon %s (schema %d, python %s)" % (VERSION, SCHEMA, sys.version.split()[0]))
         return 0

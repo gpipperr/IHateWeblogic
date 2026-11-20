@@ -10,6 +10,13 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **11-wlsmon step 9 `00-setup-interview.sh`** (defaults from environment.conf
+  and the host, secrets to `etc/pending/`, kept on re-runs) and **step 10
+  prepared `01-install-wlsmon_fmw.sh`** (runtime below `WLSMON_BASE`,
+  `ui.json`, monitor user through REST `createUser` – verified read-only,
+  not run live yet). New `wlsmon.py defaults | detect | monitor-user`.
+  Port check: fixed ports only, random listeners (Forms prestart `frmweb` on
+  all interfaces) counted. 57 tests.
 - **New page [80-FMW-Architecture/weblogic_rest_monitoring.md](80-FMW-Architecture/weblogic_rest_monitoring.md):**
   monitoring WebLogic 14.1.2 with the REST Management API – one search POST,
   field names verified on the test host (real answer as fixture), timing
