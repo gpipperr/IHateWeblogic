@@ -306,6 +306,14 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   longest job 1 s on the test host) – re-check with
   `06-FormsDiag/forms_perf_analyse.sh` and
   `05-ReportsPerformance/engine_perf_analyse.sh` at the first customer.
+- [ ] **Load test – Reports first** (concept 2026-11-20,
+  [fmw_load_test.md](80-FMW-Architecture/fmw_load_test.md) §9):
+  - [ ] `rwrun` baseline (`test_dual.rdf` + one larger report) on the test host
+  - [ ] verify rwservlet POST run (`destype=cache`, `authid` in the body) and `rwclient` flags
+  - [ ] `05-ReportsPerformance/reports_load_test.sh` – dry run, then step profile
+  - [ ] Nginx `limit_req` for rwservlet vs. load test (path B or generator allow-list)
+  - [ ] measured RAM per engine / per `frmweb` into `docs/forms_reports_sizing.md`
+  - [ ] Forms: OATS / protocol tools status for 14.1.2
 - [ ] **Reports job queue in the DB – script side** (page
   [reports_job_queue_monitoring.md](80-FMW-Architecture/reports_job_queue_monitoring.md),
   live-tested 2026-11-17; scripts deliberately not changed yet):

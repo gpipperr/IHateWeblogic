@@ -10,6 +10,10 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **New concept [80-FMW-Architecture/fmw_load_test.md](80-FMW-Architecture/fmw_load_test.md):**
+  load tests for Reports (paths, profiles, stop criteria, proposed curl-based
+  generator, result → `maxEngine` / engine heap / sizing) and the options and
+  limits for Forms. Nothing implemented yet.
 - **11-wlsmon steps 9 + 10 live, step 11 written:** the interview and
   `01-install-wlsmon_fmw.sh --apply` ran on the test host (monitor user
   `wlsmon_monitor` created through REST, only in `Monitors`).
