@@ -181,7 +181,7 @@ Rules:
   `shortDesc`. `hoverBehavior` stays `'none'`: with `'dim'` JET 20.1.4 showed
   no data-cursor tooltip on the large charts (bisected on the test host). The
   tooltip box uses the JET theme (`oj-dvt-datatip`), styled through CSSOM – no
-  conflict with `style-src 'self'`. The SVG fallback has no tooltip.
+  conflict with `style-src 'self'`. The SVG fallback (hosts without APEX) shows the same text as a native browser tooltip: one transparent column per point with an SVG `<title>`, a light band under the pointer – no script handler, no style attribute (2026-11-20).
 
 ## 5. Surfaces and text
 

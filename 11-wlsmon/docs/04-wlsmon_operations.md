@@ -243,6 +243,8 @@ A rule with a bad regex is skipped and reported in `collector.errors`.
 | REST components "n/a", 401 in `collector.errors` | monitor user password differs from the credential; the collector pauses 30 min after a 401 (`WLSMON_401_PAUSE_MIN`, avoids the realm lockout) | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
 | `rep_<server>` "not checked" in `collect --check` | the check by hand has no service credentials | normal – the service reads `reports_mon` |
 | Service does not start, `LoadCredentialEncrypted` error | a `.cred` file named in the unit is missing | `02-install-wlsmon_root.sh --apply` – it keeps only the credential blocks whose file exists |
+| Tile "GUI libraries" says "own SVG" although `01-` found font-apex / JET | the tile is a daily fact; since 2026-11-20 a new `ui.json` (re-run of `01-`) refreshes it at the next run | `01-install-wlsmon_fmw.sh --apply`, wait one run |
+| Tile "GUI libraries" says "not served" | the APEX files are on disk, but nginx answers the `/i/` probe with 404 – `02-` ran before APEX was there, so the include has no `/i/` block (and no APEX / ORDS include routes `/i/`) | `sudo 02-install-wlsmon_root.sh --apply` (dry run first: "/i/: served by the wlsmon include") |
 | Charts drawn as plain SVG, no JET | `/i/libraries/oraclejet/<ver>` not found (APEX upgrade changed the version) | `01-install-wlsmon_fmw.sh --apply` rewrites `ui.json` with the newest versions |
 | No tooltip on the large charts | JET `hoverBehavior: 'dim'` suppresses the data-cursor tooltip (JET 20.1.4) | fixed in `wlsmon_charts.js` 2026-11-20 – update + Ctrl+F5 |
 

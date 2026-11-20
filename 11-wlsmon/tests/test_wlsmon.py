@@ -540,3 +540,32 @@ class ThresholdTest(unittest.TestCase):
             self.assertEqual(rows["WLSMON_MEM_USED_PCT"]["max_24h"], 75.0)
             self.assertEqual(rows["WLSMON_SWAP_MB"]["now"], 0)
             self.assertTrue(rows["WLSMON_HEAP_PCT"]["valid"])
+
+
+class GuiLibsFactTest(unittest.TestCase):
+    """daily fact 'GUI libraries': refreshed at once when 01-install writes a new ui.json,
+    WARN when nginx does not serve /i/ (02-install ran before APEX was there)"""
+
+    def fact(self, files):
+        return next(f for f in files["now"]["daily"]["facts"] if f["id"] == "gui_libs")
+
+    def test_new_ui_json_refreshes_and_probe(self):
+        with TempDir() as d, Env(d) as env:
+            self.assertEqual(self.fact(env.collect())["display"], "own SVG")
+            apex = os.path.join(d, "apex")
+            os.makedirs(os.path.join(apex, "libraries", "oraclejet", "20.1.4"))
+            os.makedirs(os.path.join(apex, "libraries", "font-apex", "2.5.1"))
+            env.conf({"WLSMON_APEX_DIR": apex})
+            time.sleep(1.1)                                   # newer mtime than the daily stamp
+            write(os.path.join(env.base, "www", "ui.json"), json.dumps(
+                {"locale": "de-DE", "libs": {"jet": "/i/libraries/oraclejet/20.1.4",
+                                             "font_apex": "/i/libraries/font-apex/2.5.1"}}))
+            f = self.fact(env.collect())                      # same day - refreshed because of ui.json
+            self.assertEqual((f["display"], f["level"]), ("not served", "warn"))   # Env: probe answers 404
+            self.assertIn("02-install", f["sub"])
+            wlsmon.local_probe = lambda port, path, host=None: 200
+            time.sleep(1.1)
+            os.utime(os.path.join(env.base, "www", "ui.json"))
+            f = self.fact(env.collect())
+            self.assertEqual((f["display"], f["level"]), ("found", "ok"))
+            self.assertIn("oraclejet 20.1.4", f["sub"])

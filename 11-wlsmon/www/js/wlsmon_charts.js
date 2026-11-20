@@ -178,15 +178,39 @@
 
   /* ---------- SVG renderer (prototype) ---------- */
 
-  function svgSpark(box, values) {
+  // x of point i of n on a width w - by the index on the time axis, so a gap (null)
+  // keeps the later points in place
+  function xAt(i, n, w) { return n > 1 ? i * w / (n - 1) : 0; }
+
+  // tooltip of the SVG fallback: one transparent column per point of the time axis
+  // with a native <title> - no event handler, no style attribute (CSP), works
+  // without JET (hosts without APEX). textFor(i) -> text or '' (no column).
+  function svgHits(s, n, w, h, textFor) {
+    var cw = n > 1 ? w / (n - 1) : w;
+    for (var i = 0; i < n; i++) {
+      var txt = textFor(i);
+      if (!txt) continue;
+      var r = svg('rect', { x: Math.max(0, xAt(i, n, w) - cw / 2).toFixed(2), y: 0,
+                            width: cw.toFixed(2), height: h, fill: 'transparent', 'class': 'hit' });
+      var t = svg('title', {});
+      t.textContent = txt;
+      r.appendChild(t);
+      s.appendChild(r);
+    }
+  }
+
+  function svgSpark(box, values, tip) {
     var a = values.filter(num);
     if (a.length < 2) return false;
+    var n = values.length;
     var mn = Math.min.apply(null, a), mx = Math.max.apply(null, a), d = (mx - mn) || 1;
-    var pts = a.map(function (v, i) {
-      return (i * 100 / (a.length - 1)).toFixed(1) + ',' + (26 - ((v - mn) / d) * 24).toFixed(1);
-    }).join(' ');
+    var pts = [];
+    values.forEach(function (v, i) {
+      if (num(v)) pts.push(xAt(i, n, 100).toFixed(1) + ',' + (26 - ((v - mn) / d) * 24).toFixed(1));
+    });
     var s = svg('svg', { viewBox: '0 0 100 28', preserveAspectRatio: 'none', 'class': 'spark', 'aria-hidden': 'true' });
-    s.appendChild(svg('polyline', { points: pts }));
+    s.appendChild(svg('polyline', { points: pts.join(' ') }));
+    if (tip) svgHits(s, n, 100, 28, function (i) { return num(values[i]) ? tip(i, '', values[i]) : ''; });
     box.appendChild(s);
     return true;
   }
@@ -207,13 +231,30 @@
         if (t[0] <= top) s.appendChild(svg('line', { x1: 0, x2: 1000, y1: y(t[0]), y2: y(t[0]), 'class': 'thr-warn' }));
         if (t[1] <= top) s.appendChild(svg('line', { x1: 0, x2: 1000, y1: y(t[1]), y2: y(t[1]), 'class': 'thr-crit' }));
       }
+      var n = 0;
+      spec.series.forEach(function (x) { n = Math.max(n, x.values.length); });
       spec.series.forEach(function (x) {
-        var arr = x.values.filter(num);
-        if (arr.length < 2) return;
-        var pts = arr.map(function (v, i) { return (i * 1000 / (arr.length - 1)).toFixed(1) + ',' + y(v); }).join(' ');
-        if (!spec.multi) s.appendChild(svg('polygon', { points: '0,' + H + ' ' + pts + ' 1000,' + H, 'class': x.cls }));
-        s.appendChild(svg('polyline', { points: pts, 'class': x.cls }));
+        if (x.values.filter(num).length < 2) return;
+        var pts = [], first = null, last = null;
+        x.values.forEach(function (v, i) {
+          if (!num(v)) return;
+          var px = xAt(i, n, 1000).toFixed(1);
+          if (first === null) first = px;
+          last = px;
+          pts.push(px + ',' + y(v));
+        });
+        if (!spec.multi) s.appendChild(svg('polygon', { points: first + ',' + H + ' ' + pts.join(' ') + ' ' + last + ',' + H, 'class': x.cls }));
+        s.appendChild(svg('polyline', { points: pts.join(' '), 'class': x.cls }));
       });
+      if (spec.tip) {
+        svgHits(s, n, 1000, H, function (i) {
+          var lines = [];
+          spec.series.forEach(function (x) {
+            if (num(x.values[i])) lines.push(spec.tip(i, x.name || x.key, x.values[i]));
+          });
+          return lines.join('\n');
+        });
+      }
     }
     box.appendChild(s);
   }
@@ -323,7 +364,7 @@
     if (charts.renderer === 'jet') {
       try { return jetSpark(box, values, tip); } catch (e) { charts.note = 'JET sparkline failed: ' + e.message; }
     }
-    return svgSpark(box, values);
+    return svgSpark(box, values, tip);
   };
 
   charts.line = function (box, spec) {

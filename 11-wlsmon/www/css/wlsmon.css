@@ -244,6 +244,8 @@ h2 {
 .kpi-sub { font-size: 12px; color: var(--wm-muted); }
 /* Sparkline: neutral, Status zeigt nur das Badge */
 .spark { width: 100%; height: 28px; display: block; }
+/* tooltip columns of the SVG fallback (native <title>): a light band under the pointer */
+svg rect.hit:hover { fill: var(--wm-axis); fill-opacity: .15; }
 .spark polyline { fill: none; stroke: var(--wm-series-single); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 
 /* ---------- Segment-Schalter ---------- */

@@ -1572,11 +1572,22 @@ def daily_facts(rnd, patch):
         facts.append({"id": "gui_libs", "label": "GUI libraries", "display": "own SVG",
                       "sub": "no /i/ paths in ui.json", "level": "ok"})
     else:
-        facts.append({"id": "gui_libs", "label": "GUI libraries", "display": "moved" if missing else "found",
-                      "sub": ("run 01-install-wlsmon_fmw.sh --apply: " + ", ".join(missing)) if missing else
-                      " · ".join(v.split("/")[3] + " " + v.split("/")[4] for v in libs.values()
-                                 if v.count("/") >= 4 and "jquery" not in v),
-                      "level": "warn" if missing else "ok"})
+        # on disk is not enough: nginx must serve /i/ too (an include of APEX / ORDS, or the
+        # /i/ block of the wlsmon include - written by 02-install only when APEX was there)
+        served = None
+        if not missing and libs.get("jet"):
+            confs = "\n".join(read_text(f) or "" for f in nginx_conf_files(cfg))
+            served = local_probe(cfg.get("WLSMON_NGINX_PORT"), libs["jet"].rstrip("/") + "/js/libs/require/require.js",
+                                 nginx_server_name(confs) or socket.getfqdn())
+        versions = " · ".join(v.split("/")[3] + " " + v.split("/")[4] for v in libs.values()
+                              if v.count("/") >= 4 and "jquery" not in v)
+        if missing:
+            display, sub, lv = "moved", "run 01-install-wlsmon_fmw.sh --apply: " + ", ".join(missing), "warn"
+        elif served is not None and served not in (200, 401, 403):
+            display, sub, lv = "not served", "nginx answers %s for /i/ - run 02-install-wlsmon_root.sh --apply" % served, "warn"
+        else:
+            display, sub, lv = "found", versions, "ok"
+        facts.append({"id": "gui_libs", "label": "GUI libraries", "display": display, "sub": sub, "level": lv})
     return {"generated_at": iso(rnd.ts), "facts": facts}
 
 
@@ -1836,6 +1847,13 @@ def part_periodic(rnd):
     st, out = rnd.state, rnd.info["out"]
     cache = st.setdefault("periodic", {})
     daily_due = rnd.ts - cache.get("daily_ts", 0) >= 86400 or not os.path.isfile(os.path.join(out, "patch.json"))
+    # a re-run of 01-install (new ui.json: APEX found / patched) refreshes the daily facts at
+    # once - otherwise the tile "GUI libraries" showed the old state for up to 24 h (2026-11-20)
+    try:
+        if os.path.getmtime(os.path.join(rnd.info["base"], "www", "ui.json")) > cache.get("daily_ts", 0):
+            daily_due = True
+    except OSError:
+        pass
     if daily_due or "daily" not in cache:
         patch = patch_file(rnd)
         cache["patch"] = patch
