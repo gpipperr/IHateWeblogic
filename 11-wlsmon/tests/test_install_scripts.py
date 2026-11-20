@@ -347,3 +347,68 @@ class InstallRootTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SET_THR = os.path.join(BASE, "03-set-thresholds.sh")
+
+
+@unittest.skipIf(os.geteuid() == 0, "the scripts refuse root")
+class SetThresholdsTest(unittest.TestCase):
+    """03-set-thresholds.sh in an isolated copy: dry-run, check, write + backup, reset, append"""
+
+    def setUp(self):
+        self.tmp = TempDir()
+        d = self.tmp.__enter__()
+        self.base = os.path.join(d, "w")
+        os.makedirs(os.path.join(self.base, "etc"))
+        self.conf = os.path.join(self.base, "etc", "wlsmon.conf")
+        with open(self.conf, "w") as fh:
+            fh.write("# test\nWLSMON_ROLE=both\nWLSMON_HEAP_PCT=80,90\nWLSMON_CERT_DAYS=30,7\n")
+        os.chmod(self.conf, 0o600)
+
+    def tearDown(self):
+        self.tmp.__exit__(None, None, None)
+
+    def run3(self, *args):
+        p = subprocess.run(["bash", SET_THR, "--base", self.base] + list(args), stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, timeout=60)
+        return p.returncode, p.stdout
+
+    def text(self):
+        with open(self.conf) as fh:
+            return fh.read()
+
+    def backups(self):
+        return [f for f in os.listdir(os.path.dirname(self.conf)) if ".bak_" in f]
+
+    def test_overview_and_dry_run_change_nothing(self):
+        before = self.text()
+        rc, out = self.run3()
+        self.assertIn("WLSMON_HEAP_PCT", out)
+        self.assertIn("WLSMON_SWAP_MB", out)
+        rc, out = self.run3("--set", "HEAP_PCT=85,95")
+        self.assertIn("80,90", out)
+        self.assertIn("Dry-run", out)
+        self.assertEqual(self.text(), before)
+        self.assertEqual(self.backups(), [])
+
+    def test_invalid_value_is_refused(self):
+        before = self.text()
+        rc, out = self.run3("--set", "HEAP_PCT=95,85", "--set", "CERT_DAYS=7,30", "--apply")
+        self.assertEqual(rc, 2, out)
+        self.assertIn("Nothing written", out)
+        self.assertEqual(self.text(), before)
+        self.assertEqual(self.backups(), [])
+
+    def test_apply_writes_with_backup_and_appends(self):
+        rc, out = self.run3("--set", "WLSMON_HEAP_PCT=85,95", "--set", "SWAP_MB=1024,4096", "--apply")
+        self.assertIn(rc, (0, 1), out)
+        t = self.text()
+        self.assertIn("WLSMON_HEAP_PCT=85,95\n", t)
+        self.assertNotIn("WLSMON_HEAP_PCT=80,90", t)
+        self.assertIn("WLSMON_SWAP_MB=1024,4096\n", t)                # not in the file before: appended
+        self.assertIn("# test\n", t)                                   # the rest stays
+        self.assertEqual(len(self.backups()), 1)
+        self.assertEqual(mode(self.conf), 0o600)
+        rc, out = self.run3("--reset", "HEAP_PCT", "--apply")
+        self.assertIn("WLSMON_HEAP_PCT=80,90\n", self.text())

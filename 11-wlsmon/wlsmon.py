@@ -115,6 +115,7 @@ DEFAULTS = {
     "WLSMON_LOAD": "",                     # default: cores,2*cores
     "WLSMON_CPU_PCT": "80,95",
     "WLSMON_MEM_USED_PCT": "85,95",
+    "WLSMON_SWAP_MB": "512,2048",          # swap in use, MB (before: any swap = WARN)
     "WLSMON_DISK_PCT": "80,90",
     "WLSMON_LOG_ERRORS": "1,10",
     "WLSMON_FORMS_SESSIONS": "",           # empty = no limit (per environment)
@@ -141,6 +142,7 @@ class Config(object):
         self.path = path or os.path.join(base, "etc", "wlsmon.conf")
         self.values = dict(DEFAULTS)
         self.unknown = []
+        self.bad = {}             # threshold keys that could not be read -> collector.errors
         self.loaded = False
         if os.path.isfile(self.path):
             self.read(self.path)
@@ -181,6 +183,8 @@ class Config(object):
             a, b = [float(x) for x in v.split(",")]
             return [int(a) if a.is_integer() else a, int(b) if b.is_integer() else b]
         except ValueError:
+            if v.strip():
+                self.bad[key] = v     # reported once per round, the default is used
             return default
 
     def bool(self, key):
@@ -481,10 +485,10 @@ def part_host(rnd):
         avail = mi.get("MemAvailable", mi.get("MemFree", 0))
         free_pct = round(100.0 * avail / mi["MemTotal"], 1)
         swap_used = max(0, mi.get("SwapTotal", 0) - mi.get("SwapFree", 0)) // 1024
-        mem_lv = level_of(100 - free_pct, cfg.pair("WLSMON_MEM_USED_PCT", [85, 95]))
-        if swap_used > 0 and mem_lv == "ok":
-            mem_lv = "warn"
+        mem_lv = worst([level_of(100 - free_pct, cfg.pair("WLSMON_MEM_USED_PCT", [85, 95])),
+                        level_of(swap_used, cfg.pair("WLSMON_SWAP_MB", [512, 2048]))])
     rnd.series["mem_free_pct"] = free_pct
+    rnd.series["swap_mb"] = swap_used
     rnd.metric("mem_free_pct", "host", "Memory free", "Memory free", free_pct, decimals=0, unit="%",
                sub="swap %d MB" % swap_used, level=mem_lv, series="mem_free_pct")
 
@@ -2014,7 +2018,11 @@ def build(rnd):
     thresholds = {"heap_max_pct": cfg.pair("WLSMON_HEAP_PCT", [80, 90]), "load1": thr_load,
                   "cpu_pct": cfg.pair("WLSMON_CPU_PCT", [80, 95]),
                   "mem_used_pct": cfg.pair("WLSMON_MEM_USED_PCT", [85, 95]),
-                  "disk_max_pct": cfg.pair("WLSMON_DISK_PCT", [80, 90])}
+                  "disk_max_pct": cfg.pair("WLSMON_DISK_PCT", [80, 90]),
+                  "swap_mb": cfg.pair("WLSMON_SWAP_MB", [512, 2048])}
+    for k in sorted(cfg.bad):
+        rnd.error("threshold %s=%s unreadable (warn,crit expected) - default %s used"
+                  % (k, cfg.bad[k], DEFAULTS.get(k) or "(none)"))
     files = series_files(rnd, thresholds)
     files["now"] = {
         "schema": SCHEMA, "generated_at": iso(rnd.ts), "interval_sec": INTERVAL,
@@ -2238,6 +2246,108 @@ def detect(argv):
 # =============================================================================
 # Commands
 # =============================================================================
+
+# =============================================================================
+# thresholds - overview and validation for 03-set-thresholds.sh
+# =============================================================================
+# key: (kind, label, now metric ids, day series, value transform)
+#   kind pct   = two numbers 0..100, warn < crit
+#        num   = two numbers >= 0, warn < crit
+#        rev   = two numbers >= 0, warn > crit (lower is worse: days left)
+#        one   = one number >= 0
+#   empty is allowed for keys whose default is empty (no limit / computed)
+THRESHOLD_KEYS = [
+    ("WLSMON_HEAP_PCT", "pct", "heap used % (each WebLogic server)", ("heap_forms_pct", "heap_reports_pct"), "heap_max_pct", None),
+    ("WLSMON_CPU_PCT", "pct", "CPU %", ("cpu_pct",), "cpu_pct", None),
+    ("WLSMON_LOAD", "num", "load average 1 min", ("load1",), "load1", None),
+    ("WLSMON_MEM_USED_PCT", "pct", "memory used %", ("mem_free_pct",), "mem_free_pct", "inv100"),
+    ("WLSMON_SWAP_MB", "num", "swap in use, MB", (), "swap_mb", None),
+    ("WLSMON_DISK_PCT", "pct", "fullest file system %", ("disk_max_pct",), "disk_max_pct", None),
+    ("WLSMON_LOG_ERRORS", "num", "log errors per run", ("log_errors_forms", "log_errors_reports", "log_errors_nginx"), "log_errors", None),
+    ("WLSMON_FORMS_SESSIONS", "num", "Forms sessions", ("forms_sessions",), "forms_sessions", None),
+    ("WLSMON_REPORTS_QUEUE", "num", "queued Reports jobs", (), None, None),
+    ("WLSMON_CERT_DAYS", "rev", "days until certificate expiry", (), None, None),
+    ("WLSMON_RCU_DAYS", "one", "days until RCU password expiry", (), None, None),
+]
+FIXED_LEVELS = ["stuck threads > 0 = CRIT, hogging threads > 0 = WARN",
+                "a DOWN component = CRIT", "a new core dump = CRIT",
+                "log message levels: rules (etc/wlsmon_rules.local.cfg)"]
+
+
+def threshold_check(key, value):
+    """'' when value is valid for key, else the reason"""
+    spec = next((t for t in THRESHOLD_KEYS if t[0] == key), None)
+    if spec is None:
+        return "not a threshold key (%s)" % ", ".join(t[0] for t in THRESHOLD_KEYS)
+    kind = spec[1]
+    v = value.strip()
+    if v == "":
+        return "" if DEFAULTS.get(key, "") == "" else "empty - use --reset for the default"
+    try:
+        nums = [float(x) for x in v.split(",")]
+    except ValueError:
+        return "numbers expected, got %r" % value
+    if kind == "one":
+        if len(nums) != 1 or nums[0] < 0:
+            return "one number >= 0 expected"
+        return ""
+    if len(nums) != 2:
+        return "two numbers 'warn,crit' expected"
+    w, c = nums
+    if w < 0 or c < 0:
+        return "numbers must be >= 0"
+    if kind == "pct" and (w > 100 or c > 100):
+        return "percent values must be 0..100"
+    if kind == "rev":
+        return "" if w > c else "warn must be greater than crit here (lower is worse: WARN at %g days, CRIT at %g)" % (w, c)
+    return "" if w < c else "warn must be lower than crit"
+
+
+def thresholds(argv):
+    """wlsmon.py thresholds [--check KEY=VALUE ...] -> JSON on stdout"""
+    if "--check" in argv:
+        res, rc = [], 0
+        for i, a in enumerate(argv):
+            if a == "--check" and i + 1 < len(argv):
+                k, _, v = argv[i + 1].partition("=")
+                why = threshold_check(k.strip(), v)
+                res.append({"key": k.strip(), "value": v.strip(), "ok": not why, "reason": why})
+                rc = rc or (1 if why else 0)
+        print(json.dumps(res))
+        return rc
+    base = base_dir()
+    cfg = Config(base, opt(argv, "--config"))
+    now = load_json(os.path.join(base, "api", "now.json"), {}) or {}
+    day = load_json(os.path.join(base, "api", "day.json"), {}) or {}
+    mets = dict((m.get("id"), m) for m in now.get("metrics", []))
+    ser = day.get("series", {}) or {}
+    rows = []
+    for key, kind, label, mids, sname, tf in THRESHOLD_KEYS:
+        cur = cfg.get(key)
+        vals = [mets[m].get("value") for m in mids if m in mets and isinstance(mets[m].get("value"), (int, float))]
+        levels = [mets[m].get("level") for m in mids if m in mets]
+        nowv = (max(vals) if tf != "inv100" else 100 - min(vals)) if vals else None
+        if key == "WLSMON_SWAP_MB" and isinstance(ser.get("swap_mb"), list):
+            last = [x for x in ser["swap_mb"] if isinstance(x, (int, float))]
+            nowv = last[-1] if last else None
+        mx = avg = None
+        if sname and isinstance(ser.get(sname), list):
+            xs = [x for x in ser[sname] if isinstance(x, (int, float))]
+            if tf == "inv100":
+                xs = [100 - x for x in xs]
+            if xs:
+                mx, avg = max(xs), round(sum(xs) / len(xs), 1)
+        eff = cfg.int(key, 0) if kind == "one" else cfg.pair(key)
+        if eff is None and key == "WLSMON_LOAD":
+            eff = [os.cpu_count() or 1, 2 * (os.cpu_count() or 1)]     # as the collector computes it
+        rows.append({"key": key, "kind": kind, "label": label, "current": cur, "effective": eff,
+                     "default": DEFAULTS.get(key, ""), "valid": threshold_check(key, cur) == "",
+                     "now": nowv, "max_24h": mx, "avg_24h": avg,
+                     "level": worst(levels) if levels else None, "points_24h": len(ser.get("ts") or [])})
+    print(json.dumps({"config": cfg.path, "generated_at": now.get("generated_at"),
+                      "rows": rows, "fixed": FIXED_LEVELS}))
+    return 0
+
 def base_dir():
     b = os.environ.get("WLSMON_BASE")
     if b:
@@ -2418,6 +2528,7 @@ def main(argv):
         print("usage: wlsmon.py collect [--check] [--out DIR] [--state DIR] [--config FILE] [--secrets-stdin]\n"
               "       wlsmon.py rules --test LOGFILE [--source wls,forms,reports] [--rules FILE]\n"
               "       wlsmon.py detect [--oracle-home DIR] [--apex DIR]\n"
+              "       wlsmon.py thresholds [--check KEY=VALUE ...]\n"
               "       wlsmon.py pull | version")
         return 2
     cmd = argv[1]
@@ -2429,6 +2540,8 @@ def main(argv):
         return pull(argv[2:])
     if cmd == "detect":
         return detect(argv[2:])
+    if cmd == "thresholds":
+        return thresholds(argv[2:])
     if cmd == "monitor-user":
         return monitor_user(argv[2:])
     if cmd == "defaults":

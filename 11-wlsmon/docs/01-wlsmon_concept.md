@@ -725,7 +725,7 @@ $WLSMON_BASE/                 oracle:wlsmon  750
 
 ### 9.2 Installation scripts
 
-Three scripts, run in their order – first the FMW owner, root last, so that
+Three install scripts, run in their order (plus `03-set-thresholds.sh` for the operation afterwards) – first the FMW owner, root last, so that
 the timers start only when everything is in place:
 
 | Script | User | Does |
@@ -733,6 +733,7 @@ the timers start only when everything is in place:
 | `00-setup-interview.sh` | FMW owner (`oracle`) | asks everything for wlsmon (below); without `--apply` it shows the resulting `wlsmon.conf` as a diff, with `--apply` it creates `$WLSMON_BASE/etc/` (oracle owns `admin/`, no root needed), writes `wlsmon.conf` and the secrets to `etc/pending/` |
 | `01-install-wlsmon_fmw.sh` | FMW owner (`oracle`) | copies `bin/wlsmon.py`, `share/wlsmon_rules.cfg`, `www/`; writes `ui.json` (APEX library paths, `WLSMON_LOCALE`); `etc/wlsmon_rules.local.cfg` skeleton (never overwritten); creates the WebLogic monitor user in the group Monitors with the password from `pending/` – a one-time call at installation only, never at runtime; uses the domain administrator stored with `00-Setup/weblogic_sec.sh` (`WL_USER` in `weblogic_sec.conf.des3`, e.g. `webadmin`) or, without the library, asks for user and password (memory only); checks the Reports `monUser`; `wlsmon.py collect --check` |
 | `02-install-wlsmon_root.sh` | root | group `wlsmon` (members `nginx`, `oracle`); `chgrp` + setgid on `www/`, `api/`, `hosts/`; traverse ACLs on the parents if needed; SELinux context; systemd units + timers from templates (`##VARIABLE##` substitution as in `09-Install/04-root_nginx.sh`); Nginx include `/etc/nginx/oracle-wls.d/wlsmon.conf` + `conf.d/wlsmon_zone.conf` from `templates/wlsmon-nginx.conf.template`, blocks of the role switched on with `#@WLSMON_GUI_BEGIN@` / `#@WLSMON_DATA_BEGIN@` markers; `htpasswd` files in `/etc/nginx/` (`openssl passwd -6`); `pending/` → `creds/*.cred` and delete the clear text; `nginx -t` + reload; enable the timers; first run with `systemctl start` and its result |
+| `03-set-thresholds.sh` | FMW owner (`oracle`) | **operation, after the installation:** overview of the WARN / CRIT thresholds next to the value now and the 24-h maximum / average; `--set KEY=w,c`, `--reset KEY`, `--interactive`; checks the values, writes `wlsmon.conf` with a backup, runs `collect --check` – no restart ([operations §3a](04-wlsmon_operations.md#3a-change-the-warn--crit-levels-afterwards)) |
 
 **Options** (all three: without `--apply` a dry run; `--base DIR` for
 another `WLSMON_BASE`; `--help`):
@@ -747,6 +748,7 @@ another `WLSMON_BASE`; `--help`):
 | `01-` | `--remove` | remove the runtime (`etc/` kept and listed) |
 | `02-` | `--no-start` | install, but do not enable the timers and skip the first run |
 | `02-` | `--remove` | reverse everything `02-` did |
+| `03-` | `--set KEY=VALUE` / `--reset KEY` / `--interactive` | change thresholds (repeatable; KEY with or without `WLSMON_`) |
 | `02-` | `--test-root DIR` | **tests only:** `/etc` and `/var/log` below DIR, root commands from a fake `PATH` |
 
 **`wlsmon.py` commands:** `collect [--check]` (one round; `--check` prints
@@ -754,7 +756,7 @@ and writes nothing), `pull` (GUI role, P2), `rules --test LOGFILE` (which
 rule matches which line), `detect` (host facts for the interview: patch cycle of
 the stack patch bundle, fixed / random listeners, core directory, JET /
 font-apex versions below `/i/`), `defaults` (built-in `KEY=value`),
-`monitor-user check|create|reset` (the WebLogic monitor user through
+`thresholds [--check KEY=VALUE]` (overview / validation for `03-`), `monitor-user check|create|reset` (the WebLogic monitor user through
 REST, secrets on stdin – used by `01-`), `version`.
 
 **Single host (role `both`):** the collector writes its own overview tile to
@@ -804,6 +806,7 @@ Planned files in the repository:
 ├── 00-setup-interview.sh          oracle: questions, wlsmon.conf, secrets -> etc/pending/
 ├── 01-install-wlsmon_fmw.sh       oracle: bin/, share/, www/, ui.json, monitor user
 ├── 02-install-wlsmon_root.sh      root: group, systemd, Nginx include, htpasswd, pending -> creds, timers
+├── 03-set-thresholds.sh           oracle, operation: show / check / change the WARN / CRIT thresholds
 ├── wlsmon.py                      the program: collect (data role), pull (GUI role) – stdlib only, python 3.6+
 ├── rules/wlsmon_rules.cfg         default log rules (local additions: $WLSMON_BASE/etc/)
 ├── templates/                     wlsmon.conf, Nginx include + zone, systemd units + timers
@@ -859,6 +862,7 @@ the collector. Keys not in the template can be added by hand.
 | **Thresholds `warn,crit`** | | |
 | `WLSMON_HEAP_PCT` | `80,90` | heap of the servers |
 | `WLSMON_LOAD` | `cores,2×cores` | load average 1 min |
+| `WLSMON_SWAP_MB` | `512,2048` | swap in use, MB – the memory tile takes the worse of this and `WLSMON_MEM_USED_PCT` |
 | `WLSMON_CPU_PCT`, `WLSMON_MEM_USED_PCT`, `WLSMON_DISK_PCT` | `80,95`, `85,95`, `80,90` | host |
 | `WLSMON_LOG_ERRORS` | `1,10` | counted log errors per run |
 | `WLSMON_FORMS_SESSIONS` | empty = no limit | Forms sessions (per environment) |

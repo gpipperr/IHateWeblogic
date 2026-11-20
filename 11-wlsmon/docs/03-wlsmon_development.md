@@ -504,6 +504,23 @@ Found for later steps:
   (Coherence, DB, NFS …) – `WLSMON_EXPECTED_PORTS` needs the interview,
   otherwise the check stays WARN.
 
+### 2026-11-20 – `03-set-thresholds.sh`, swap limit, first customer
+
+- First customer install (one host, both roles): `01-` stopped with
+  "REST: user does not exist" – the state text of `monitor-user check` was in
+  `error`; now `reason`, `error` only for a failed REST call (also unblocks the
+  401 / reset branch).
+- New operation script `03-set-thresholds.sh` (FMW owner): thresholds next to
+  the value now and the 24-h maximum / average, `--set` / `--reset` /
+  `--interactive`, values checked before writing, backup, `collect --check`.
+  Logic in `wlsmon.py thresholds [--check KEY=VALUE]`.
+- `WLSMON_SWAP_MB=512,2048` replaces "any swap in use = WARN" (the customer
+  host showed WARN with 83 % memory used, 1.8 GB swap); series `swap_mb`.
+- An unreadable threshold (e.g. `85;95`) is reported in `collector.errors`
+  instead of silently using the default.
+- Tests: 69 (swap levels, unreadable threshold, value checks, overview,
+  `03-` dry run / refuse / write + backup + append / reset in an isolated copy).
+
 ### 2026-11-20 – JET tooltips on sparklines and charts
 
 - Sparklines: tooltip (time · value) through the data cursor (`dataCursor: on`,

@@ -4,6 +4,8 @@ System files (/proc ...) come from a fake root (WLSMON_TEST_ROOT), network calls
 (http, port checks, TLS, local nginx probe) and subprocesses are replaced.
 Only demo names (orafusion01, fr_domain, repserver01).
 """
+import contextlib
+import io
 import json
 import os
 import stat
@@ -480,3 +482,61 @@ class CollectTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThresholdTest(unittest.TestCase):
+    """WLSMON_SWAP_MB instead of 'any swap = WARN'; unreadable thresholds reported;
+    wlsmon.py thresholds (overview + --check) for 03-set-thresholds.sh"""
+
+    def swap(self, env, used_kb):
+        write(os.path.join(env.root, "proc/meminfo"),
+              MEMINFO.replace("SwapFree:        2000000", "SwapFree:        %7d" % (2000000 - used_kb)))
+
+    def test_swap_levels(self):
+        with TempDir() as d, Env(d) as env:
+            self.swap(env, 100 * 1024)                       # 100 MB < 512
+            self.assertEqual(metric(env.collect()["now"], "mem_free_pct")["level"], "ok")
+            self.swap(env, 600 * 1024)                       # 600 MB >= 512
+            files = env.collect()
+            self.assertEqual(metric(files["now"], "mem_free_pct")["level"], "warn")
+            self.assertEqual(files["day"]["series"]["swap_mb"][-1], 600)
+            self.assertEqual(files["day"]["thresholds"]["swap_mb"], [512, 2048])
+            env.conf({"WLSMON_SWAP_MB": "1024,4096"})
+            self.assertEqual(metric(env.collect()["now"], "mem_free_pct")["level"], "ok")
+
+    def test_unreadable_threshold_is_reported(self):
+        with TempDir() as d, Env(d) as env:
+            env.conf({"WLSMON_HEAP_PCT": "85;95"})
+            now = env.collect()["now"]
+            texts = [e["text"] for e in now["collector"]["errors"]]
+            self.assertTrue(any("WLSMON_HEAP_PCT=85;95 unreadable" in t and "80,90" in t for t in texts), texts)
+
+    def test_check_values(self):
+        c = wlsmon.threshold_check
+        self.assertEqual(c("WLSMON_HEAP_PCT", "85,95"), "")
+        self.assertIn("lower than crit", c("WLSMON_HEAP_PCT", "95,85"))
+        self.assertIn("0..100", c("WLSMON_DISK_PCT", "90,120"))
+        self.assertIn("numbers", c("WLSMON_HEAP_PCT", "85;95"))
+        self.assertIn("two numbers", c("WLSMON_HEAP_PCT", "85"))
+        self.assertEqual(c("WLSMON_CERT_DAYS", "30,7"), "")
+        self.assertIn("greater than crit", c("WLSMON_CERT_DAYS", "7,30"))
+        self.assertEqual(c("WLSMON_FORMS_SESSIONS", ""), "")           # empty default = no limit
+        self.assertIn("--reset", c("WLSMON_HEAP_PCT", ""))
+        self.assertEqual(c("WLSMON_RCU_DAYS", "14"), "")
+        self.assertIn("not a threshold", c("WLSMON_ROLE", "both"))
+        self.assertEqual(c("WLSMON_SWAP_MB", "512,2048"), "")
+
+    def test_overview(self):
+        with TempDir() as d, Env(d) as env:
+            env.collect()
+            env.collect()
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = wlsmon.thresholds([])
+            self.assertEqual(rc, 0)
+            rows = dict((r["key"], r) for r in json.loads(out.getvalue())["rows"])
+            self.assertEqual(rows["WLSMON_LOAD"]["effective"], [8, 16])
+            self.assertEqual(rows["WLSMON_MEM_USED_PCT"]["now"], 75.0)       # 100 - 25 % available
+            self.assertEqual(rows["WLSMON_MEM_USED_PCT"]["max_24h"], 75.0)
+            self.assertEqual(rows["WLSMON_SWAP_MB"]["now"], 0)
+            self.assertTrue(rows["WLSMON_HEAP_PCT"]["valid"])

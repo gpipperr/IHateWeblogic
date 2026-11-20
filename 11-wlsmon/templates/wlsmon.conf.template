@@ -47,10 +47,14 @@ WLSMON_RCU_CHECK=##WLSMON_RCU_CHECK##
 WLSMON_RCU_PREFIX=##WLSMON_RCU_PREFIX##
 WLSMON_DB_MON_USER=##WLSMON_DB_MON_USER##
 
-# --- thresholds "warn,crit" -------------------------------------------------------
+# --- thresholds "warn,crit" (change later: 03-set-thresholds.sh) -----------------
 WLSMON_HEAP_PCT=##WLSMON_HEAP_PCT##
 WLSMON_CPU_PCT=##WLSMON_CPU_PCT##
 WLSMON_MEM_USED_PCT=##WLSMON_MEM_USED_PCT##
+# swap in use (MB) - any swap no longer means WARN by itself
+WLSMON_SWAP_MB=##WLSMON_SWAP_MB##
+# load average 1 min - empty = cores,2*cores of this host
+WLSMON_LOAD=##WLSMON_LOAD##
 WLSMON_DISK_PCT=##WLSMON_DISK_PCT##
 WLSMON_LOG_ERRORS=##WLSMON_LOG_ERRORS##
 WLSMON_FORMS_SESSIONS=##WLSMON_FORMS_SESSIONS##

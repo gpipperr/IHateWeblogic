@@ -284,7 +284,7 @@ if [ -z "$ONE_SECRET" ]; then
     if ! $DEFAULTS_ONLY && [ -t 0 ]; then
         if askYesNo "Change the thresholds (warn,crit)?" n; then
             section "Thresholds"
-            for _k in WLSMON_HEAP_PCT WLSMON_CPU_PCT WLSMON_MEM_USED_PCT WLSMON_DISK_PCT WLSMON_LOG_ERRORS \
+            for _k in WLSMON_HEAP_PCT WLSMON_CPU_PCT WLSMON_MEM_USED_PCT WLSMON_SWAP_MB WLSMON_DISK_PCT WLSMON_LOG_ERRORS \
                       WLSMON_FORMS_SESSIONS WLSMON_REPORTS_QUEUE WLSMON_CERT_DAYS; do
                 _ask "$_k" "$_k (warn,crit)" pair
             done

@@ -63,6 +63,9 @@ backup category). P2 (one GUI host, many data hosts) follows.
   - `01-install-wlsmon_fmw.sh` (FMW owner): program, GUI, monitor user;
   - `02-install-wlsmon_root.sh` (root, last): group and ACLs, credentials,
     Nginx include from a template, systemd units and timers, first run.
+- **Operation:** `03-set-thresholds.sh` (FMW owner) shows the WARN / CRIT
+  limits next to the measured values of the last 24 h and changes them
+  (checked, with backup, no restart).
 
 ## Data flow – who collects what, and who reads it
 
@@ -172,6 +175,8 @@ per rule of `wlsmon_rules.cfg` and the local rules, ignored entries included.
 ./11-wlsmon/01-install-wlsmon_fmw.sh --apply       # FMW owner
 sudo ./11-wlsmon/02-install-wlsmon_root.sh --apply # root, last
 # GUI: https://<host>/wlsmon/   (login from the interview)
+
+./11-wlsmon/03-set-thresholds.sh                   # later: limits vs. measured values, --set KEY=w,c --apply
 ```
 
 Update – new wlsmon version, Oracle patch cycle (`WLSMON_PATCH_BASELINE`),

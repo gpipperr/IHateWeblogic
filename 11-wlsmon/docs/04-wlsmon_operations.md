@@ -158,6 +158,79 @@ Secrets are not in `wlsmon.conf`: systemd credentials in `etc/creds/*.cred`
 
 ---
 
+## 3a. Change the WARN / CRIT levels afterwards
+
+The levels are keys in `wlsmon.conf` – no reinstall, no restart: the next
+timer run (at most 5 minutes) uses the new values, and the limits printed
+under the key-figure tiles change with them.
+
+**With `03-set-thresholds.sh`** (FMW owner, as often as needed – the usual
+way in the first weeks):
+
+```bash
+./11-wlsmon/03-set-thresholds.sh                                  # overview, changes nothing
+./11-wlsmon/03-set-thresholds.sh --set HEAP_PCT=85,95             # dry run: old -> new, checked
+./11-wlsmon/03-set-thresholds.sh --set HEAP_PCT=85,95 --set FORMS_SESSIONS=150,180 --apply
+./11-wlsmon/03-set-thresholds.sh --interactive --apply            # ask each key: Enter = keep, - = default
+./11-wlsmon/03-set-thresholds.sh --reset HEAP_PCT --apply         # back to the built-in default
+```
+
+- The **overview** puts every threshold next to the value measured now and
+  the maximum / average of the last 24 h (`day.json`); a limit the last 24 h
+  reached is marked WARN – the first hint that it fires in normal operation.
+- Values are **checked before anything is written:** two numbers, WARN
+  below CRIT (reversed for the certificate days), percent 0..100. A bad value
+  stops the run, nothing is written.
+- `--apply` keeps a backup `wlsmon.conf.bak_<timestamp>`, changes only the
+  named lines (adds a key that is not in the file yet) and runs
+  `collect --check`. Keys may be given with or without `WLSMON_`.
+- Needs the current program: after a `git pull` run `01-install-wlsmon_fmw.sh
+  --apply` first (the script warns when `bin/wlsmon.py` is older).
+
+**Other ways:** the interview (`00-setup-interview.sh --apply`, answer "y" at
+"Change the thresholds") or an edit of `etc/wlsmon.conf` by hand (copy it
+first, check with `python3 $WLSMON_BASE/bin/wlsmon.py collect --check`).
+
+**Format `warn,crit`:** two numbers, a value **at or above** the first is
+WARN, at or above the second CRIT. A value the collector cannot read (e.g.
+`85;95` after a hand edit) falls back to the built-in default and is
+reported in `collector.errors` – shown in the GUI.
+
+| Key | Default | Measured value | Note |
+|---|---|---|---|
+| `WLSMON_HEAP_PCT` | `80,90` | heap used % of each WebLogic server | |
+| `WLSMON_CPU_PCT` | `80,95` | CPU % since the last run | |
+| `WLSMON_LOAD` | cores, 2 × cores | load average 1 min | not asked by the interview – add the line by hand, e.g. `WLSMON_LOAD=6,12` |
+| `WLSMON_MEM_USED_PCT` | `85,95` | memory **used** % = 100 − `MemAvailable` % | the tile shows *free* %; its level is the worse of this and the swap limit |
+| `WLSMON_SWAP_MB` | `512,2048` | swap in use, MB | shown under the memory tile; until 2026-11-20 any swap meant WARN |
+| `WLSMON_DISK_PCT` | `80,90` | fullest of the watched file systems | which ones: `WLSMON_DISKS` |
+| `WLSMON_LOG_ERRORS` | `1,10` | counted log errors per run and component | which messages count: log rules below |
+| `WLSMON_FORMS_SESSIONS` | empty = no limit | active Forms sessions | set per environment, e.g. near `maxRuntimeProcesses` |
+| `WLSMON_REPORTS_QUEUE` | `5,20` | queued Reports jobs | |
+| `WLSMON_CERT_DAYS` | `30,7` | days until a certificate expires | **reversed:** lower is worse – WARN at 30 days or less, CRIT at 7 or less |
+| `WLSMON_RCU_DAYS` | `30` | days until an RCU schema password expires | one number (WARN below it) |
+
+Stuck threads (> 0 = CRIT), hogging threads (> 0 = WARN), a DOWN component
+and core dumps have fixed levels – they are always worth a look.
+
+**Levels of log messages** come from the rules, not from `wlsmon.conf`. In
+`$WLSMON_BASE/etc/wlsmon_rules.local.cfg` (never overwritten by an update) a
+rule with the **same id** replaces the default rule of
+`share/wlsmon_rules.cfg`:
+
+```
+# lower a default rule from crit to warn
+match;db_closed;warn;*;ORA-17008|ORA-03113;DB restart window every night (agreed 2026-11-20)
+# drop a known harmless message - a reason is mandatory
+ignore;forms_noise_01;-;forms;FRM-93652.*WebUtil;checked in the Forms logs 2026-11-20, client closed by the user
+```
+
+Test a rule against a copy of a real log before it goes live:
+`python3 $WLSMON_BASE/bin/wlsmon.py rules --test <logfile> --source wls,forms`.
+A rule with a bad regex is skipped and reported in `collector.errors`.
+
+---
+
 ## 4. Known faults and their fix
 
 | Symptom | Cause | Fix |
@@ -165,7 +238,7 @@ Secrets are not in `wlsmon.conf`: systemd credentials in `etc/creds/*.cred`
 | **403** on JS / CSS / JSON, host page without data, overview **stale** | files below `www/`, `api/`, `hosts/` are not group `wlsmon` – the setgid bit of the directories is gone. Linux clears setgid on every `chmod` by an owner who is not in the file's group; an oracle login older than the `usermod -aG wlsmon` of `02-` is such an owner (2026-11-20) | `sudo 02-install-wlsmon_root.sh --apply` (group, 2750, 640). `01-install` changes modes only when they differ and warns when a file is not group `wlsmon` |
 | `hosts.json` 404 on a single host | collector older than 2026-11-20 (wrote no own tile) | `01-install-wlsmon_fmw.sh --apply` |
 | Disk WARN for the core directory, but the disk is fine | `PrivateTmp=yes` hides `/var/tmp/core` from the service | unit with `BindReadOnlyPaths=-<core dir>` – `02-install-wlsmon_root.sh --apply` |
-| Host WARN "Memory free" | a real finding on a small host – `WLSMON_MEM_USED_PCT` | adjust the threshold only if the value is normal for this host |
+| Host WARN "Memory free" | used memory at or above `WLSMON_MEM_USED_PCT`, **or** swap in use at or above `WLSMON_SWAP_MB` (free memory may look fine while the host already swaps) | look at the swap figure under the tile; change the limits with `03-set-thresholds.sh` (section 3a) |
 | nginx error count contains the monitor's own probe | older collector counted the security probe of `/management/weblogic/latest` from 127.0.0.1 | `01-install-wlsmon_fmw.sh --apply` |
 | REST components "n/a", 401 in `collector.errors` | monitor user password differs from the credential; the collector pauses 30 min after a 401 (`WLSMON_401_PAUSE_MIN`, avoids the realm lockout) | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
 | `rep_<server>` "not checked" in `collect --check` | the check by hand has no service credentials | normal – the service reads `reports_mon` |

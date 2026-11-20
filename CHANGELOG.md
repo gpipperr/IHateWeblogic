@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-20
 
+- **11-wlsmon at the first customer, `03-set-thresholds.sh`:** fix for a
+  missing monitor user (01- now creates it); new operation script to show
+  and change the WARN / CRIT limits next to the measured values of the last
+  24 h (checked, backup, no restart); swap limit `WLSMON_SWAP_MB` instead of
+  "any swap = WARN"; unreadable thresholds are reported; operations page
+  §0 users, §1a update, §3a thresholds; favicon.
 - **11-wlsmon docs completed:** new
   [operations page](11-wlsmon/docs/04-wlsmon_operations.md) (install / update /
   remove, status and logs, known faults: 403 after lost setgid, stale, false
