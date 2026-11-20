@@ -1,0 +1,94 @@
+# =============================================================================
+# wlsmon - nginx locations, rendered by 11-wlsmon/02-install-wlsmon_root.sh to
+# /etc/nginx/oracle-wls.d/wlsmon.conf and included INSIDE the 443 server block
+# of /etc/nginx/conf.d/oracle-wls.conf (09-Install/nginx-wls.conf.template).
+# Concept section 6 (11-wlsmon/docs/01-wlsmon_concept.md).
+#
+#   ##WLSMON_BASE##          WLSMON_BASE ($ORACLE_BASE/admin/wlsmon)
+#   ##ADMIN_IP_RANGE##       networks of the admins, one allow line each (GUI)
+#   ##WLSMON_GUI_IP##        IP of the GUI host A (data role)
+#   ##WLSMON_STYLE_SRC##     CSP style-src ('self', + 'unsafe-inline' only if
+#                            the JET spike needs it - development plan step 3)
+#   ##WLSMON_I_DIR##         /i/ for hosts without APEX (block WLSMON_I)
+#
+# Blocks, switched on / off by the role (marker technique of the nginx template):
+#   #@WLSMON_GUI_BEGIN@ ... GUI host A (role gui | both): GUI, pulled data of
+#                           every host in hosts/<id>/, own data in api/
+#   #@WLSMON_DATA_BEGIN@ .. data host B (role data): only the 7 JSON files,
+#                           only for the IP of A + the shared pull user
+#   #@WLSMON_I_BEGIN@ ..... /i/ from the APEX images folder in WLSMON_BASE -
+#                           only when no APEX include routes /i/ already
+# Rules: GET / HEAD only; whitelist of the JSON files, everything else 404;
+# the security headers in EVERY location (add_header is not inherited by a
+# location that has its own add_header); /console and /management are never
+# routed here. Remove: delete this file + nginx -t + reload.
+# =============================================================================
+
+#@WLSMON_GUI_BEGIN@
+location = /wlsmon { return 301 /wlsmon/; }
+
+location ^~ /wlsmon/ {
+    include              /etc/nginx/wlsmon/headers.conf;
+    auth_basic           "wlsmon";
+    auth_basic_user_file /etc/nginx/wlsmon/htpasswd;
+    allow                ##ADMIN_IP_RANGE##;
+    deny                 all;
+    limit_except GET { deny all; }
+    limit_req            zone=wlsmon burst=20 nodelay;
+    alias                ##WLSMON_BASE##/www/;
+    index                index.html;
+    access_log           off;
+
+    # pulled data of every host (P2) and the overview
+    location ~ ^/wlsmon/hosts/([A-Za-z0-9._-]+)/(now|day|week|history|patch|security|logs)\.json$ {
+        include      /etc/nginx/wlsmon/headers.conf;
+        add_header   Cache-Control "no-store" always;
+        alias        ##WLSMON_BASE##/hosts/$1/$2.json;
+        default_type application/json;
+    }
+    location = /wlsmon/hosts.json {
+        include      /etc/nginx/wlsmon/headers.conf;
+        add_header   Cache-Control "no-store" always;
+        alias        ##WLSMON_BASE##/hosts/hosts.json;
+        default_type application/json;
+    }
+    # own data of this host (phase 1: A is also the data host)
+    location ~ ^/wlsmon/api/(now|day|week|history|patch|security|logs)\.json$ {
+        include      /etc/nginx/wlsmon/headers.conf;
+        add_header   Cache-Control "no-store" always;
+        alias        ##WLSMON_BASE##/api/$1.json;
+        default_type application/json;
+    }
+    # everything else below api/ and hosts/ (temporary files, demo data): 404.
+    # Plain prefix, NOT ^~ - with ^~ nginx would skip the whitelist regexes above
+    # (found in the loopback test of development plan step 8, 2026-11-19)
+    location /wlsmon/api/   { return 404; }
+    location /wlsmon/hosts/ { return 404; }
+    location ~ /\.             { return 404; }
+}
+#@WLSMON_GUI_END@
+
+#@WLSMON_DATA_BEGIN@
+location ~ ^/wlsmon/api/(now|day|week|history|patch|security|logs)\.json$ {
+    include              /etc/nginx/wlsmon/headers.conf;
+    add_header           Cache-Control "no-store" always;
+    auth_basic           "wlsmon data";
+    auth_basic_user_file /etc/nginx/wlsmon/pull_htpasswd;
+    allow                ##WLSMON_GUI_IP##;
+    deny                 all;
+    limit_except GET { deny all; }
+    limit_req            zone=wlsmon burst=20 nodelay;
+    alias                ##WLSMON_BASE##/api/$1.json;
+    default_type         application/json;
+    access_log           off;
+}
+location ^~ /wlsmon/ { return 404; }
+#@WLSMON_DATA_END@
+
+#@WLSMON_I_BEGIN@
+location /i/ {
+    alias      ##WLSMON_I_DIR##/;
+    expires    7d;
+    access_log off;
+}
+#@WLSMON_I_END@

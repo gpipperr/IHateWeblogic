@@ -1,0 +1,60 @@
+# =============================================================================
+# wlsmon.conf - configuration of wlsmon on this host, written by
+# 11-wlsmon/00-setup-interview.sh (a second run offers these values again).
+# KEY=value, no shell syntax; read only by wlsmon.py (concept section 4).
+# Thresholds "warn,crit" (concept 4.2). Secrets are NOT here: they are
+# systemd credentials in etc/creds/ (concept 3b).
+# =============================================================================
+
+# --- this host ----------------------------------------------------------------
+WLSMON_ROLE=##WLSMON_ROLE##
+WLSMON_HOST_ID=##WLSMON_HOST_ID##
+WLSMON_PRODUCT=##WLSMON_PRODUCT##
+WLSMON_ENV=##WLSMON_ENV##
+WLSMON_LOCALE=##WLSMON_LOCALE##
+
+# --- domain -------------------------------------------------------------------
+WLSMON_DOMAIN_HOME=##DOMAIN_HOME##
+WLSMON_ORACLE_HOME=##ORACLE_HOME##
+WLSMON_ADMIN_URL=##WLSMON_ADMIN_URL##
+WLSMON_ADMIN_SERVER=##WLSMON_ADMIN_SERVER##
+WLSMON_FORMS_SERVER=##WLSMON_FORMS_SERVER##
+WLSMON_REPORTS_SERVER=##WLSMON_REPORTS_SERVER##
+WLSMON_SERVER_PORTS=##WLSMON_SERVER_PORTS##
+WLSMON_NM_PORT=##WLSMON_NM_PORT##
+# WebLogic user of the monitor (group Monitors only, created by 01-install)
+WLSMON_MON_USER=##WLSMON_MON_USER##
+
+# --- Reports ------------------------------------------------------------------
+WLSMON_REPORTS_URL=##WLSMON_REPORTS_URL##
+WLSMON_REPORTS_SERVERS=##WLSMON_REPORTS_SERVERS##
+WLSMON_REPORTS_MON_USER=##WLSMON_REPORTS_MON_USER##
+
+# --- host, logs, nginx ----------------------------------------------------------
+# disks: "label=path ..." (empty = domain, logs, /tmp + the core directory)
+WLSMON_DISKS=##WLSMON_DISKS##
+WLSMON_NGINX_PORT=##WLSMON_NGINX_PORT##
+WLSMON_EXPECTED_PORTS=##WLSMON_EXPECTED_PORTS##
+WLSMON_APEX_DIR=##WLSMON_APEX_DIR##
+
+# --- daily / hourly -------------------------------------------------------------
+# expected CPU / CSPU cycle (YYYY-MM) for the patch level tab
+WLSMON_PATCH_BASELINE=##WLSMON_PATCH_BASELINE##
+# RCU schema check (DB monitor user agreed with the DBA, credential db_monitor)
+WLSMON_RCU_CHECK=##WLSMON_RCU_CHECK##
+WLSMON_RCU_PREFIX=##WLSMON_RCU_PREFIX##
+WLSMON_DB_MON_USER=##WLSMON_DB_MON_USER##
+
+# --- thresholds "warn,crit" -------------------------------------------------------
+WLSMON_HEAP_PCT=##WLSMON_HEAP_PCT##
+WLSMON_CPU_PCT=##WLSMON_CPU_PCT##
+WLSMON_MEM_USED_PCT=##WLSMON_MEM_USED_PCT##
+WLSMON_DISK_PCT=##WLSMON_DISK_PCT##
+WLSMON_LOG_ERRORS=##WLSMON_LOG_ERRORS##
+WLSMON_FORMS_SESSIONS=##WLSMON_FORMS_SESSIONS##
+WLSMON_REPORTS_QUEUE=##WLSMON_REPORTS_QUEUE##
+WLSMON_CERT_DAYS=##WLSMON_CERT_DAYS##
+
+# --- GUI role (P2): data hosts "id=https://host ...", CA of the internal PKI ------
+WLSMON_PULL_HOSTS=##WLSMON_PULL_HOSTS##
+WLSMON_PULL_CAFILE=##WLSMON_PULL_CAFILE##

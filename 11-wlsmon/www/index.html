@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>wlsmon · Overview</title>
+<link rel="stylesheet" href="css/wlsmon.css">
+<script src="js/wlsmon_libs.js" defer></script>
+<script src="js/overview.js" defer></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="top-title">
+      <span class="eyebrow">IHateWeblogic · wlsmon</span>
+      <div class="title-row">
+        <h1>Overview</h1>
+      </div>
+      <span id="ov-subtitle" class="subtitle">Forms &amp; Reports hosts</span>
+    </div>
+    <div class="top-meta">
+      <span>As of <span id="ov-stamp">…</span></span>
+      <button type="button" id="refresh-btn" class="theme-btn refresh-btn" title="Reload all data now">
+        <svg class="icon" data-icon="refresh" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><polyline points="20 4 20 9 15 9"/></svg>
+        <span>Refresh</span> <span id="refresh-timer" class="refresh-timer">5:00</span>
+      </button>
+      <button type="button" id="theme-btn" class="theme-btn" aria-label="Colour mode">Theme: auto</button>
+    </div>
+    <a class="logo" href="https://github.com/gpipperr/IHateWeblogic" title="IHateWeblogic on GitHub">
+      <img src="img/ihw_logo.png" alt="IHateWeblogic" width="56" height="56">
+    </a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="ov-summary" aria-label="Summary" aria-live="polite">
+    <div id="ov-counts" class="ov-counts"></div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Environment">
+        <button type="button" data-env="all" aria-pressed="true">All</button>
+        <button type="button" data-env="prod" aria-pressed="false">Production</button>
+        <button type="button" data-env="qa" aria-pressed="false">QA</button>
+        <button type="button" data-env="test" aria-pressed="false">Test</button>
+        <button type="button" data-env="dev" aria-pressed="false">Development</button>
+      </div>
+      <label class="field field-grow"><span>Search</span>
+        <input id="ov-search" type="search" placeholder="host, product or domain" autocomplete="off">
+      </label>
+    </div>
+  </section>
+
+  <div id="ov-groups" class="ov-groups"></div>
+
+  <footer class="foot">
+    <span class="muted small">Data: /wlsmon/hosts.json, written by wlsmon.py pull every 5 min · a host without new data for 2 intervals is STALE · locale <span id="locale"></span></span>
+    <span id="fetch-error" class="small err" role="status"></span>
+  </footer>
+
+</main>
+</body>
+</html>

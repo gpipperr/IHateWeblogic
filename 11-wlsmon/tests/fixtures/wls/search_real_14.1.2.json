@@ -1,0 +1,150 @@
+{
+ "serverRuntimes": {
+  "items": [
+   {
+    "state": "RUNNING",
+    "openSocketsCurrentCount": 3,
+    "healthState": {
+     "state": "ok",
+     "subsystemName": "ServerRuntime",
+     "symptoms": []
+    },
+    "name": "WLS_REPORTS",
+    "threadPoolRuntime": {
+     "executeThreadTotalCount": 54,
+     "pendingUserRequestCount": 2,
+     "stuckThreadCount": 0,
+     "hoggingThreadCount": 0
+    },
+    "JDBCServiceRuntime": {
+     "JDBCDataSourceRuntimeMBeans": {
+      "items": [
+       {
+        "state": "Running",
+        "name": "opss-audit-DBDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-data-source",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-audit-viewDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       }
+      ]
+     }
+    },
+    "JVMRuntime": {
+     "heapSizeCurrent": 2147483648,
+     "heapFreeCurrent": 1295195056,
+     "heapSizeMax": 2147483648,
+     "heapFreePercent": 60
+    }
+   },
+   {
+    "state": "RUNNING",
+    "openSocketsCurrentCount": 3,
+    "healthState": {
+     "state": "ok",
+     "subsystemName": "ServerRuntime",
+     "symptoms": []
+    },
+    "name": "WLS_FORMS",
+    "threadPoolRuntime": {
+     "executeThreadTotalCount": 63,
+     "pendingUserRequestCount": 0,
+     "stuckThreadCount": 0,
+     "hoggingThreadCount": 0
+    },
+    "JDBCServiceRuntime": {
+     "JDBCDataSourceRuntimeMBeans": {
+      "items": [
+       {
+        "state": "Running",
+        "name": "opss-audit-DBDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-data-source",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-audit-viewDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       }
+      ]
+     }
+    },
+    "JVMRuntime": {
+     "heapSizeCurrent": 2147483648,
+     "heapFreeCurrent": 1361644624,
+     "heapSizeMax": 2147483648,
+     "heapFreePercent": 63
+    }
+   },
+   {
+    "state": "RUNNING",
+    "openSocketsCurrentCount": 7,
+    "healthState": {
+     "state": "ok",
+     "subsystemName": "ServerRuntime",
+     "symptoms": []
+    },
+    "name": "AdminServer",
+    "threadPoolRuntime": {
+     "executeThreadTotalCount": 74,
+     "pendingUserRequestCount": 5,
+     "stuckThreadCount": 0,
+     "hoggingThreadCount": 0
+    },
+    "JDBCServiceRuntime": {
+     "JDBCDataSourceRuntimeMBeans": {
+      "items": [
+       {
+        "state": "Running",
+        "name": "opss-audit-DBDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "LocalSvcTblDataSource",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-data-source",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       },
+       {
+        "state": "Running",
+        "name": "opss-audit-viewDS",
+        "activeConnectionsCurrentCount": 0,
+        "waitingForConnectionCurrentCount": 0
+       }
+      ]
+     }
+    },
+    "JVMRuntime": {
+     "heapSizeCurrent": 1195376640,
+     "heapFreeCurrent": 720526464,
+     "heapSizeMax": 1610612736,
+     "heapFreePercent": 70
+    }
+   }
+  ]
+ }
+}

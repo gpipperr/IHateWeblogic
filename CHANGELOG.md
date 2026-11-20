@@ -8,7 +8,35 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-20
+
+- **New page [80-FMW-Architecture/weblogic_rest_monitoring.md](80-FMW-Architecture/weblogic_rest_monitoring.md):**
+  monitoring WebLogic 14.1.2 with the REST Management API – one search POST,
+  field names verified on the test host (real answer as fixture), timing
+  (first call 11 s, then 0.2 s), read-only monitor user, no lockout, fallback,
+  `/management` only on localhost.
+- **11-wlsmon collector live on the test host** (not installed): REST
+  verified, `collect --secrets-stdin`, a round every 5 minutes into scratch.
+  Security checks for the WebLogic administration rebuilt: `mgmt_rest_proxied`
+  (Nginx configuration + probe with Host / SNI), `admin_locations` (`/console`,
+  `/em` only with `deny all`), `admin_listen` (AdminServer on the loopback).
+
 ## 2026-11-19
+
+- **11-wlsmon steps 0–8 implemented** (not installed yet) – progress log in
+  [docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md#9-progress-log).
+  - `wlsmon.py` (python3 stdlib, 3.6): collector parts host, WebLogic REST
+    (field names still to verify), Reports `getserverinfo`, Forms sessions,
+    nginx, logs with `rules/wlsmon_rules.cfg`, core dumps, RCU (off), daily
+    patch level from the inventory files, hourly security checks; levels,
+    topology, rollups – the 7 JSON files of the contract.
+  - GUI of the prototype v3 in `www/`, font-apex icons and Oracle JET charts
+    from `/i/` with SVG fallback; test server `tools/devserver.py` with the
+    production CSP.
+  - Templates (wlsmon.conf, nginx include, systemd) with one renderer; tested
+    with a throwaway nginx on the loopback.
+  - `tools/ci_lint.sh`: Python 3.6 syntax + unittest (46 tests), ES5 syntax
+    of the GUI via Nashorn.
 
 - **11-wlsmon development plan:**
   [docs/03-wlsmon_development.md](11-wlsmon/docs/03-wlsmon_development.md).

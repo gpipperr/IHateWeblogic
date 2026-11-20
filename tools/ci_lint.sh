@@ -6,6 +6,10 @@
 #              1. bash -n        every *.sh and *.sh.template      -> gate
 #              2. shellcheck -S error   (real errors only)         -> gate
 #              3. shellcheck -S warning (report only, never fails)
+#              P. python: py_compile + Python 3.6 syntax (OL8) for every *.py
+#                 under 11-wlsmon/, then its unittests              -> gate
+#              J. javascript: ES5 syntax of 11-wlsmon/www/js via Nashorn (jjs
+#                 of a JDK 8-14) - skipped when no jjs exists (CI) -> gate
 # Call     : tools/ci_lint.sh               from anywhere inside the repo
 # Exit     : 0 = gate passed, 1 = bash -n or shellcheck error, 2 = setup error
 # Needs    : bash, git; shellcheck for steps 2 + 3 (missing locally -> skipped
@@ -14,7 +18,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-VERSION="2026-11-11.2"
+VERSION="2026-11-19.1"
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { printf 'not inside a git repository\n' >&2; exit 2; }
 cd "$ROOT" || exit 2
@@ -39,6 +43,42 @@ if [ "$fail" -eq 0 ]; then
 else
     printf 'FAIL  %d file(s) with syntax errors\n\n' "$fail"
     RC=1
+fi
+
+# --- P. python (11-wlsmon: stdlib only, must run on python 3.6 / OL8) -------
+mapfile -t PYFILES < <(git ls-files '11-wlsmon/*.py')
+if [ "${#PYFILES[@]}" -gt 0 ]; then
+    printf '== P. python 3.6 syntax + unittest (%d files)\n' "${#PYFILES[@]}"
+    if ! command -v python3 >/dev/null 2>&1; then
+        printf 'FAIL  python3 not found\n\n'
+        RC=1
+    elif out="$(python3 -I tools/py36_check.py "${PYFILES[@]}" 2>&1)"; then
+        printf 'OK    %s\n' "$out"
+        if [ -d 11-wlsmon/tests ]; then
+            if out="$(cd 11-wlsmon && python3 -I -m unittest discover -s tests -t . 2>&1)"; then
+                printf 'OK    unittest: %s\n\n' "$(printf '%s\n' "$out" | grep -E '^Ran ')"
+            else
+                printf 'FAIL  unittest\n%s\n\n' "$out"
+                RC=1
+            fi
+        else
+            printf '\n'
+        fi
+    else
+        printf 'FAIL  %s\n\n' "$out"
+        RC=1
+    fi
+fi
+
+# --- J. javascript syntax (11-wlsmon GUI, plain ES5) -------------------------
+if [ -x 11-wlsmon/tools/js_syntax_check.sh ] && git ls-files --error-unmatch 11-wlsmon/www/js >/dev/null 2>&1; then
+    printf '== J. javascript ES5 syntax\n'
+    out="$(11-wlsmon/tools/js_syntax_check.sh 2>&1)"
+    case $? in
+        0) printf 'OK    %s file(s)\n\n' "$(printf '%s\n' "$out" | grep -c '^OK')" ;;
+        3) printf '%s\n\n' "$out" ;;
+        *) printf '%s\n\n' "$out" | grep -v '^OK'; RC=1 ;;
+    esac
 fi
 
 # --- 2. + 3. shellcheck --------------------------------------------------------

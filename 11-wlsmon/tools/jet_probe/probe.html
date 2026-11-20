@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wlsmon JET probe</title>
+<link rel="stylesheet" href="../css/wlsmon.css">
+<script src="../js/wlsmon_libs.js" defer></script>
+<script src="../js/wlsmon_charts.js" defer></script>
+<script src="probe.js" defer></script>
+</head>
+<body>
+<main class="wrap">
+  <h1>wlsmon – JET probe (development plan step 3)</h1>
+  <p class="muted small">Served only by tools/devserver.py. Results also go to the devserver terminal.</p>
+  <ul id="result"></ul>
+  <div class="chart"><div class="chart-head"><span class="chart-title">Two series, thresholds 80 / 90</span></div><div id="c1" class="chart-box"></div></div>
+  <div class="chart"><div class="chart-head"><span class="chart-title">One series with area</span></div><div id="c2" class="chart-box"></div></div>
+  <div class="kpi"><span class="kpi-label">Sparkline</span><div id="c3"></div></div>
+</main>
+</body>
+</html>

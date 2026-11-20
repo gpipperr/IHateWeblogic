@@ -8,8 +8,8 @@ description: "Concept of a read-only runtime monitor for Oracle Forms & Reports 
 
 ← [11-wlsmon](../README.md)
 
-**State 2026-11-19: concept.** No script exists yet; the build order is in
-the [development plan](03-wlsmon_development.md). This document is the
+**State 2026-11-19: concept; development steps 0–8 implemented** – build
+order and progress in the [development plan](03-wlsmon_development.md). This document is the
 master for the scripts that follow (Doc-as-Master, as in `09-Install/docs/`).
 
 **Source:** a first plan and a frontend prototype by Gunther (2026-11-18):
@@ -394,7 +394,7 @@ then `os.replace`).
 
 | Area | Source | Reuse from the repository |
 |---|---|---|
-| Server state, health, heap, stuck / hogging threads, JDBC data sources | WebLogic REST `…/management/weblogic/latest/domainRuntime/search` (one POST, prototype plan 6.1); target list from `domainConfig/servers` – a missing server = DOWN | new – nothing in the repository uses the REST API yet; field names to verify on 14.1.2 |
+| Server state, health, heap, stuck / hogging threads, JDBC data sources | WebLogic REST `…/management/weblogic/latest/domainRuntime/search` (one POST, prototype plan 6.1); target list from `domainConfig/servers` – a missing server = DOWN | field names verified on 14.1.2 (2026-11-20): [80-FMW-Architecture/weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md) |
 | Fallback when the AdminServer is down | `http://localhost:<port>/weblogic/ready` per server, port checks | `70-Customer-Projects/tools/bash/status.sh` (ready probe), `01-Run/startStop.sh` (`_port_listening`) |
 | Reports server: engines busy / idle, queue, failed jobs | `getserverinfo` per POST with the existing Reports user `monUser` (role `RW_MONITOR`) | the request (POST, all parameters in the body) and the verdict rules of `01-Run/reports_server_lib.sh` (`rws_fetch_serverinfo`, `rws_http_verdict`) and the XML fields of `01-Run/rwserver_status.sh`, ported to Python |
 | Forms: sessions vs. prestart pool | `frmweb` processes from `/proc/<pid>/cmdline` + `ss` (a runtime with a client connection = session) | rule of `06-FormsDiag/forms_perf_analyse.sh` |
@@ -744,9 +744,12 @@ Planned files in the repository:
 ├── rules/wlsmon_rules.cfg         default log rules (local additions: $WLSMON_BASE/etc/)
 ├── templates/                     wlsmon.conf, Nginx include + zone, systemd units + timers
 ├── www/                           GUI source from the prototype v3 (index.html, host.html, js/, css/, img/ – no own JS libraries)
+│   ├── js/wlsmon_libs.js          ui.json, font-apex icons from /i/ (SVG fallback)
 │   └── js/wlsmon_charts.js        chart layer: Oracle JET from /i/, SVG fallback
 ├── tests/                         unittest (stdlib) + fixtures/ with demo data only
-└── tools/                         gen_sample_data.py (sample data), check_contract.py (contract check)
+└── tools/                         gen_sample_data.py (sample data), check_contract.py (contract check),
+                                   render_template.py (the one template renderer), devserver.py (GUI test
+                                   server with the production CSP), js_syntax_check.sh, jet_probe/
 ```
 
 ## 10. Phases
@@ -762,7 +765,6 @@ The ordered steps with files and done criteria:
 
 ## 11. Open points
 
-- REST field names on 14.1.2 (`healthState` as an object, heap fields).
 - Create the WebLogic monitor user with one REST call (`createUser`,
   `addMemberToGroup` of the DefaultAuthenticator) instead of a WLST JVM –
   to verify on 14.1.2.
@@ -777,6 +779,8 @@ The ordered steps with files and done criteria:
   the RCU password as one more systemd credential.
 
 Answered by the repository:
+- the REST field names on 14.1.2 – verified 2026-11-20,
+  [weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md);
 - the Reports figures come from `getserverinfo` with `monUser`;
 - the web tier is the library's Nginx with the include directory
   `/etc/nginx/oracle-wls.d/`;

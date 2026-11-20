@@ -9,8 +9,10 @@ description: "Development plan of the wlsmon runtime monitor for Oracle Forms & 
 ← [11-wlsmon](../README.md) · [concept](01-wlsmon_concept.md) ·
 [interface design](02-wlsmon_interface_design.md)
 
-**State 2026-11-19: plan.** No step is started yet. This document is the
-master for the **build order**. Two other documents are the master for the
+**State 2026-11-19 evening: steps 0–8 implemented** (code in the repository,
+46 unit tests green, nothing installed on the test host). Open in them: the
+browser checks of steps 2–4 and the REST verification of 6b – both need
+Gunther (section 9). This document is the master for the **build order**. Two other documents are the master for the
 **content**:
 - the concept (what is built);
 - the interface design (how it looks).
@@ -318,8 +320,11 @@ One part per source. Each part:
   - `limit_except GET`;
   - `/i/` reused from the APEX include when it is there.
 - `templates/wlsmon_zone.conf` (`limit_req_zone`, http context).
-- Rendering `##VARIABLE##` as in `09-Install/04-root_nginx.sh`; marker
-  technique of the Nginx template; SELinux / include pattern of
+- Rendering with **one** renderer, `tools/render_template.py` (used by the
+  three install scripts and the tests): `##VARIABLE##`, marker blocks, and a
+  list variable like `ADMIN_IP_RANGE` (one `allow` line per network, `any`
+  removes the line and its `deny all;`) – the rules of
+  `09-Install/04-root_nginx.sh`; SELinux / include pattern of
   `12-APEX-Ords/05-setup-nginx.sh`.
 - **Done when:**
   - the render test in a scratch directory produces both roles;
@@ -443,7 +448,7 @@ One part per source. Each part:
 
 | Open point (concept §11) | Answered in |
 |---|---|
-| REST field names on 14.1.2 | 6b (read-only verification first) |
+| REST field names on 14.1.2 | 6b – **verified 2026-11-20**, [weblogic_rest_monitoring.md](../../80-FMW-Architecture/weblogic_rest_monitoring.md) |
 | REST `createUser` for the monitor user | 10 |
 | JET without Knockout under the strict CSP | 3 |
 | `sqlplus` in every F&R home, DB monitor user for the RCU check | 6h (agreement with the DBA per customer) |
@@ -467,3 +472,60 @@ One part per source. Each part:
   - only sanitised demo data;
   - real test-host output only after replacing host, domain and user names
     with the demo set.
+
+## 9. Progress log
+
+### 2026-11-19 – steps 0 to 8
+
+| Step | State | Result / finding |
+|---|---|---|
+| 0 | done | `tools/ci_lint.sh` step P (py_compile, Python 3.6 syntax via `tools/py36_check.py`, unittest) and step J (ES5 syntax of `www/js` via Nashorn, `11-wlsmon/tools/js_syntax_check.sh` – skipped without a `jjs`). Python 3.9's parser does not enforce `feature_version` for everything, so `py36_check.py` walks the AST itself (walrus, positional-only, `X \| Y`, `capture_output=`, `fromisoformat` …) |
+| 1 | done | `tools/gen_sample_data.py` (from the prototype, `--out` mandatory), `tools/check_contract.py` – all 6 scenarios + demo `hosts.json` pass, 10 negative tests fail as they should |
+| 2 | done, **browser check open** | `www/` from the prototype v3; icons through `js/wlsmon_libs.js` (font-apex from `ui.json`, inline SVG fallback); `tests/test_gui_rules.py` enforces the CSP rules (no inline code / style, no `innerHTML`, no `eval`, no external URL, plain ES5). Test server `tools/devserver.py` with the production CSP; it prints CSP violations and browser JS errors in its terminal |
+| 3 | **nearly passed** (2026-11-19 17:45: charts render under the strict CSP without violations, ~450 ms, ~2.7 MB incl. theme; tooltip with `dataCursor` still to confirm) – findings: `data-oj-binding-provider="none"` (otherwise JET waits for Knockout), `knockout` path for the DVT template engine (`ui.json` `libs.knockout`, loaded, never bound), `groupId` is an array, reference lines `location: front`, the theme `oj-redwood-notag` is required (without it only the unstyled "loading" text) | `oj-chart` needs `jquery` and `jqueryui-amd/*`, which JET 20.1.4 does not ship – APEX defines them as AMD shims over its global jQuery / jQuery UI (`libraries/apex/requirejs.jetConfig.js`); `wlsmon_charts.js` does the same (no inline script). The 44 modules of `ojchart` + `ojarraydataprovider` contain no `eval` / `new Function`; whether `oj-chart` writes style attributes (CSP `style-src`) shows only in the browser. Size: about 1.1 MB JET modules + 250 KB jQuery / jQuery UI, theme CSS (0.9 MB) optional (`ui.json` `jet_theme`). Probe page `tools/jet_probe/` |
+| 4 | done (JET path unproven until 3) | `www/js/wlsmon_charts.js`: `init(ui)`, `line()`, `spark()`; JET renderer, the prototype SVG as fallback per chart; colours from the CSS tokens, redraw on theme switch |
+| 5 | done | `wlsmon.py` (one file, stdlib, 3.6): `collect [--check] [--out] [--state]`, `rules --test`, `version`; `pull` is a stub (P2); config with defaults, credentials (`$CREDENTIALS_DIRECTORY`, OL8 fallback only with mode 400), atomic writes, own lock file (`state/run.lock` – the unit's `flock` holds `collect.lock`) |
+| 6a–6g | done | real `collect --check` on the test host in 0.9 s, read-only, without credentials: host, nginx, ports / ready probes, Forms sessions from `/proc` (5 frmweb, all prestart pool), logs, core dumps |
+| 6b | **done, verified 2026-11-20** | one read-only search POST on the test host (admin user through the library loader, password only on curl's stdin): the field names of the prototype plan are right on 14.1.2 (`healthState` object, collections as `items`); the real answer is the fixture `tests/fixtures/wls/search_real_14.1.2.json`. The first search after an AdminServer start took 11.3 s (REST initialised lazily), then 0.17 – 0.22 s |
+| 6c | done | `parse_serverinfo` on the real XML of `80-FMW-Architecture/reports_monitoring_getserverinfo.md`; `failedJobs` / `successfulJobs` are counters since the start → the monitor shows the delta per round |
+| 6f | done | rules against the real logs of the test host: `BEA-000365` (Notice, state change) and `REP-50001/50002` (start / stop, logged as `INCIDENT_ERROR`) would have been red all the time – the first one fixed in the rule, the second an `ignore` rule with reason; `BEA-001156` (stack trace of `BEA-001129`) ignored. Left unclassified in two real logs: 8 entries without a code |
+| 6h | code done, off | `WLSMON_RCU_CHECK=false` until the DB monitor user is agreed |
+| 6i | done | patch level from `inventory/patches/*.xml` + `registry.xml` (test host: Stack Patch Bundle `261112` = CSPU Nov 2026, 36 patches); JDK of the **running** domain from the AdminServer process (`jdk-21` 21.0.13.1, not the bundled 17.0.12); the nginx certificate from the TLS handshake (`/etc/nginx/ssl` is root-only; test host: 792 days); Derby running = a real finding on the test host |
+| 6j | done | 9 checks; `/console` + `/management` probed anonymously through the own nginx |
+| 7 | done | levels, topology (only DOWN propagates, one root-cause reason, the key figures of a DOWN component give no second reason), day ring, week / history buckets; `check_contract.py --real` green on the real output; 12 collect tests on fixtures (401 pause, AdminServer down, nginx down, Reports delta, log counts, core dump, patch baseline) |
+| 8 | done | templates (`wlsmon.conf`, nginx include + headers + zone, collect / pull service + timer); `nginx -t` for both roles; a **throwaway nginx on the loopback** (`tests/test_templates.py`): 401 / 200 / 405 / 404 – it found that a nested `location ^~ /wlsmon/api/` hides the whitelist regexes (all JSON 404), fixed; `systemd-analyze verify` without findings |
+
+Found for later steps:
+- **nginx logs:** `/var/log/nginx` is not readable for the FMW owner →
+  `02-install-wlsmon_root.sh` grants read access (ACL on the directory and
+  the log files, plus a logrotate `postrotate` / `create` mode that keeps it).
+- **POST** to a JSON file gets 405 (static handler), not 403 – both refuse.
+- **Listening ports:** the test host listens on many non-loopback ports
+  (Coherence, DB, NFS …) – `WLSMON_EXPECTED_PORTS` needs the interview,
+  otherwise the check stays WARN.
+
+### 2026-11-20 – collector live on the test host (Gunther: "Collector vorziehen")
+
+- `wlsmon.py collect --secrets-stdin`: secrets as `name=value` lines on stdin,
+  in memory only – for runs by hand before the installation (under systemd:
+  `$CREDENTIALS_DIRECTORY`).
+- First live round with credentials (admin user as a stand-in until the
+  monitor user exists, `monUser` for Reports): all parts green –
+  REST (3 servers RUNNING, heap 35 / 38 / 41 %, 4 / 4 data sources),
+  Reports `repserver01` (0 / 4 engines busy), Forms (5 frmweb = prestart pool),
+  patch level, certificate, logs, core dumps; under 1 s;
+  `check_contract.py --real` 0 findings. Real WARN: memory of the test host
+  (19 % free, swap in use).
+- Since 08:53 a round every 5 minutes into the scratch directory (not
+  installed, no systemd), so the GUI can be checked with real day series:
+  `devserver.py --data <scratch>/wlsbase/live/api --apex /srv/apex/apex_1`.
+- Security checks of the WebLogic administration rebuilt (hourly,
+  `security.json`): `mgmt_rest_proxied` (Nginx configuration – `location` for
+  `/management` or a catch-all to the AdminServer port – plus an anonymous
+  probe with Host / SNI of the server block), `admin_locations` (`/console`,
+  `/em` only with `deny all`), `admin_listen` (AdminServer port on the
+  loopback). The old probe-only check could not tell "restricted" from
+  "open": from 127.0.0.1 `/console` answers 403 even when it is open for the
+  admin network. Test host: all three ok. Documentation:
+  [weblogic_rest_monitoring.md §7](../../80-FMW-Architecture/weblogic_rest_monitoring.md#7-security-management-belongs-to-localhost-only).
+

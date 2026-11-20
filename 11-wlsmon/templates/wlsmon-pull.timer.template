@@ -1,0 +1,14 @@
+# =============================================================================
+# wlsmon-pull.timer - rendered by 02-install-wlsmon_root.sh. Every 5 min, one minute after the collect rounds.
+# =============================================================================
+[Unit]
+Description=wlsmon - pull every 5 minutes
+
+[Timer]
+OnCalendar=*:1/5
+RandomizedDelaySec=20
+AccuracySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

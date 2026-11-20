@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>wlsmon</title>
+<link rel="stylesheet" href="css/wlsmon.css">
+<script src="js/wlsmon_libs.js" defer></script>
+<script src="js/wlsmon_charts.js" defer></script>
+<script src="js/wlsmon.js" defer></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="top-title">
+      <span class="eyebrow"><a class="back-link" href="index.html">&larr; All hosts</a> · IHateWeblogic · wlsmon</span>
+      <div class="title-row">
+        <h1 id="product">…</h1>
+        <span id="env" class="env" hidden></span>
+      </div>
+      <span class="subtitle">Forms &amp; Reports domain <span id="domain">…</span></span>
+    </div>
+    <div class="top-meta">
+      <span>Host <span id="host">…</span></span>
+      <span>Interval <span id="interval">…</span></span>
+      <span>As of <span id="stamp-top">…</span></span>
+      <button type="button" id="refresh-btn" class="theme-btn refresh-btn" title="Reload all data now">
+        <svg class="icon" data-icon="refresh" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><polyline points="20 4 20 9 15 9"/></svg>
+        <span id="refresh-label">Refresh</span> <span id="refresh-timer" class="refresh-timer">5:00</span>
+      </button>
+      <button type="button" id="theme-btn" class="theme-btn" aria-label="Colour mode">Theme: auto</button>
+    </div>
+    <a class="logo" href="https://github.com/gpipperr/IHateWeblogic" title="IHateWeblogic on GitHub">
+      <img src="img/ihw_logo.png" alt="IHateWeblogic" width="56" height="56">
+    </a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="overall" class="overall lvl-stale" aria-label="Overall status" aria-live="polite">
+    <div id="overall-badge" class="overall-badge"><span id="overall-word">STALE</span></div>
+    <div class="overall-main">
+      <span class="eyebrow">Overall status</span>
+      <div id="reasons" class="reasons"><span class="muted">Loading data …</span></div>
+    </div>
+    <div class="overall-time">
+      <span>Last measurement</span>
+      <span id="stamp" class="overall-stamp">…</span>
+      <span id="freshness"></span>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-tab="overview">Overview<span class="tab-badge" data-badge="overview"></span></button>
+    <button type="button" role="tab" id="tab-patch" aria-controls="panel-patch" aria-selected="false" tabindex="-1" data-tab="patch">Patch level<span class="tab-badge" data-badge="patch"></span></button>
+    <button type="button" role="tab" id="tab-security" aria-controls="panel-security" aria-selected="false" tabindex="-1" data-tab="security">Security<span class="tab-badge" data-badge="security"></span></button>
+    <button type="button" role="tab" id="tab-logs" aria-controls="panel-logs" aria-selected="false" tabindex="-1" data-tab="logs">Log viewer<span class="tab-badge" data-badge="logs"></span></button>
+  </nav>
+
+  <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" class="tabpanel">
+  <section aria-labelledby="h-comp" class="block">
+    <div class="block-head">
+      <h2 id="h-comp">Components</h2>
+      <span class="muted small">from outside to inside · a component behind a DOWN one is blocked</span>
+    </div>
+    <div id="components"></div>
+  </section>
+
+  <section aria-labelledby="h-kpi" class="block">
+    <div class="block-head">
+      <h2 id="h-kpi">Key figures</h2>
+      <span class="muted small">per component, from outside to inside · current value, trend of the last 4 h</span>
+    </div>
+    <div id="metrics"></div>
+  </section>
+
+  <section aria-labelledby="h-daily" class="block">
+    <div class="block-head">
+      <h2 id="h-daily">Daily facts</h2>
+      <span id="daily-note" class="muted small"></span>
+    </div>
+    <div id="daily" class="grid grid-daily"></div>
+  </section>
+
+  <section aria-labelledby="h-trend" class="block panel">
+    <div class="block-head">
+      <div>
+        <h2 id="h-trend">Trend</h2>
+        <span id="range-note" class="muted small"></span>
+      </div>
+      <div class="seg" role="group" aria-label="Time range">
+        <button type="button" data-range="day" aria-pressed="true">24 h</button>
+        <button type="button" data-range="week" aria-pressed="false">7 days</button>
+        <button type="button" data-range="history" aria-pressed="false">1 year</button>
+      </div>
+    </div>
+    <div id="charts"></div>
+    <div id="axis" class="axis"></div>
+  </section>
+
+  <section aria-labelledby="h-agg" class="block">
+    <div class="block-head">
+      <h2 id="h-agg">Summary per 12 h</h2>
+      <span class="muted small">maximum per period · errors and core dumps as sum</span>
+    </div>
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th>Period</th><th>Status</th>
+            <th class="num">Forms max</th><th class="num">Reports jobs Σ</th>
+            <th class="num">Heap max</th><th class="num">Load max</th>
+            <th class="num">Mem free min</th><th class="num">Log errors Σ</th>
+            <th class="num">Core dumps Σ</th>
+          </tr>
+        </thead>
+        <tbody id="agg"></tbody>
+      </table>
+    </div>
+  </section>
+  </div>
+
+  <div id="panel-patch" role="tabpanel" aria-labelledby="tab-patch" class="tabpanel" hidden>
+    <section class="block" aria-labelledby="h-patch">
+      <div class="block-head">
+        <h2 id="h-patch">Patch level</h2>
+        <span id="patch-note" class="muted small"></span>
+      </div>
+      <div id="patch-summary" class="summary-line"></div>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>Component</th><th>Status</th><th>Version</th><th>Patch level</th><th>Applied</th><th>Note</th></tr></thead>
+          <tbody id="patch-components"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="block" aria-labelledby="h-patches">
+      <h2 id="h-patches">Installed patches</h2>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>Patch</th><th>Description</th><th>Oracle Home</th><th>Applied</th></tr></thead>
+          <tbody id="patch-list"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="panel-security" role="tabpanel" aria-labelledby="tab-security" class="tabpanel" hidden>
+    <section class="block" aria-labelledby="h-sec">
+      <div class="block-head">
+        <h2 id="h-sec">Security checks</h2>
+        <span id="sec-note" class="muted small"></span>
+      </div>
+      <div id="sec-summary" class="summary-line"></div>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>Status</th><th>Area</th><th>Check</th><th>Result</th><th>Hint</th></tr></thead>
+          <tbody id="sec-checks"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" class="tabpanel" hidden>
+    <section class="block" aria-labelledby="h-logs">
+      <div class="block-head">
+        <h2 id="h-logs">Log viewer</h2>
+        <span id="logs-note" class="muted small"></span>
+      </div>
+      <div id="logs-summary" class="summary-line"></div>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Severity">
+          <button type="button" data-sev="all" aria-pressed="true">All</button>
+          <button type="button" data-sev="critical" aria-pressed="false">Critical</button>
+          <button type="button" data-sev="error" aria-pressed="false">Error</button>
+          <button type="button" data-sev="warning" aria-pressed="false">Warning</button>
+        </div>
+        <label class="field"><span>Server</span>
+          <select id="logs-server"><option value="">all</option></select>
+        </label>
+        <label class="field field-grow"><span>Search</span>
+          <input id="logs-search" type="search" placeholder="code or text" autocomplete="off">
+        </label>
+      </div>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>Last seen</th><th>Severity</th><th>Code</th><th>Rule</th><th>Server</th><th class="num">Count</th><th>Message</th></tr></thead>
+          <tbody id="logs-events"></tbody>
+        </table>
+      </div>
+      <p class="muted small">Events are grouped by code. Raw log lines stay on the server (usernames, SQL and paths are not exported).</p>
+    </section>
+    <section class="block" aria-labelledby="h-rules">
+      <div class="block-head">
+        <h2 id="h-rules">Rules: hits in 24 h</h2>
+        <span class="muted small">wlsmon_rules.cfg + wlsmon_rules.local.cfg · ignored entries are listed too</span>
+      </div>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>Rule</th><th>Type</th><th>Level</th><th>Source</th><th class="num">Hits</th><th>Reason</th></tr></thead>
+          <tbody id="logs-rules"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+
+  <footer class="foot">
+    <span class="muted small">Data: /wlsmon/api/ (now, day, week, history, patch, security, logs) · auto refresh <span id="poll"></span> · locale <span id="locale"></span> · collector <span id="collector-info"></span> · <span id="libs-info"></span></span>
+    <span id="fetch-error" class="small err" role="status"></span>
+    <div id="demo" class="demo" role="group" aria-label="Demo scenario" hidden></div>
+  </footer>
+
+</main>
+</body>
+</html>

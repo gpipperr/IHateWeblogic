@@ -1,0 +1,14 @@
+# =============================================================================
+# wlsmon-collect.timer - rendered by 02-install-wlsmon_root.sh. Every 5 min.
+# =============================================================================
+[Unit]
+Description=wlsmon - collect every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=20
+AccuracySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

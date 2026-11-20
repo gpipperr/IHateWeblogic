@@ -19,7 +19,8 @@ live view of a Forms & Reports environment:
 [docs/01-wlsmon_concept.md](docs/01-wlsmon_concept.md), interface design
 (colour concept): [docs/02-wlsmon_interface_design.md](docs/02-wlsmon_interface_design.md),
 development plan (steps P1–P3): [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md).
-No script yet.
+Steps 0–8 of P1 are implemented (`wlsmon.py`, GUI, rules, templates, tests);
+not installed anywhere yet – the install scripts are steps 9–11.
 
 ## In short
 

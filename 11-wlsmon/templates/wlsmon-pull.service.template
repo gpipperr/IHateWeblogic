@@ -1,0 +1,32 @@
+# =============================================================================
+# wlsmon-pull.service - rendered by 02-install-wlsmon_root.sh to
+# /etc/systemd/system/. GUI role (P2): fetches the 7 JSON files of every data
+# host into WLSMON_BASE/hosts/<id>/ and writes hosts.json. Same limits as
+# wlsmon-collect.service; the pull password only as a systemd credential
+# (OL8: the #@CREDS_ block is removed, etc/creds/pull_user mode 400).
+# =============================================================================
+[Unit]
+Description=wlsmon - pull the data hosts (GUI role)
+Documentation=https://github.com/gpipperr/IHateWeblogic/tree/main/11-wlsmon
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=##FMW_OWNER##
+Group=##FMW_GROUP##
+Environment=WLSMON_BASE=##WLSMON_BASE##
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=10%
+MemoryMax=200M
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=##WLSMON_BASE##
+UMask=0027
+#@CREDS_BEGIN@
+LoadCredentialEncrypted=pull_user:##WLSMON_BASE##/etc/creds/pull_user.cred
+#@CREDS_END@
+ExecStart=/usr/bin/flock -n ##WLSMON_BASE##/state/pull.lock /usr/bin/python3 -I ##WLSMON_BASE##/bin/wlsmon.py pull

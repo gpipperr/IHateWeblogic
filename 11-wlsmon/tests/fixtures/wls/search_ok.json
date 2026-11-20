@@ -1,0 +1,18 @@
+{"serverRuntimes": {"items": [
+ {"name": "AdminServer", "state": "RUNNING", "healthState": {"state": "ok", "subsystemName": null},
+  "openSocketsCurrentCount": 12,
+  "JVMRuntime": {"heapSizeCurrent": 1073741824, "heapFreeCurrent": 536870912, "heapSizeMax": 2147483648, "heapFreePercent": 70},
+  "threadPoolRuntime": {"hoggingThreadCount": 0, "stuckThreadCount": 0, "pendingUserRequestCount": 0, "executeThreadTotalCount": 12},
+  "JDBCServiceRuntime": {"JDBCDataSourceRuntimeMBeans": {"items": [
+    {"name": "opss-data-source", "state": "Running", "activeConnectionsCurrentCount": 1, "waitingForConnectionCurrentCount": 0}]}}},
+ {"name": "WLS_FORMS", "state": "RUNNING", "healthState": {"state": "ok"},
+  "JVMRuntime": {"heapFreePercent": 16},
+  "threadPoolRuntime": {"hoggingThreadCount": 2, "stuckThreadCount": 0},
+  "JDBCServiceRuntime": {"JDBCDataSourceRuntimeMBeans": {"items": [
+    {"name": "opss-data-source", "state": "Running", "activeConnectionsCurrentCount": 2, "waitingForConnectionCurrentCount": 0}]}}},
+ {"name": "WLS_REPORTS", "state": "RUNNING", "healthState": {"state": "ok"},
+  "JVMRuntime": {"heapFreePercent": 39},
+  "threadPoolRuntime": {"hoggingThreadCount": 0, "stuckThreadCount": 0},
+  "JDBCServiceRuntime": {"JDBCDataSourceRuntimeMBeans": {"items": [
+    {"name": "opss-data-source", "state": "Running", "activeConnectionsCurrentCount": 1, "waitingForConnectionCurrentCount": 0}]}}}
+]}}

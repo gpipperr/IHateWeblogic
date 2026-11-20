@@ -1,0 +1,25 @@
+<?xml version = '1.0' encoding = 'UTF-8' standalone = 'yes'?>
+<serverInfo name="repserver01" version="14.1.2.0.0">
+   <host>orafusion01.pipperr.local</host>
+   <processId>217406</processId>
+   <startTime>1793697621935</startTime>
+   <queue maxQueueSize="4000"/>
+   <engine id="rwEng" activeEngine="2" runningEngine="1" totalBusyEngines="1" totalIdleEngines="1">
+      <engineInstance name="rwEng-0" processId="217799" status="2" runJobId="12" curJobExecTime="900" idleTime="0" numJobsRun="4" lifeLeft="46" nls="AMERICAN_AMERICA.AL32UTF8" totalRunTime="0" totalIdleTime="295"/>
+      <engineInstance name="rwEng-1" processId="217862" status="1" runJobId="-1" curJobExecTime="-1" idleTime="17700" numJobsRun="0" lifeLeft="50" nls="AMERICAN_AMERICA.AL32UTF8" totalRunTime="0" totalIdleTime="295"/>
+   </engine>
+   <engine id="rwURLEng" activeEngine="0" runningEngine="0" totalBusyEngines="0" totalIdleEngines="2"/>
+   <performance>
+      <property name="successfulJobs" value="59"/>
+      <property name="currentJobs" value="4"/>
+      <property name="futureJobs" value="0"/>
+      <property name="transferredJobs" value="0"/>
+      <property name="failedJobs" value="24"/>
+      <property name="longRunningJobs" value="0"/>
+      <property name="potentialRunawayJobs" value="0"/>
+      <property name="averageResponseTime" value="1343.58"/>
+      <property name="averageElapsedTime" value="0.0"/>
+      <property name="avgQueuingTime" value="1098.45"/>
+   </performance>
+   <connection connectionsUsed="1" connectionsAvailable="299"/>
+</serverInfo>

@@ -1,0 +1,37 @@
+# =============================================================================
+# wlsmon-collect.service - rendered by 02-install-wlsmon_root.sh to
+# /etc/systemd/system/. One round of the data role every 5 minutes (timer).
+# Concept section 5: low priority, hard limits, read-only file system except
+# WLSMON_BASE, secrets only as systemd credentials (concept 3b).
+# OL8 (systemd 239, no credentials): the #@CREDS_ blocks are removed, wlsmon.py
+# reads WLSMON_BASE/etc/creds/<name> (mode 400) - the weaker variant.
+# =============================================================================
+[Unit]
+Description=wlsmon - collect one round (Forms & Reports runtime monitor)
+Documentation=https://github.com/gpipperr/IHateWeblogic/tree/main/11-wlsmon
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=##FMW_OWNER##
+Group=##FMW_GROUP##
+Environment=WLSMON_BASE=##WLSMON_BASE##
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=10%
+MemoryMax=200M
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=##WLSMON_BASE##
+UMask=0027
+#@CREDS_BEGIN@
+LoadCredentialEncrypted=wls_monitor:##WLSMON_BASE##/etc/creds/wls_monitor.cred
+LoadCredentialEncrypted=reports_mon:##WLSMON_BASE##/etc/creds/reports_mon.cred
+#@CREDS_END@
+#@DBMON_BEGIN@
+LoadCredentialEncrypted=db_monitor:##WLSMON_BASE##/etc/creds/db_monitor.cred
+#@DBMON_END@
+ExecStart=/usr/bin/flock -n ##WLSMON_BASE##/state/collect.lock /usr/bin/python3 -I ##WLSMON_BASE##/bin/wlsmon.py collect

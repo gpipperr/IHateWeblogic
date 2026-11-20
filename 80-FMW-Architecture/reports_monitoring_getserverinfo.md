@@ -17,6 +17,8 @@ Related:
 - Security of the web commands: [reports_user_local_ldap.md](reports_user_local_ldap.md)
   and [81-reports_rwservlet_security.md](../09-Install/docs/81-reports_rwservlet_security.md).
 - Engines and sizing: [reports_engine_architecture.md](reports_engine_architecture.md).
+- The WebLogic servers themselves (state, heap, threads, JDBC):
+  [weblogic_rest_monitoring.md](weblogic_rest_monitoring.md).
 - Our own tools: [01-Run/rwserver_status.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/01-Run/rwserver_status.sh)
   (display) and
   [05-ReportsPerformance/engine_perf_analyse.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/05-ReportsPerformance/engine_perf_analyse.sh)
