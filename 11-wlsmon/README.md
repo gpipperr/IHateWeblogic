@@ -27,28 +27,6 @@ backup category). P2 (one GUI host, many data hosts) follows.
 | [docs/03-wlsmon_development.md](docs/03-wlsmon_development.md) | development plan P1–P3 and progress log |
 | [docs/04-wlsmon_operations.md](docs/04-wlsmon_operations.md) | **operations:** install, update, remove, status and logs, known faults and their fix |
 
-## What it looks like
-
-Screenshots of the GUI prototype v3 (2026-11-19) with the demo data of
-[`tools/gen_sample_data.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/11-wlsmon/tools/gen_sample_data.py) –
-no real hosts. The live GUI is the same code, its charts are drawn by Oracle
-JET.
-
-**Overview – many hosts** (GUI role with data hosts, P2): one tile per host,
-grouped by product, filter by environment, the reasons of a WARN / CRIT on
-the tile, STALE when a host sends no new data.
-
-![wlsmon overview with six hosts in two products](docs/images/wlsmon_overview_hosts.png)
-
-**Host view – one host:** overall status with its reasons, components as a
-topology from outside to inside (Nginx → AdminServer / Node Manager →
-managed servers → Reports servers → database), key figures per component with
-a 4-hour trend, daily facts (certificate, patch cycle), trend over 24 h /
-7 days / 1 year and the summary per 12 h; tabs for patch level, security and
-the log viewer.
-
-![wlsmon host view of one host in state WARN](docs/images/wlsmon_host_view.png)
-
 ## In short
 
 - **No extra software:**
@@ -81,6 +59,61 @@ the log viewer.
   - `01-install-wlsmon_fmw.sh` (FMW owner): program, GUI, monitor user;
   - `02-install-wlsmon_root.sh` (root, last): group and ACLs, credentials,
     Nginx include from a template, systemd units and timers, first run.
+
+
+## What it looks like
+
+Screenshots of the GUI prototype v3 (2026-11-19) with the demo data of
+[`tools/gen_sample_data.py`](https://github.com/gpipperr/IHateWeblogic/blob/main/11-wlsmon/tools/gen_sample_data.py) –
+no real hosts. The live GUI is the same code, its charts are drawn by Oracle
+JET.
+
+**Overview – many hosts** (GUI role with data hosts, P2): one tile per host,
+grouped by product, filter by environment, the reasons of a WARN / CRIT on
+the tile, STALE when a host sends no new data.
+
+![wlsmon overview with six hosts in two products](docs/images/wlsmon_overview_hosts.png)
+
+**Host view – one host:** overall status with its reasons, components as a
+topology from outside to inside (Nginx → AdminServer / Node Manager →
+managed servers → Reports servers → database), key figures per component with
+a 4-hour trend, daily facts (certificate, patch cycle), trend over 24 h /
+7 days / 1 year and the summary per 12 h; tabs for patch level, security and
+the log viewer.
+
+![wlsmon host view of one host in state WARN](docs/images/wlsmon_host_view.png)
+
+
+## The tabs of the host view
+
+Beside the overview tab, the host view has three tabs (prototype v3, demo
+data):
+
+### Patch level
+
+Which patch level each component has – Oracle Home, WebLogic, Forms &
+Reports, OPatch, JDK, OS, Nginx – compared with the expected CPU cycle
+(`WLSMON_PATCH_BASELINE`), plus the installed patches read once a day from
+the inventory files, without an OPatch run.
+
+![Tab patch level: components against the expected CPU and installed patches](docs/images/tab_patch_level.png)
+
+### Security
+
+The hourly security checks of the host – demo certificates, TLS expiry and
+protocols, failed logins, Basic Auth, `/console` and `/management` not
+reachable, production mode, lockout, the monitor user, file permissions and
+the listening ports – each with status, result and a hint.
+
+![Tab security: hourly checks with status, result and hint](docs/images/tab_security.png)
+
+### Log viewer
+
+The log events of the last 24 h grouped by message code, with severity, rule,
+server and count – the raw log lines stay on the host – and below the hits
+per rule of `wlsmon_rules.cfg` and the local rules, ignored entries included.
+
+![Tab log viewer: events grouped by code and the hits per rule](docs/images/tab_log_viewer.png)
 
 ## Quick start
 
