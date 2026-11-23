@@ -76,6 +76,7 @@ install), not hardcoded:
 | `domain` | `$DOMAIN_HOME/bin/`, `config/`, `nodemanager/` | `setDomainEnv.sh`, `setUserOverrides.sh`, `config.xml`, `nodemanager.properties` | `08-`, `09-`, `11-`, [`domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) |
 | `ihw` | project root | `environment.conf` | interview, [`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) |
 | `ords` | `$APEX_ORDS_BASE/ords_*/config/` (whole tree) | ORDS `pool.xml`, `global/settings.xml`, `logging.properties`, wallet `cwallet.sso` (credentials of `ORDS_PUBLIC_USER`) – stored as `<inst>__<path>` (e.g. `ords_1__databases__default__wallet__cwallet.sso`), mode 600 like the whole set; restore → restart `ords@ords_<n>`. Never copied **into** the config directory (ORDS reads every file there) | `12-APEX-Ords/04-`, `06-` |
+| `wlsmon` | `$WLSMON_BASE/etc/` (default `$ORACLE_BASE/admin/wlsmon/etc`), only the files directly in it | `wlsmon.conf`, `wlsmon_rules.local.cfg` of the [runtime monitor](https://github.com/gpipperr/IHateWeblogic/blob/main/11-wlsmon/README.md). Not `etc/pending/` (clear-text secrets during the install), not `etc/creds/` (systemd credentials bound to this host – after a restore run `00-setup-interview.sh --apply` + `02-install-wlsmon_root.sh --apply`), not the `wlsmon.conf.bak_*` of `03-set-thresholds.sh`. Restore → no restart, the next round reads it | `11-wlsmon/00-`, `03-` |
 
 **Not backed up on purpose:**
 
@@ -106,6 +107,7 @@ install), not hardcoded:
 ├── domain/           setDomainEnv.sh, setUserOverrides.sh, config.xml, nodemanager.properties
 ├── ihw/              environment.conf
 ├── ords/             <inst>__<path> (pool.xml, settings.xml, wallet)
+├── wlsmon/           wlsmon.conf, wlsmon_rules.local.cfg
 └── manifest.txt      category, stored filename, original path — one line per file
 ```
 

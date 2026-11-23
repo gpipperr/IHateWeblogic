@@ -336,8 +336,12 @@ class InstallRootTest(unittest.TestCase):
             self.assertNotIn("mFAIL\x1b", out, out)
             self.assertIn("present (etc/creds)", out)
             self.assertNotRegex(out, r"(\.conf|\.service|\.timer)\s+installed")   # files unchanged
-            # remove
+            # remove - also the .bak_<ts> of our own files from earlier runs
+            unit_bak = os.path.join(root, "etc", "systemd", "system", "wlsmon-collect.service.bak_20261120_120223")
+            with open(unit_bak, "w") as fh:
+                fh.write("old unit")
             rc, out = self.run_root(d, base, "--remove", "--apply")
+            self.assertFalse(os.path.exists(unit_bak), out)
             self.assertFalse(os.path.exists(os.path.join(root, "etc", "nginx", "oracle-wls.d", "wlsmon.conf")))
             self.assertFalse(os.path.exists(os.path.join(root, "etc", "nginx", "wlsmon")))
             self.assertFalse(os.path.exists(os.path.join(root, "etc", "systemd", "system", "wlsmon-collect.service")))

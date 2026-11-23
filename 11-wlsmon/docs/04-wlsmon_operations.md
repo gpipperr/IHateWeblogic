@@ -65,8 +65,9 @@ Every script shows what it would do without `--apply`. Options:
 |---|---|
 | Change a setting | `00-setup-interview.sh --apply` (offers the current values), then `02-install-wlsmon_root.sh --apply` for web-tier keys (section 3) |
 | Change one secret | `00-setup-interview.sh --secret NAME --apply`, then `02-install-wlsmon_root.sh --apply` (encrypts it) |
-| Monitor user lost its password | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
+| Monitor user lost its password | `00-setup-interview.sh --secret wls_monitor --apply` (new secret in `pending/`), `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` (sets it in WebLogic – needs the clear text, so **before** 02), `sudo 02-install-wlsmon_root.sh --apply` (encrypts it; the new credential ends a 401 pause at once) |
 | **Remove** | `sudo 02-install-wlsmon_root.sh --remove --apply`, then `01-install-wlsmon_fmw.sh --remove --apply` – `etc/` stays and is listed, the WebLogic monitor user is listed for manual removal |
+| Reinstall after a remove | `00-setup-interview.sh --apply` (the answers come from the kept `wlsmon.conf`; the credentials were deleted, so new secrets), `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` (the WebLogic user still exists with the old password), `sudo 02-install-wlsmon_root.sh --apply` – tested live 2026-11-23 |
 
 Updates (new wlsmon version, Oracle patch cycle, APEX patch): section 1a.
 
@@ -253,7 +254,7 @@ data sources – the infrastructure, not the application load.
 | Disk WARN for the core directory, but the disk is fine | `PrivateTmp=yes` hides `/var/tmp/core` from the service | unit with `BindReadOnlyPaths=-<core dir>` – `02-install-wlsmon_root.sh --apply` |
 | Host WARN "Memory free" | used memory at or above `WLSMON_MEM_USED_PCT`, **or** swap in use at or above `WLSMON_SWAP_MB` (free memory may look fine while the host already swaps) | the line under the tile and the reason name the cause, e.g. `CRIT swap 2201 MB >= 2048` or `WARN used 91 % >= 90`; change the limits with `03-set-thresholds.sh` (section 3a) – usually both, otherwise the other limit keeps the tile red |
 | nginx error count contains the monitor's own probe | older collector counted the security probe of `/management/weblogic/latest` from 127.0.0.1 | `01-install-wlsmon_fmw.sh --apply` |
-| REST components "n/a", 401 in `collector.errors` | monitor user password differs from the credential; the collector pauses 30 min after a 401 (`WLSMON_401_PAUSE_MIN`, avoids the realm lockout) | `01-install-wlsmon_fmw.sh --reset-monitor-password --apply` |
+| REST components "n/a", 401 in `collector.errors` | monitor user password differs from the credential; the collector pauses 30 min after a 401 (`WLSMON_401_PAUSE_MIN`, avoids the realm lockout) | `00- --secret wls_monitor --apply`, `01- --reset-monitor-password --apply`, `02- --apply` (row "Monitor user lost its password" in section 1) – the new credential ends the pause at once |
 | `rep_<server>` "not checked" in `collect --check` | the check by hand has no service credentials | normal – the service reads `reports_mon` |
 | Service does not start, `LoadCredentialEncrypted` error | a `.cred` file named in the unit is missing | `02-install-wlsmon_root.sh --apply` – it keeps only the credential blocks whose file exists |
 | Tile "GUI libraries" says "own SVG" although `01-` found font-apex / JET | the tile is a daily fact; a new `ui.json` or a new `bin/wlsmon.py` (both written by `01-`) refreshes the daily facts at the next run, not after 24 h | `01-install-wlsmon_fmw.sh --apply`, wait one run (≤ 5 min) |
@@ -288,7 +289,19 @@ its end.
 
 ## 6. Backup
 
-`$WLSMON_BASE/etc/` (without `pending/`) holds the configuration and the
-local rules; the credentials are bound to the host and are created again by
-the interview + `02-`. Category `wlsmon` in
-`07-Maintenance/backup_config.sh` – **open** (TODO.md block "11-wlsmon").
+`$WLSMON_BASE/etc/` holds the configuration and the local rules. They are
+category `wlsmon` of `07-Maintenance/backup_config.sh` (since 2026-11-23):
+`wlsmon.conf` and `wlsmon_rules.local.cfg` – only the files directly in
+`etc/`, so neither `pending/` nor `creds/`, and not the `wlsmon.conf.bak_*` of
+`03-set-thresholds.sh`.
+
+```bash
+./07-Maintenance/backup_config.sh            # dry run: lists the wlsmon files
+./07-Maintenance/backup_config.sh --apply    # set in 07-Maintenance/ConfigBackup/<ts>/wlsmon/
+```
+
+Restore: copy the two files back to `etc/` (mode 600, FMW owner) – the next
+round reads them, no restart. The credentials are bound to the host and are
+not in the backup: on a new host run `00-setup-interview.sh --apply` (new
+secrets), `01- --reset-monitor-password --apply` when the WebLogic user
+already exists, then `02- --apply` (encrypts them).

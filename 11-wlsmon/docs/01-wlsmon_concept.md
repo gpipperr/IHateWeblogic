@@ -724,8 +724,9 @@ $WLSMON_BASE/                 oracle:wlsmon  750
 - **SELinux** (disabled by our baseline, maybe enforcing at a customer):
   `httpd_sys_content_t` only on `www/`, `api/`, `hosts/` (`semanage fcontext`
   + `restorecon`, as in `12-APEX-Ords/05-setup-nginx.sh`).
-- **Backup:** `$WLSMON_BASE/etc` (without `pending/`) as a category of
-  `07-Maintenance/backup_config.sh` (P1).
+- **Backup:** the files directly in `$WLSMON_BASE/etc` (not `pending/`,
+  not `creds/`) as category `wlsmon` of `07-Maintenance/backup_config.sh`
+  (done 2026-11-23).
 
 ### 9.2 Installation scripts
 
@@ -889,9 +890,9 @@ the collector. Keys not in the template can be added by hand.
 
 ## 10. Phases
 
-State 2026-11-20: P1 live on the test host and at the first customer. Open:
-the 24-hour evaluation on the test host, the backup category `wlsmon`, a
-live test of `--remove`, the table view per chart – the list is in
+State 2026-11-23: P1 live on the test host and at the first customer; backup
+category `wlsmon` done, `--remove` + reinstall tested live. Open: the rest of
+the 24-hour evaluation, the table view per chart – the list is in
 [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md) block "11-wlsmon".
 
 | Phase | Content |

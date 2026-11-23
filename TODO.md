@@ -356,11 +356,13 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   operations: [11-wlsmon/docs/04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
   State 2026-11-20: P1 live on the test host and at the first customer (one
   host, both roles; the step plan is local, not in git). Open:
-  - [ ] 24-h evaluation on the test host (2026-11-21) – `systemd-cgtop` vs.
-    `MemoryMax`, curl matrix (200 with login, 404 outside the whitelist, 403
-    from a foreign IP), browser console without CSP violations
-  - [ ] integration: `backup_config.sh` category `wlsmon` (`etc/` without
-    `pending/`), `--remove` live test
+  - [ ] 24-h evaluation: test host slept 21.–23.11., the customer ran the
+    days through (plausible). Done 2026-11-23: restart after the gap, curl
+    matrix without login (401 / 404 / POST 401), security headers. Open: 200
+    with login, browser console without CSP violations, `systemd-cgtop`
+    during a round, thresholds vs. the customer's 24-h values
+  - [x] `backup_config.sh` category `wlsmon` (2026-11-23)
+  - [x] `--remove` + reinstall live on the test host (2026-11-23)
   - [ ] table view per chart (interface design §4 – promised, not built)
   - [ ] RCU check live on the test host only after the DB monitor user is agreed
   - [ ] P2: GUI host with `wlsmon.py pull` (stub today), data role on further

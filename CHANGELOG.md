@@ -8,6 +8,17 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-23
+
+- **`backup_config.sh` category `wlsmon`:** `wlsmon.conf` and the local log
+  rules of the runtime monitor (only the files directly in `etc/` – no
+  secrets, no host-bound credentials)
+  ([01-backup_restore.md](07-Maintenance/docs/01-backup_restore.md)).
+- **11-wlsmon `--remove` and reinstall tested live:** `02 --remove` also
+  deletes the `.bak_*` of its own units / nginx files; a new `wls_monitor`
+  credential ends the 401 pause at once; operations page: order after a
+  remove (00 → `01 --reset-monitor-password` → 02), backup and restore.
+
 ## 2026-11-20
 
 - **11-wlsmon tiles say what they measure:** the memory tile names the

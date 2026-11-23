@@ -623,10 +623,23 @@ def heap_pct(jvm):
     return None
 
 
+def cred_stamp(rnd):
+    """mtime of the encrypted wls_monitor credential ('' when there is none)"""
+    try:
+        return "%d" % os.path.getmtime(os.path.join(rnd.info["base"], "etc", "creds", "wls_monitor.cred"))
+    except (OSError, KeyError):
+        return ""
+
+
 def wls_fetch(rnd):
     """-> (servers {name: runtime}, expected [names]) or (None, None) when not usable"""
     cfg, st = rnd.cfg, rnd.state
     pause = st.get("rest_pause_until", 0)
+    # a new credential (00 --secret wls_monitor + 01 --reset-monitor-password + 02)
+    # ends the pause at once - waiting 30 min after a fixed password helps nobody
+    cred = cred_stamp(rnd)
+    if pause > rnd.ts and cred and cred != st.get("rest_pause_cred"):
+        pause = st["rest_pause_until"] = 0
     if pause > rnd.ts:
         rnd.error("monitor login refused earlier (HTTP 401) - WebLogic REST paused until %s"
                   % time.strftime("%H:%M", time.localtime(pause)))
@@ -642,6 +655,7 @@ def wls_fetch(rnd):
     if code == 401:
         mins = cfg.int("WLSMON_401_PAUSE_MIN", 30)
         st["rest_pause_until"] = rnd.ts + mins * 60
+        st["rest_pause_cred"] = cred
         rnd.error("monitor login refused (HTTP 401), WebLogic REST paused for %d min" % mins, "crit")
         return None, None
     if code != 200:

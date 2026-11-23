@@ -220,6 +220,7 @@ printList "REPORTS_WLS_CONF_DIR" 36 "${REPORTS_WLS_CONF_DIR:-(not found)}"
 printList "FORMS_WLS_CONF_DIR"  36 "${FORMS_WLS_CONF_DIR:-(not found)}"
 printList "REPORTS_FONT_DIR"    36 "${REPORTS_FONT_DIR}  (${#TTF_FILES[@]} TTF/OTF file(s))"
 printList "ORDS config"         36 "${APEX_ORDS_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product/ords}/ords_*/config"
+printList "wlsmon config"       36 "${WLSMON_BASE:-${ORACLE_BASE:-/u01/app/oracle}/admin/wlsmon}/etc"
 printf "\n"
 
 # =============================================================================
@@ -286,6 +287,18 @@ for _oc in "$ORDS_BASE_DIR"/ords_*/config; do
         ORDS_FILE_COUNT=$(( ORDS_FILE_COUNT + 1 ))
     done < <(find "$_oc" -type f 2>/dev/null | sort)
 done
+
+# wlsmon runtime monitor (11-wlsmon): wlsmon.conf and the local log rules -
+# only the files directly in etc/. Not etc/pending/ (clear-text secrets for a
+# moment during the install) and not etc/creds/ (systemd credentials, bound
+# to this host, root 400 - the interview + 02-install create them again), not
+# the wlsmon.conf.bak_* of 03-set-thresholds.sh. Added 2026-11-23.
+WLSMON_ETC="${WLSMON_BASE:-${ORACLE_BASE:-/u01/app/oracle}/admin/wlsmon}/etc"
+if [ -d "$WLSMON_ETC" ]; then
+    while IFS= read -r _wf; do
+        BACKUP_ITEMS+=("wlsmon|${_wf}|wlsmon configuration ($(basename "$_wf"))")
+    done < <(find "$WLSMON_ETC" -maxdepth 1 -type f ! -name '*.bak_*' 2>/dev/null | sort)
+fi
 
 # =============================================================================
 # Section 1: Check source files
@@ -406,7 +419,7 @@ if [ "$FOUND_COUNT" -eq 0 ]; then
 fi
 
 # Create category subdirectories
-for cat in fonts fonts_ttf fonts_custom reports_afm reports_comp reports_tools reports_wls fmw forms_wls forms_inst security logging domain ihw ords; do
+for cat in fonts fonts_ttf fonts_custom reports_afm reports_comp reports_tools reports_wls fmw forms_wls forms_inst security logging domain ihw ords wlsmon; do
     if ! mkdir -p "$BACKUP_DIR/$cat" 2>/dev/null; then
         fail "Cannot create backup directory: $BACKUP_DIR/$cat"
         print_summary

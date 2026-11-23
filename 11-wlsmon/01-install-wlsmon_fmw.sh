@@ -295,7 +295,7 @@ if ! $NO_USER; then
                              fail "resetUserPassword: $(_mj error)$(_mj reason)"
                          fi
                      else
-                         warn "login of $MON refused (HTTP 401) – password differs: --reset-monitor-password --apply"
+                         warn "login of $MON refused (HTTP 401) – password differs: rerun with --reset-monitor-password --apply BEFORE 02"
                      fi ;;
                 *)   warn "login test of $MON: HTTP $(_mj login)" ;;
             esac

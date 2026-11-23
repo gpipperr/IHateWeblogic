@@ -401,6 +401,20 @@ class CollectTest(unittest.TestCase):
             self.assertFalse(any("/domainRuntime/search" in u for u in env.fake.calls))   # paused, no retry
             self.assertTrue(any("paused until" in e["text"] for e in now["collector"]["errors"]))
 
+    def test_new_credential_ends_the_pause(self):
+        with TempDir() as d, Env(d) as env:
+            cred = os.path.join(env.base, "etc", "creds", "wls_monitor.cred")
+            write(cred, "old")
+            os.utime(cred, (1000000000, 1000000000))
+            env.fake.rest_code = 401
+            env.collect()
+            env.fake.calls = []
+            env.fake.rest_code = 200
+            write(cred, "new")                          # 02 --apply encrypted a new secret
+            now = env.collect()["now"]
+            self.assertTrue(any("/domainRuntime/search" in u for u in env.fake.calls))   # no 30-min wait
+            self.assertFalse(any("paused" in e["text"] for e in now["collector"]["errors"]))
+
     def test_admin_down_falls_back_to_ports(self):
         with TempDir() as d, Env(d) as env:
             env.fake.rest_code = 0

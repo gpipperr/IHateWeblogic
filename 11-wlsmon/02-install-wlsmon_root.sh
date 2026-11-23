@@ -251,6 +251,12 @@ if $REMOVE; then
         fi
     done
     [ -z "$T" ] && $APPLY && _root systemctl daemon-reload
+    # backups of our own files from earlier --apply runs (.bak_<ts>) go as well -
+    # they are wlsmon's, nobody else reads them (found 2026-11-23: unit backup left)
+    for f in "$UNIT_DIR"/wlsmon-collect.*.bak_* "$UNIT_DIR"/wlsmon-pull.*.bak_* \
+             "$NGINX_INC".bak_* "$NGINX_ZONE".bak_*; do
+        _root test -f "$f" && _do "remove backup $f" rm -f "$f"
+    done
 
     section "Remove – nginx"
     ACL_LIST="$NGINX_WLSMON/root_acl.list"

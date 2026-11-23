@@ -17,8 +17,8 @@ live view of a Forms & Reports environment:
 
 **State 2026-11-20: phase P1 (one host, data + GUI role) live on the test
 host** – collector every 5 minutes, overview and host view in the browser.
-Open in P1: the 24-hour evaluation on the test host, the backup category and
-a live test of `--remove`. P2 (one GUI host, many data hosts) follows.
+Open in P1: the rest of the 24-hour evaluation (`--remove` and reinstall
+tested live 2026-11-23); the configuration is in `backup_config.sh` (category `wlsmon`). P2 (one GUI host, many data hosts) follows.
 
 | Document | Content |
 |---|---|
