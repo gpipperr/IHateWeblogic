@@ -10,6 +10,11 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-23
 
+- **Patch concept "patch once, transfer the FMW home":** patch master =
+  application test, tar of the patched home to QA / PROD, clone family, the
+  two inventories (central one not overwritten, only checked), Java through
+  the link, short downtime with `mv` and way back
+  ([forms_reports_patch_transfer_fmw_home.md](docs/forms_reports_patch_transfer_fmw_home.md)).
 - **`backup_config.sh` category `wlsmon`:** `wlsmon.conf` and the local log
   rules of the runtime monitor (only the files directly in `etc/` – no
   secrets, no host-bound credentials)

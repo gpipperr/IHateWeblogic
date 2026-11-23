@@ -136,6 +136,7 @@ Documentation:
 | File | Content |
 |---|---|
 | [docs/migration_forms_reports_to_14c.md](docs/migration_forms_reports_to_14c.md) | 12c → 14c in three steps |
+| [docs/forms_reports_patch_transfer_fmw_home.md](docs/forms_reports_patch_transfer_fmw_home.md) | patch once on the patch master, transfer the patched FMW home to QA / PROD (concept) |
 | [docs/project_status.md](docs/project_status.md) | status per phase, live tests |
 | [80-FMW-Architecture/security_overview.md](80-FMW-Architecture/security_overview.md) | **security entry page:** current patch cycle, hardening by layer (fix + check scripts), passwords, Reports invocation, residual risks |
 | [docs/forms_reports_sizing.md](docs/forms_reports_sizing.md) | disk sizing, memory and processes |

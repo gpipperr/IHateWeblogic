@@ -482,6 +482,10 @@ home is replaced**.
 
 ### Swapping a patched home
 
+The complete procedure for patching once and transferring the home to QA and
+production (clone family, inventories, Java, downtime, way back):
+[forms_reports_patch_transfer_fmw_home.md](../docs/forms_reports_patch_transfer_fmw_home.md).
+
 Replacing the Oracle Home with a patched copy under the same path, without touching the
 domain, gives the same code as `opatch apply`. The difference is that nothing above is
 carried over by itself, unless the new home was copied from this one. Not tested live on

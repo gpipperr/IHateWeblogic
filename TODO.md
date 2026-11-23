@@ -417,10 +417,20 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
   `02-Checks/egress_check.sh --capture 300` during the first start – which
   components fetch external DTDs there
   ([weblogic_outbound_connections.md](80-FMW-Architecture/weblogic_outbound_connections.md)).
-- [ ] **Home vs. domain** ([§7a](80-FMW-Architecture/weblogic_middleware_architecture.md)):
-  read KB694158 (WLS PSU post-install); run the checklist for swapping a patched
-  home live; first real domain start after `clean_domain_tmp.sh --apply` (so far
-  dry run on the test host and `--apply` on an isolated copy).
+- [ ] **Patch once, transfer the FMW home** (concept 2026-11-23:
+  [docs/forms_reports_patch_transfer_fmw_home.md](docs/forms_reports_patch_transfer_fmw_home.md)):
+  - [ ] result of the 12c customer test (central inventory not overwritten?
+    OS level of master vs. targets)
+  - [ ] live test 14c on the test host: pack, unpack to `fmw.new`, switch,
+    `lspatches` = manifest, way back; first real domain start after
+    `clean_domain_tmp.sh --apply`
+  - [ ] read KB694158 (WLS PSU post-install)
+  - [ ] applications directory outside the home: `setOption('AppDir')` in
+    `09-Install/response_files/domain_config.py.template` + key
+    `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`),
+    migration of existing domains (move + `source-path` in `config.xml`)
+  - [ ] script `07-Maintenance/fmw_home_transfer.sh` (`pack`, `check`,
+    `stage`, `switch`, `rollback`) – after the live test
 - [ ] **Reports mail** ([reports_mail_handling.md](80-FMW-Architecture/reports_mail_handling.md),
   own article since 2026-11-11): notifications **live-tested 2026-11-11** with a
   local SMTP sink (`notifyfailure` / `notifysuccess`, sender, own note files,
