@@ -354,20 +354,29 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 - [ ] **11-wlsmon – lightweight runtime monitor** (concept:
   [11-wlsmon/docs/01-wlsmon_concept.md](11-wlsmon/docs/01-wlsmon_concept.md);
   operations: [11-wlsmon/docs/04-wlsmon_operations.md](11-wlsmon/docs/04-wlsmon_operations.md)).
-  State 2026-11-20: P1 live on the test host and at the first customer (one
-  host, both roles; the step plan is local, not in git). Open:
-  - [ ] 24-h evaluation: test host slept 21.–23.11., the customer ran the
-    days through (plausible). Done 2026-11-23: restart after the gap, curl
-    matrix without login (401 / 404 / POST 401), security headers. Open: 200
-    with login, browser console without CSP violations, `systemd-cgtop`
-    during a round, thresholds vs. the customer's 24-h values
-  - [x] `backup_config.sh` category `wlsmon` (2026-11-23)
-  - [x] `--remove` + reinstall live on the test host (2026-11-23)
+  State 2026-11-23: P1 done – live on the test host and at the first customer
+  (one host, both roles); backup category `wlsmon`, `--remove` + reinstall
+  tested live; the step plan is local, not in git. Paused here, open:
+  - [ ] rest of the 24-h evaluation (done: restart after the suspend gap,
+    curl matrix without login, security headers, customer ran the days
+    through):
+    - [ ] 200 with login and the browser console without CSP violations
+    - [ ] memory per round with `systemd-cgtop` during a round (`MemoryPeak`
+      of the unit is not accounted) vs. `MemoryMax=200M`
+    - [ ] default thresholds vs. the customer's 24-h values
+      (`03-set-thresholds.sh` overview, without host names)
+  - [ ] customer host: `git pull` + `01 --apply` for the fixes since
+    2026-11-20 (tile texts, knockout, favicon / own probes), `SWAP_MB` /
+    `MEM_USED_PCT` set from the real values
+  - [ ] test host: remove the old
+    `/etc/systemd/system/wlsmon-collect.service.bak_20261120_120223` (root);
+    `01 --apply` for d6b055c
   - [ ] table view per chart (interface design §4 – promised, not built)
   - [ ] RCU check live on the test host only after the DB monitor user is agreed
   - [ ] P2: GUI host with `wlsmon.py pull` (stub today), data role on further
-    hosts, TLS against the internal CA; P3: the three scripts in the customer
-    tools ZIP
+    hosts, TLS against the internal CA
+  - [ ] P3: the three scripts in the customer tools ZIP; notes for PRTG /
+    Nagios reading `now.json`
 
 - [x] **CSPU November 2026** = first real run of
   `10-Monitoring/patch_cycle_analysis.sh` – done 2026-11-17 / 18 (prepare →
