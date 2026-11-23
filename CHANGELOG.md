@@ -18,6 +18,8 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   deletes the `.bak_*` of its own units / nginx files; a new `wls_monitor`
   credential ends the 401 pause at once; operations page: order after a
   remove (00 → `01 --reset-monitor-password` → 02), backup and restore.
+- **11-wlsmon nginx log errors:** the own anonymous probes from the loopback
+  on `/console` / `/em` (access test of `02-`) are no longer counted.
 
 ## 2026-11-20
 

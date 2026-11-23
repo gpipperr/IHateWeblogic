@@ -447,6 +447,8 @@ class CollectTest(unittest.TestCase):
                          '2026/11/20 12:02:09 [error] 1#1: *1102 open() "/usr/share/nginx/html/favicon.ico" failed '
                          '(2: No such file or directory), client: 192.0.2.1, server: x, request: '
                          '"GET /favicon.ico HTTP/1.1", host: "x"\n'
+                         '2026/11/23 16:03:03 [error] 1#1: *2023 access forbidden by rule, client: 127.0.0.1, '
+                         'server: x, request: "GET /console/ HTTP/1.1", host: "x"\n'
                          '2026/11/20 12:03:00 [error] 1#1: *290 upstream timed out, client: 192.0.2.17, server: x, '
                          'request: "GET /forms/frmservlet HTTP/1.1", host: "x"\n')
             now = env.collect()["now"]

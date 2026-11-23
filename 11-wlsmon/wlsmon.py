@@ -1139,9 +1139,11 @@ def part_nginx(rnd):
     text, note = read_new(cfg.get("WLSMON_NGINX_ERROR_LOG"), offsets, maxb)
     errs = None
     if text is not None:
-        # not counted: our own hourly security probe (security.json mgmt_rest_proxied)
-        # from the loopback - nginx logs its 404 / "forbidden" as [error]
-        own = re.compile(r'client: (127\.0\.0\.1|::1), .*request: "GET /management/weblogic/latest HTTP')
+        # not counted: our own anonymous probes from the loopback - the hourly security
+        # check (mgmt_rest_proxied: /management) and the access test of 02-install
+        # (/console, /em) - nginx logs their 404 / "access forbidden by rule" as [error]
+        own = re.compile(r'client: (127\.0\.0\.1|::1), .*request: '
+                         r'"GET /(management/weblogic/latest|console/?|em/?) HTTP')
         # not counted either: a missing static file (open() ... "No such file or
         # directory") is a plain 404 - the browser's /favicon.ico, scanners - and
         # already counted as 4xx of the access log
