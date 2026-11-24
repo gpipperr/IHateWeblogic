@@ -352,6 +352,26 @@ verified.
 
 ---
 
+### 4.3 Java 25 – Windows build and a real Forms session – confirmed (live)
+
+2026-11-24, Oracle JDK 25.0.5.1 (Linux x64 for `jlink`, Windows x64 for the
+`jmods`), module list of section 3, options of section 3.1:
+
+- Windows runtime: 20 modules, **28.6 MB** ZIP / 81 MB unpacked
+  (21.0.13.1: 28.1 MB), `javaw.exe` present.
+- `jlink` 21 refuses the `jmods` of 25 (`FindException: Error reading
+  module … java.base.jmod`) – `jlink` and `jmods` must be of the same
+  feature release. `40-` checks this and takes `jlink` from
+  `FORMS_CLIENT_JLINK_HOME` (default `JDK_HOME`).
+- Linux runtime of 25 with the same options, CA in `cacerts`, FSAL under
+  Xvfb against the test host: `Detected Java version: 25.0.5.1`, `Forms
+  Session ID is WLS_FORMS.formsapp.3`, HTTPS, new `frmweb` on the server,
+  no warnings in the FSAL output.
+
+Technically Forms 14.1.2 runs on a Java 25 client runtime; Oracle's
+certification of FSAL for Java 25 is still to be checked before customers
+move (section 8). JDK 27 is no option (no `jdk.jsobject`, section 2.5).
+
 ## 5. Procedure (summary)
 
 1. Download the JDK of the **target** platform from MOS (full
@@ -413,8 +433,10 @@ meant for Forms only and served only to Forms users of the server.
   ([40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md) §3.1).
 - ~~JMOD files in future Oracle JDK releases (JEP 493)~~ – 25 and 27 still
   ship them (2026-11-24); 27 drops `jdk.jsobject` (section 2.5).
-- Client runtime on Java 25: certification of FSAL 14.1.2, test build with
-  the Windows JDK 25 `jmods`.
+- Client runtime on Java 25: test build and Forms session done (section
+  4.3); open: Oracle certification of FSAL 14.1.2 for Java 25, Windows
+  client test, client JDK 25 from MOS for `40-` (today it reads the MOS
+  patch ZIP of `CLIENT_JDK_PATCH_NR`).
 - Runtime of 2026-11-24 (`zip-0`, `de,en`) on a Windows client: start,
   FSAL session, German formats – built and checked on Linux only.
 

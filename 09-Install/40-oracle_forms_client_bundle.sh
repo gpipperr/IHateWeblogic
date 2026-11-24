@@ -98,6 +98,10 @@ JLINK_MODULES="${FORMS_CLIENT_JLINK_MODULES:-java.base,java.desktop,java.managem
 # Further directories with client jars of archive= (colon separated); default
 # only $ORACLE_HOME/forms/java (where /forms/java/ of formsweb.cfg points)
 EXTRA_JAR_DIRS="${FORMS_CLIENT_EXTRA_JAR_DIRS:-}"
+# JDK whose jlink / jdeps link the client runtime - jlink reads only jmods of
+# its OWN feature release (jlink 21 refuses JDK 25 jmods, tested 2026-11-24):
+# client JDK 25 -> FORMS_CLIENT_JLINK_HOME=/u01/app/oracle/java/jdk-25
+JLINK_HOME="${FORMS_CLIENT_JLINK_HOME:-$JDK_HOME}"
 # Locales of jdk.localedata kept in the image (java_jlink_forms_env.md §3.1):
 # "de,en" = de_DE/AT/CH + en formats, -10 MB; "*" = all locales (old behaviour)
 JLINK_LOCALES="${FORMS_CLIENT_JLINK_LOCALES:-de,en}"
@@ -185,7 +189,7 @@ for _t in unzip zip sha256sum python3; do
     command -v "$_t" >/dev/null 2>&1 || { fail "$_t not installed"; PRE_FAIL=1; }
 done
 for _t in jlink keytool; do
-    [ -x "$JDK_HOME/bin/$_t" ] || { fail "$JDK_HOME/bin/$_t missing (JDK_HOME)"; PRE_FAIL=1; }
+    [ -x "$JLINK_HOME/bin/$_t" ] || { fail "$JLINK_HOME/bin/$_t missing (FORMS_CLIENT_JLINK_HOME / JDK_HOME)"; PRE_FAIL=1; }
 done
 unset _t
 case "$RUNTIME_MODE" in
@@ -243,6 +247,17 @@ fi
 CJ_VER="$(printf '%s' "$CJ_INNER" | sed -n 's/^jdk-\([0-9.]*\)_windows-x64_bin\.zip$/\1/p')"
 CJ_SHA_EXP="$(unzip -p "$CJ_ZIP" SHA256_VALUES 2>/dev/null | grep -F "($CJ_INNER)" | awk '{print $NF}')"
 ok "$(printf "%-22s %s" "Client JDK:" "$(basename "$CJ_ZIP") → $CJ_INNER")"
+# jlink and jmods must be of the same feature release (21 / 25 ...)
+if [ "$RUNTIME_MODE" = "jlink" ]; then
+    _jl_ver="$("$JLINK_HOME/bin/jlink" --version 2>/dev/null)"
+    if [ "${_jl_ver%%.*}" != "${CJ_VER%%.*}" ]; then
+        fail "$(printf "%-22s %s" "jlink version:" "jlink ${_jl_ver:-?} ($JLINK_HOME) cannot link JDK $CJ_VER jmods – same feature release needed")"
+        info "  set FORMS_CLIENT_JLINK_HOME to a JDK ${CJ_VER%%.*} (e.g. /u01/app/oracle/java/jdk-${CJ_VER%%.*})"
+        print_summary; exit 2
+    fi
+    ok "$(printf "%-22s %s" "jlink version:" "${_jl_ver} ($JLINK_HOME) – matches JDK $CJ_VER")"
+    unset _jl_ver
+fi
 # outer ZIP against the sha256 of the patch list (row client_jdk, 233P regexp) –
 # soft check like 05- / 06-; the inner jdk ZIP is checked against SHA256_VALUES
 patch_zip_sha_check "$CJ_ZIP" "$CJ_NR"
@@ -444,7 +459,7 @@ unset _sec
 # references only: reflection / ServiceLoader -> FORMS_CLIENT_JLINK_MODULES.
 JLINK_EXTRA=""
 if [ "$RUNTIME_MODE" = "jlink" ] && [ -n "${FRM_CFG:-}" ] && [ -f "$FRM_CFG" ]; then
-    _jdeps="$JDK_HOME/bin/jdeps"
+    _jdeps="$JLINK_HOME/bin/jdeps"
     _jars=(); _miss=()
     while IFS= read -r _j; do
         # relative to /forms/java/ (also lib/x.jar), else by name in the extra
@@ -608,10 +623,10 @@ if $NEED_JAVA; then
             fail "No jmods/ in $CJ_INNER – use FORMS_CLIENT_RUNTIME=jdk"; print_summary; exit 2
         fi
         _jmods="$(ls -d "$WORK"/jdk/*/jmods 2>/dev/null | head -1)"
-        info "jlink $("$JDK_HOME/bin/jlink" --version) with $(ls "$_jmods" | wc -l) jmods of $CJ_VER"
+        info "jlink $("$JLINK_HOME/bin/jlink" --version) with $(ls "$_jmods" | wc -l) jmods of $CJ_VER"
         _loc_opt=()
         [ -n "$JLINK_LOCALES" ] && [ "$JLINK_LOCALES" != "*" ] && [[ ",$JLINK_MODULES_ALL," == *",jdk.localedata,"* ]] && _loc_opt=("--include-locales=$JLINK_LOCALES")
-        if ! "$JDK_HOME/bin/jlink" --module-path "$_jmods" --add-modules "$JLINK_MODULES_ALL" \
+        if ! "$JLINK_HOME/bin/jlink" --module-path "$_jmods" --add-modules "$JLINK_MODULES_ALL" \
                 --strip-debug --no-header-files --no-man-pages --compress=zip-0 "${_loc_opt[@]}" \
                 --output "$RT" >> "${LOG_FILE:-/dev/null}" 2>&1; then
             fail "jlink failed – see $LOG_FILE"; print_summary; exit 2
