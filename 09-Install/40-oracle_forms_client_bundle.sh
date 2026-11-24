@@ -93,7 +93,18 @@ RUNTIME_MODE="${FORMS_CLIENT_RUNTIME:-jlink}"
 CJ_NR="${CLIENT_JDK_PATCH_NR:-${JDK_PATCH_NR:-}}"
 CJ_DIR="$PATCH_STORAGE/client/jdk/$CJ_NR"
 # Module list – java_jlink_forms_env.md §3 (Windows modules included)
-JLINK_MODULES="${FORMS_CLIENT_JLINK_MODULES:-java.base,java.desktop,java.management,java.net.http,jdk.jsobject,java.logging,java.naming,java.xml,java.prefs,jdk.crypto.ec,jdk.crypto.mscapi,jdk.charsets,jdk.localedata,jdk.unsupported,jdk.zipfs,jdk.accessibility}"
+# java.sql since 2026-11-24: older JavaBeans / PJCs reference it (customer jars)
+JLINK_MODULES="${FORMS_CLIENT_JLINK_MODULES:-java.base,java.desktop,java.management,java.net.http,jdk.jsobject,java.logging,java.naming,java.xml,java.prefs,java.sql,jdk.crypto.ec,jdk.crypto.mscapi,jdk.charsets,jdk.localedata,jdk.unsupported,jdk.zipfs,jdk.accessibility}"
+# Further directories with client jars of archive= (colon separated); default
+# only $ORACLE_HOME/forms/java (where /forms/java/ of formsweb.cfg points)
+EXTRA_JAR_DIRS="${FORMS_CLIENT_EXTRA_JAR_DIRS:-}"
+# Locales of jdk.localedata kept in the image (java_jlink_forms_env.md §3.1):
+# "de,en" = de_DE/AT/CH + en formats, -10 MB; "*" = all locales (old behaviour)
+JLINK_LOCALES="${FORMS_CLIENT_JLINK_LOCALES:-de,en}"
+# Build options that change the image - part of the fingerprint (rebuild on change):
+# modules uncompressed (zip-0), the download ZIP compresses them better than
+# jimage zip-6 does (45.6 -> 28.2 MB with de,en, measured 2026-11-24)
+JLINK_OPTS_ID="v2|zip-0|locales=${JLINK_LOCALES}|no-lib"
 CA_ALIAS="ihw-forms-ca"
 MANIFEST="$CLIENT_DIR/manifest.json"
 MANIFEST_PREV="$CLIENT_DIR/manifest.prev.json"
@@ -150,6 +161,7 @@ section "Forms client bundle – $(date '+%Y-%m-%d %H:%M:%S')"
 ok "$(printf "%-22s %s" "FORMS_CLIENT_DIR:" "$CLIENT_DIR")"
 ok "$(printf "%-22s %s" "URL:" "${BASE_URL}${URL_PATH}/")"
 ok "$(printf "%-22s %s" "Runtime mode:" "$RUNTIME_MODE")"
+[ "$RUNTIME_MODE" = "jlink" ] && ok "$(printf "%-22s %s" "jlink locales:" "${JLINK_LOCALES:-*} (FORMS_CLIENT_JLINK_LOCALES, \"*\" = all)")"
 $APPLY && info "Mode: APPLY" || info "Mode: read-only (use --apply to build)"
 
 # =============================================================================
@@ -422,6 +434,60 @@ else
 fi
 unset _sec
 
+# --- Client jars of formsweb.cfg -> modules of the jlink runtime -------------
+# archive= / WebUtilArchive of every section name the jars the client loads
+# (Forms jars and own JavaBeans / PJCs). jdeps lists the modules they
+# reference; modules beyond JLINK_MODULES are added (part of the fingerprint,
+# a new jar rebuilds the runtime). Jars that use JDK APIs removed since Java 9
+# (sun.misc.BASE64Encoder ...) get a WARN - no module list fixes them, the jar
+# has to be rebuilt (java_jlink_forms_env.md §3.2). jdeps sees static
+# references only: reflection / ServiceLoader -> FORMS_CLIENT_JLINK_MODULES.
+JLINK_EXTRA=""
+if [ "$RUNTIME_MODE" = "jlink" ] && [ -n "${FRM_CFG:-}" ] && [ -f "$FRM_CFG" ]; then
+    _jdeps="$JDK_HOME/bin/jdeps"
+    _jars=(); _miss=()
+    while IFS= read -r _j; do
+        _b="$(basename "$_j")"; _hit=""
+        for _d in "$ORACLE_HOME/forms/java" ${EXTRA_JAR_DIRS//:/ }; do
+            [ -f "$_d/$_b" ] && { _hit="$_d/$_b"; break; }
+        done
+        [ -n "$_hit" ] && _jars+=("$_hit") || _miss+=("$_b")
+    done < <(awk '/^[[:space:]]*[#;]/ {next}
+                  { i = index($0, "="); if (!i) next
+                    k = substr($0, 1, i - 1); gsub(/[[:space:]]/, "", k)
+                    if (k == "archive" || k == "WebUtilArchive") print substr($0, i + 1) }' "$FRM_CFG" \
+             | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '\.jar$' | sort -u)
+    if [ "${#_jars[@]}" -eq 0 ]; then
+        info "$(printf "%-22s %s" "Client jars:" "no archive= jar found in $ORACLE_HOME/forms/java – module list not checked")"
+    elif [ ! -x "$_jdeps" ]; then
+        warn "$(printf "%-22s %s" "Client jars:" "$_jdeps missing – ${#_jars[@]} jar(s) not checked")"
+    else
+        _cp="$(IFS=:; printf '%s' "${_jars[*]}")"
+        _own=0; _removed=()
+        for _j in "${_jars[@]}"; do
+            _mods="$("$_jdeps" --ignore-missing-deps --print-module-deps --multi-release 21 -cp "$_cp" "$_j" 2>/dev/null | tail -1)"
+            _add="$(printf '%s' "$_mods" | tr ',' '\n' | grep -E '^[a-z][a-z0-9.]*$' \
+                    | grep -vxF -f <(printf '%s' "$JLINK_MODULES,$JLINK_EXTRA" | tr ',' '\n') | paste -sd, -)"
+            if [ -n "$_add" ]; then
+                JLINK_EXTRA="${JLINK_EXTRA:+$JLINK_EXTRA,}$_add"
+                info "$(printf "  %-26s needs %s (added)" "$(basename "$_j")" "$_add")"
+            fi
+            case "$(basename "$_j")" in frm*.jar|jacob.jar) ;; *) _own=$(( _own + 1 )) ;; esac
+        done
+        while IFS= read -r _j; do _removed+=("$_j"); done < <("$_jdeps" --jdk-internals --multi-release 21 -cp "$_cp" "${_jars[@]}" 2>/dev/null \
+            | sed -n 's/^\([^ ]*\.jar\) -> JDK removed internal API.*/\1/p' | sort -u)
+        ok "$(printf "%-22s %s" "Client jars:" "${#_jars[@]} from archive= / WebUtilArchive (${_own} own), modules added: ${JLINK_EXTRA:-none}")"
+        if [ "${#_removed[@]}" -gt 0 ]; then
+            warn "$(printf "%-22s %s" "Removed JDK API:" "${_removed[*]} – sun.misc.* etc. gone since Java 9, these classes fail on every Java 17+ client (FSAL)")"
+            info "  details: $_jdeps --jdk-internals <jar>; fix: rebuild the jar (java.util.Base64) / newer version of the library"
+        fi
+        unset _cp _own _removed _mods _add
+    fi
+    [ "${#_miss[@]}" -gt 0 ] && info "$(printf "%-22s %s" "Jars not found:" "${_miss[*]} (not in forms/java / FORMS_CLIENT_EXTRA_JAR_DIRS – not checked)")"
+    unset _jdeps _jars _miss _j _b _hit _d
+fi
+JLINK_MODULES_ALL="$JLINK_MODULES${JLINK_EXTRA:+,$JLINK_EXTRA}"
+
 # --- Setup templates (Baustein 3, optional) ---------------------------------
 SETUP_PS1="$TEMPLATE_DIR/FormsWeb-Setup.ps1"
 SETUP_CMD="$TEMPLATE_DIR/FormsWeb-Install.cmd"
@@ -436,7 +502,7 @@ fi
 # =============================================================================
 section "Change check"
 
-JAVA_FP="$(printf '%s|%s|%s|%s|%s' "$(_sha "$CJ_ZIP")" "$CJ_INNER" "$RUNTIME_MODE" "$JLINK_MODULES" "$CA_SHA" | sha256sum | cut -d' ' -f1)"
+JAVA_FP="$(printf '%s|%s|%s|%s|%s|%s' "$(_sha "$CJ_ZIP")" "$CJ_INNER" "$RUNTIME_MODE" "$JLINK_MODULES_ALL" "$CA_SHA" "$JLINK_OPTS_ID" | sha256sum | cut -d' ' -f1)"
 NEED_JAVA=true; NEED_FSAL=true; NEED_JACOB=$JACOB_ON
 if ! $FORCE && [ -f "$MANIFEST" ]; then
     _cur_java_fp="$(_mf_get "$MANIFEST" java source)"
@@ -536,11 +602,17 @@ if $NEED_JAVA; then
         fi
         _jmods="$(ls -d "$WORK"/jdk/*/jmods 2>/dev/null | head -1)"
         info "jlink $("$JDK_HOME/bin/jlink" --version) with $(ls "$_jmods" | wc -l) jmods of $CJ_VER"
-        if ! "$JDK_HOME/bin/jlink" --module-path "$_jmods" --add-modules "$JLINK_MODULES" \
-                --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+        _loc_opt=()
+        [ -n "$JLINK_LOCALES" ] && [ "$JLINK_LOCALES" != "*" ] && [[ ",$JLINK_MODULES_ALL," == *",jdk.localedata,"* ]] && _loc_opt=("--include-locales=$JLINK_LOCALES")
+        if ! "$JDK_HOME/bin/jlink" --module-path "$_jmods" --add-modules "$JLINK_MODULES_ALL" \
+                --strip-debug --no-header-files --no-man-pages --compress=zip-0 "${_loc_opt[@]}" \
                 --output "$RT" >> "${LOG_FILE:-/dev/null}" 2>&1; then
             fail "jlink failed – see $LOG_FILE"; print_summary; exit 2
         fi
+        # import libraries for building native code against the JVM - not used at run time
+        rm -f "$RT"/lib/*.lib
+        info "jlink: modules uncompressed, locales ${JLINK_LOCALES:-*}, lib/*.lib removed"
+        unset _loc_opt
         unset _jmods
     else
         unzip -q -o "$WORK/$CJ_INNER" -d "$WORK/jdk" || { fail "Cannot extract $CJ_INNER"; print_summary; exit 2; }
@@ -562,11 +634,15 @@ if $NEED_JAVA; then
         fi
     fi
 
-    JAVA_FILE="jre-${RT_VER}-win-x64.zip"
+    # "formsWeb-" = built by this script (jlink runtime + CA), not Oracle's JDK ZIP;
+    # jdk mode ships the whole JDK -> formsWeb-jdk-
+    _kind="jre"; [ "$RUNTIME_MODE" = "jdk" ] && _kind="jdk"
+    JAVA_FILE="formsWeb-${_kind}-${RT_VER}-win-x64.zip"
     # never overwrite a file a manifest may reference (clients could be downloading it)
-    [ -f "$CLIENT_DIR/$JAVA_FILE" ] && JAVA_FILE="jre-${RT_VER}-win-x64-${JAVA_FP:0:8}.zip"
-    [ -f "$CLIENT_DIR/$JAVA_FILE" ] && JAVA_FILE="jre-${RT_VER}-win-x64-${JAVA_FP:0:8}-$(date +%Y%m%d%H%M%S).zip"
-    ( cd "$RT" && zip -q -r -X "$WORK/$JAVA_FILE" . ) || { fail "zip of the runtime failed"; print_summary; exit 2; }
+    [ -f "$CLIENT_DIR/$JAVA_FILE" ] && JAVA_FILE="formsWeb-${_kind}-${RT_VER}-win-x64-${JAVA_FP:0:8}.zip"
+    [ -f "$CLIENT_DIR/$JAVA_FILE" ] && JAVA_FILE="formsWeb-${_kind}-${RT_VER}-win-x64-${JAVA_FP:0:8}-$(date +%Y%m%d%H%M%S).zip"
+    unset _kind
+    ( cd "$RT" && zip -q -r -X -9 "$WORK/$JAVA_FILE" . ) || { fail "zip of the runtime failed"; print_summary; exit 2; }
     install -m 644 "$WORK/$JAVA_FILE" "$CLIENT_DIR/$JAVA_FILE"
     ok "$(printf "%-22s %s (%s)" "Java runtime:" "$JAVA_FILE" "$(du -h "$CLIENT_DIR/$JAVA_FILE" | cut -f1)")"
     JAVA_VERSION_OUT="$RT_VER"
@@ -683,7 +759,8 @@ for f in sys.argv[1:]:
     print((m.get("start", {}).get("icon") or {}).get("file", ""))
 ' "$MANIFEST" "$MANIFEST_PREV")"
 _removed=0
-for _f in "$CLIENT_DIR"/jre-*.zip "$CLIENT_DIR"/frmsal-*.jar "$CLIENT_DIR"/jacob-*.dll "$CLIENT_DIR"/icon-*.ico; do
+# jre-*.zip = names before 2026-11-24
+for _f in "$CLIENT_DIR"/formsWeb-jre-*.zip "$CLIENT_DIR"/formsWeb-jdk-*.zip "$CLIENT_DIR"/jre-*.zip "$CLIENT_DIR"/frmsal-*.jar "$CLIENT_DIR"/jacob-*.dll "$CLIENT_DIR"/icon-*.ico; do
     [ -f "$_f" ] || continue
     if ! printf '%s\n' "$_keep" | grep -qxF "$(basename "$_f")"; then
         rm -f "$_f" && info "Removed (no longer referenced): $(basename "$_f")"

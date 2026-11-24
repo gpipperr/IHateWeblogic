@@ -121,6 +121,19 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   – install + FSAL start work since 2026-10-23. Open: update and self-update
   round (next cycle or `40- --force`), offline start, `-Rollback`, JACOB /
   Excel, `AllSigned` + Authenticode signature of the script.
+  - [ ] smaller runtime of 2026-11-24 (`formsWeb-jre-*.zip`, 28 MB instead of
+    45.6 MB: locales `de,en`, modules uncompressed, no `lib/*.lib`) on a
+    Windows client: update round from the old `jre-*.zip`, FSAL start, German
+    date / number formats; tested isolated on Linux only
+    ([java_jlink_forms_env.md §3.1](80-FMW-Architecture/java_jlink_forms_env.md#31-size-of-the-download--what-still-helps)).
+    Customer: `40-oracle_forms_client_bundle.sh --apply` rebuilds by itself
+    (build options in the fingerprint); `FORMS_CLIENT_JLINK_LOCALES` if users
+    run other Windows locales
+  - [ ] customer with own client jars (2026-11-24): two look-and-feel /
+    table beans use `sun.misc.BASE64*` (removed since Java 9) – ask whether
+    those features work under FSAL, rebuild with `java.util.Base64` or newer
+    library version; `40-` now warns and adds modules found by `jdeps`
+    (`java.sql` default) – [java_jlink_forms_env.md §3.2](80-FMW-Architecture/java_jlink_forms_env.md#32-own-jars-of-the-application-javabeans-pjcs)
 - [ ] **Windows client**: Java Web Start start of the test form (FSAL done
   2026-10-23), signed vs. unsigned `jacob.jar`, revocation check
   of Java Web Start with a CA without CRL/OCSP, real OLE call (Excel);

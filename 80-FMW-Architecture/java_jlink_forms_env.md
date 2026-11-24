@@ -34,9 +34,10 @@ client distribution),
 | JDK 21 updates exist only on MOS since the NFTC ended (September 2026), every update is a full distribution | the runtime is rebuilt from the MOS patch at every Java CPU / Security Alert |
 | The client JRE is the TLS client of the Forms session (JSSE) – CVE-2026-91403 | the runtime must follow the Java patch cycle quickly ([forms_runtime_architecture.md §1.2](forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw)) |
 
-A runtime built for FSAL contains only the modules Forms needs: about
-60–70 MB instead of ~300 MB, a smaller attack surface (no compiler, no
-`jshell`, no debugging agents), and our own trust store inside.
+A runtime built for FSAL contains only the modules Forms needs: a download
+of about 28 MB (80 MB unpacked) instead of the ~190 MB JDK ZIP (~300 MB
+unpacked), a smaller attack surface (no compiler, no `jshell`, no debugging
+agents), and our own trust store inside (section 3.1).
 
 ---
 
@@ -163,19 +164,90 @@ Added for run-time services and robustness:
 | `jdk.unsupported` | `sun.misc.Unsafe` – used by some libraries |
 | `jdk.zipfs` | zip file system provider |
 | `jdk.accessibility` | Windows only – Java Access Bridge (screen readers) |
+| `java.sql` | since 2026-11-24 – older JavaBeans / PJCs of customers reference it (`java.sql.Date`, JDBC types); small, pulls in `java.transaction.xa` |
 
 ```
 java.base,java.desktop,java.management,java.net.http,jdk.jsobject,
-java.logging,java.naming,java.xml,java.prefs,jdk.crypto.ec,jdk.charsets,
+java.logging,java.naming,java.xml,java.prefs,java.sql,jdk.crypto.ec,jdk.charsets,
 jdk.localedata,jdk.unsupported,jdk.zipfs
   + Windows: jdk.crypto.mscapi,jdk.accessibility
 ```
 
 Not included: compiler (`java.compiler`, `jdk.compiler`), `jdk.jshell`,
-debugging / JFR / attach (`jdk.jdwp.agent`, `jdk.jfr`, `jdk.attach`),
-`java.sql`. JavaFX is not part of the JDK; FSAL only needs it for
+debugging / JFR / attach (`jdk.jdwp.agent`, `jdk.jfr`, `jdk.attach`).
+JavaFX is not part of the JDK; FSAL only needs it for
 applications that use it ("Enabling JavaFX for Java 17+", FSAL
 documentation).
+
+### 3.1 Size of the download – what still helps
+
+Measured on 2026-11-24 with the Windows JDK 21.0.13.1 (MOS 35702194, 233P),
+the module list above, `--strip-debug --no-header-files --no-man-pages`,
+ZIP with `zip -9` (**confirmed (live)**):
+
+| Variant | ZIP (download) | unpacked | `lib/modules` |
+|---|---|---|---|
+| `--compress=zip-6`, all locales (until 2026-11-24) | 45.6 MB | 61 MB | 38.1 MB |
+| `--compress=zip-6` + `--include-locales=de,en` | 35.5 MB | 50 MB | 27.2 MB |
+| `--compress=zip-9` + `--include-locales=de,en` | 35.5 MB | 50 MB | 27.2 MB |
+| **`--compress=zip-0` + `--include-locales=de,en`, without `lib/*.lib`** (since 2026-11-24) | **28.0 MB** | 80 MB | 59.6 MB |
+
+- **Locales** are the largest lever: `jdk.localedata` holds the formats of
+  every language. `--include-locales=de,en` keeps German (incl. `de_AT`
+  "Jänner", `de_CH` "1’234’567.89") and English; other languages fall back
+  to the root formats (`fr_FR` → "1970 Jan 1", tested with a Linux image
+  of the same options). Set by `FORMS_CLIENT_JLINK_LOCALES` (default
+  `de,en`, `*` = all) – add the languages of the users' Windows locales.
+- **Uncompressed modules** (`zip-0`, the default of a normal JDK image): the
+  jimage compression and the download ZIP do the same work twice; an
+  uncompressed `lib/modules` compresses much better in the ZIP. The client
+  needs more disk (80 MB per installed version) and starts without the
+  jimage decompression.
+- `lib/jvm.lib`, `lib/jawt.lib`: import libraries for building native code
+  against the JVM – not used at run time, removed.
+- **Not worth it / not possible:** `bin/server/jvm.dll` (13.5 MB, there is
+  no client VM for 64-bit), the VC runtime DLLs (`ucrtbase.dll`,
+  `msvcp140.dll`, `api-ms-win-*`, needed on clients without the VC++
+  redistributable), `--strip-native-commands` (would remove `javaw.exe`).
+- The ZIP name starts with `formsWeb-` (`formsWeb-jre-<ver>-win-x64.zip`):
+  built by [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh),
+  not Oracle's JDK ZIP. Until 2026-11-24: `jre-<ver>-win-x64.zip`.
+
+
+### 3.2 Own jars of the application (JavaBeans, PJCs)
+
+`archive=` in `formsweb.cfg` adds the application's own client jars
+(JavaBeans, Pluggable Java Components, look-and-feel libraries) to
+`frmall.jar`. They run in the same runtime – a module they need and the
+runtime lacks shows up only on the client, as `NoClassDefFoundError` when
+the class is loaded.
+
+[`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh)
+therefore reads `archive=` and `WebUtilArchive` of **every** section, finds
+the jars in `$ORACLE_HOME/forms/java` (plus `FORMS_CLIENT_EXTRA_JAR_DIRS`)
+and runs
+
+```bash
+jdeps --ignore-missing-deps --print-module-deps --multi-release 21 -cp <all jars> <jar>
+jdeps --jdk-internals --multi-release 21 -cp <all jars> <jars>
+```
+
+- Modules beyond the list of section 3 are **added** to the runtime (shown
+  per jar in the dry run, part of the fingerprint – a new jar rebuilds).
+- Jars that use **JDK APIs removed since Java 9** get a WARN. Typical:
+  `sun.misc.BASE64Encoder` / `BASE64Decoder` in look-and-feel and table
+  beans built for Java 6 / 8. No module list helps – the classes are gone
+  from every JDK 17+, and the package `sun.misc` cannot be replaced from
+  the class path (it belongs to `jdk.unsupported`). Such a jar has to be
+  rebuilt (`java.util.Base64`) or replaced by a newer version of the
+  library; until then the affected features fail on every FSAL client.
+- `jdeps` sees static references only: classes loaded by reflection or
+  `ServiceLoader` → add the module to `FORMS_CLIENT_JLINK_MODULES`.
+
+Seen at a customer (**confirmed (live)** 2026-11-24, `jdeps` on the jars of
+the collector export): 14 own jars, three need `java.sql` (not in the list
+until then), two use `sun.misc.BASE64*` – on 12c (Java 8 clients) unnoticed,
+on 14c with FSAL a broken feature.
 
 ---
 
@@ -196,7 +268,7 @@ $JDK_HOME/bin/jlink \
     --output runtime-win
 ```
 
-Result: 8 s, **61 MB**. `release`:
+Result: 8 s, **61 MB** (options of that day, section 3.1 for today's). `release`:
 
 ```
 JAVA_VERSION="21.0.13.0.2"
@@ -269,7 +341,8 @@ verified.
 2. Check the SHA-256 against `SHA256_VALUES`, extract the JDK ZIP
    (`jdk-<ver>_<platform>_bin.zip` / `.tar.gz`).
 3. `jlink --module-path <target-jdk>/jmods --add-modules <list> … --output <dir>`
-   with a `jlink` of the same feature release.
+   with a `jlink` of the same feature release; `--include-locales=de,en`,
+   `--compress=zip-0` (section 3.1).
 4. Import the CA of the Forms server certificate into
    `<dir>/lib/security/cacerts` (`keytool`, password `changeit`); for a
    public CA nothing to do.
@@ -278,7 +351,9 @@ verified.
    `javaw -jar frmsal.jar -url "…config=standaloneapp" -cert_truststore java`.
 6. Rebuild at every Java CPU / Security Alert and after the CA changes.
 
-Automated as [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh) (planned, concept
+Automated by [`09-Install/40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh)
+(live on the test host since 2026-10-23, at the first customer since
+November 2026; concept
 [40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md)).
 
 ---
@@ -318,6 +393,8 @@ meant for Forms only and served only to Forms users of the server.
 - `fsalJavaVersion` in `formsweb.cfg` against the runtime version
   ([40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md) §3.1).
 - JMOD files in future Oracle JDK releases (JEP 493).
+- Runtime of 2026-11-24 (`zip-0`, `de,en`) on a Windows client: start,
+  FSAL session, German formats – built and checked on Linux only.
 
 ---
 

@@ -18,6 +18,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 - **Architecture "the five homes":** Oracle Home, Domain Home and Applications
   Home with a drawing and a table of what a patch does in which home
   ([weblogic_middleware_architecture.md §1a](80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what)).
+- **Smaller Forms client runtime:** `40-oracle_forms_client_bundle.sh` links
+  only the `de,en` locales (`FORMS_CLIENT_JLINK_LOCALES`), keeps the modules
+  uncompressed for the outer `zip -9` and drops `lib/*.lib` – download 28 MB
+  instead of 45.6 MB; the ZIP is now named `formsWeb-jre-<ver>-win-x64.zip`
+  ([java_jlink_forms_env.md §3.1](80-FMW-Architecture/java_jlink_forms_env.md#31-size-of-the-download--what-still-helps)).
+- **Own client jars in the jlink runtime:** `40-` checks every `archive=` /
+  `WebUtilArchive` jar of `formsweb.cfg` with `jdeps`, adds the modules they
+  need and warns on JDK APIs removed since Java 9 (`sun.misc.BASE64*`);
+  `java.sql` is now part of the default module list
+  ([java_jlink_forms_env.md §3.2](80-FMW-Architecture/java_jlink_forms_env.md#32-own-jars-of-the-application-javabeans-pjcs)).
 - **Finding: the domain's `em.ear` is never patched** – the `/em` cookie fix of
   the FMW Control BP of the CPU Oct 2026 is not active on the test host;
   check and refresh procedure open (TODO).

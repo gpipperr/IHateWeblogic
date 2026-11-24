@@ -75,7 +75,7 @@ reproducible (open items "Tests that need a client" in the root README).
  |   manifest.json                             |  Nginx   |                 |                         |
  |   FormsWeb-Setup.ps1                        | /forms   |  %LOCALAPPDATA%\FormsWeb\                 |
  |   FormsWeb-Install.cmd (bootstrap)          |  Web/    |    java\<version>-<sha8>\ (jlink runtime)  |
- |   jre-<version>-win-x64.zip                 |          |    fsal\frmsal-<version>.jar              |
+ |   formsWeb-jre-<version>-win-x64.zip        |          |    fsal\frmsal-<version>.jar              |
  |   frmsal-<version>.jar                      |          |    jacob\jacob-1.21-x64.dll               |
  |   jacob-1.21-x64.dll                        |          |    state.json, logs\                      |
  +---------------------------------------------+          +-------------------|-----------------------+
@@ -130,6 +130,8 @@ Reports-only installation has no Forms client and asks none of them.
 | `FORMS_CLIENT_APP_NAME` | `Oracle Forms` | name of the desktop / start menu shortcut |
 | `FORMS_CLIENT_ICON` | `${PATCH_STORAGE}/icon/IHateWeblogic.ico` | shortcut icon – the default is the project logo [`09-Install/forms_templates/IHateWeblogic.ico`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/forms_templates/IHateWeblogic.ico) (16/32/48/256 px), copied there by `04- --apply` if missing; own icon: local path or `http(s)` URL (`04-` downloads a URL into `$PATCH_STORAGE/icon/<basename>`, shared helper `forms_client_icon_path` in the lib): `.ico`, or `.png` up to 256 × 256 – `40-` wraps a PNG into an ICO container (PNG-compressed entry, Windows Vista and later), served as `icon-<sha8>.ico`, `start.icon` in the manifest; empty = Windows default. The Oracle Home has no Forms `.ico` – for production use the customer's application / company icon |
 | `FORMS_CLIENT_RUNTIME` | `jlink` | `jlink` = slim runtime, `jdk` = full JDK ZIP |
+| `FORMS_CLIENT_EXTRA_JAR_DIRS` | empty | further directories (`:` separated) with client jars of `archive=`; `$ORACLE_HOME/forms/java` is always searched – the jars are checked with `jdeps`, needed modules are added ([java_jlink_forms_env.md §3.2](../../80-FMW-Architecture/java_jlink_forms_env.md#32-own-jars-of-the-application-javabeans-pjcs)) |
+| `FORMS_CLIENT_JLINK_LOCALES` | `de,en` | locales kept in the jlink runtime (`--include-locales`); `*` = all – add the languages of the users' Windows locales ([java_jlink_forms_env.md §3.1](../../80-FMW-Architecture/java_jlink_forms_env.md#31-size-of-the-download--what-still-helps)) |
 | `FORMS_CLIENT_TRUST_CA` | `${SSL_CA_DIR}/ca/ca.crt` if it exists, else empty | CA for the truststore of the bundled runtime; empty = public CA |
 
 Code signing of the setup script uses the existing `FORMS_SIGN_*`
@@ -171,7 +173,9 @@ Not in the interview (software versions, one source):
   "Custom JRE Support"). The bundle script runs `jlink` from the server
   JDK 21 with the `jmods` of the **Windows** JDK and a fixed module list
   (`FORMS_CLIENT_JLINK_MODULES`, default from the `jdeps` analysis below) →
-  a runtime of about 60 MB instead of ~300 MB (ZIP 44 MB). Fallback: the
+  a runtime of 80 MB unpacked instead of ~300 MB, a **28 MB download**
+  (since 2026-11-24: locales `de,en` – `FORMS_CLIENT_JLINK_LOCALES` –,
+  modules uncompressed inside, `zip -9` outside; before 45.6 MB). Fallback: the
   full JDK (`FORMS_CLIENT_RUNTIME=jdk`). Re-run `jdeps` when a Forms patch
   brings new client jars.
 
@@ -223,7 +227,7 @@ by `40-` (**confirmed (live)** 2026-10-22, hashes shortened):
   "server": "https://<host>",
   "baseUrl": "https://<host>/formsWeb/",
   "components": {
-    "java":  { "version": "21.0.13.0.2", "file": "jre-21.0.13.0.2-win-x64.zip",
+    "java":  { "version": "21.0.13.0.2", "file": "formsWeb-jre-21.0.13.0.2-win-x64.zip",
                "size": 45609003, "sha256": "1bf2…", "source": "<fingerprint of the sources>" },
     "fsal":  { "version": "14.1.2.0.0-bdd10648", "file": "frmsal-14.1.2.0.0-bdd10648.jar",
                "size": 388317, "sha256": "bdd1…", "source": "bdd1…" },
@@ -244,7 +248,7 @@ by `40-` (**confirmed (live)** 2026-10-22, hashes shortened):
 manifest is public). Nginx serves it with `Cache-Control: no-cache` and an
 ETag (HTTP 304 **confirmed (live)**); the PowerShell script itself fetches
 the full file each time (§11). Versioned file names
-(`jre-<version>…`, `frmsal-<version>.jar`) let browsers / proxies cache the
+(`formsWeb-jre-<version>…`, `frmsal-<version>.jar`) let browsers / proxies cache the
 large files safely.
 
 ---
@@ -600,10 +604,11 @@ Runs as oracle. Only for Forms installations with `FORMS_CLIENT_DIST=true`
 |---|---|
 | 1. Sources | client JDK ZIP from `$PATCH_STORAGE/client/jdk/<CLIENT_JDK_PATCH_NR or JDK_PATCH_NR>/` (no Linux ZIP), the outer ZIP checked against the `sha256` of the patch list (`patch_zip_sha_check`, row `client_jdk`, soft check), the inner `jdk-<ver>_windows-x64_bin.zip` against `SHA256_VALUES`; the start section `FORMS_CLIENT_CONFIG` in the deployed `formsweb.cfg`: FAIL if it does not exist, WARN if it switches WebUtil on without `baseSAAfile=webutilsaa.txt` (FSAL then loads no WebUtil jars; `[default]` alone carries `WebUtilArchive` for every section and does not count); the start form (`FORMS_CLIENT_FORM`, else `form=` of the section): WARN when its `.fmx` is not in the `FORMS_PATH` of the section's `envFile` (the client would start into FRM-40010), hint for a name with `.fmb`; `$ORACLE_HOME/forms/java/frmsal.jar`; JACOB x64 DLL from `$PATCH_STORAGE/jacob/$JACOB_ZIP` (only `FORMS_WEBUTIL_JACOB=true`, size checked against `JACOB_DLL_X64_SIZE`); CA `FORMS_CLIENT_TRUST_CA` (optional) |
 | 2. Change check | a fingerprint per component (SHA-256 of the source, module list, runtime mode, CA), the start parameters (URL with `config=` / `form=`, shortcut name) and the icon are compared with the current `manifest.json` – nothing changed → "up to date", nothing written (unless `--force`) |
-| 3. Runtime | work directory `mktemp -d`; `jlink` mode: only `jmods/` of the Windows JDK extracted, `$JDK_HOME/bin/jlink` with `FORMS_CLIENT_JLINK_MODULES` (default list of [java_jlink_forms_env.md §3](../../80-FMW-Architecture/java_jlink_forms_env.md#3-the-module-list-for-forms-1412), Windows modules included); `jdk` mode: the whole JDK; then the CA into `lib/security/cacerts` (`keytool`, alias `ihw-forms-ca`); ZIP with the runtime files at the top level → `jre-<JAVA_VERSION>-win-x64.zip` |
+| 2b. Client jars | `archive=` / `WebUtilArchive` of every section of `formsweb.cfg`, found in `$ORACLE_HOME/forms/java` + `FORMS_CLIENT_EXTRA_JAR_DIRS`: `jdeps --print-module-deps` → modules beyond `FORMS_CLIENT_JLINK_MODULES` are added (fingerprint); `jdeps --jdk-internals` → WARN for JDK APIs removed since Java 9 (`sun.misc.BASE64*`), the jar has to be rebuilt ([java_jlink_forms_env.md §3.2](../../80-FMW-Architecture/java_jlink_forms_env.md#32-own-jars-of-the-application-javabeans-pjcs)) |
+| 3. Runtime | work directory `mktemp -d`; `jlink` mode: only `jmods/` of the Windows JDK extracted, `$JDK_HOME/bin/jlink` with `FORMS_CLIENT_JLINK_MODULES` (default list of [java_jlink_forms_env.md §3](../../80-FMW-Architecture/java_jlink_forms_env.md#3-the-module-list-for-forms-1412), Windows modules included); `jdk` mode: the whole JDK; then the CA into `lib/security/cacerts` (`keytool`, alias `ihw-forms-ca`); `--include-locales=$FORMS_CLIENT_JLINK_LOCALES` (default `de,en`), `--compress=zip-0`, `lib/*.lib` removed ([java_jlink_forms_env.md §3.1](../../80-FMW-Architecture/java_jlink_forms_env.md#31-size-of-the-download--what-still-helps)); ZIP (`zip -9`) with the runtime files at the top level → `formsWeb-jre-<JAVA_VERSION>-win-x64.zip` (`formsWeb-jdk-…` in `jdk` mode; `jre-…` until 2026-11-24). Build options are part of the fingerprint – changing them rebuilds |
 | 4. Other files | `frmsal-<forms version>-<sha8>.jar`, `jacob-1.21-x64.dll`; [`FormsWeb-Setup.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Setup.ps1) / [`FormsWeb-Install.cmd`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/client_templates/FormsWeb-Install.cmd) from `09-Install/client_templates/` once they exist |
 | 5. Manifest | `manifest.json` (schema §3.2) written to a temp file in `FORMS_CLIENT_DIR`, the old one renamed to `manifest.prev.json`, the new one moved into place – the atomic switch for the clients |
-| 6. Clean-up | files referenced by neither `manifest.json` nor `manifest.prev.json` are deleted (only our own patterns `jre-*`, `frmsal-*`, `jacob-*`); files 644, owner oracle |
+| 6. Clean-up | files referenced by neither `manifest.json` nor `manifest.prev.json` are deleted (only our own patterns `formsWeb-jre-*`, `formsWeb-jdk-*`, old `jre-*`, `frmsal-*`, `jacob-*`); files 644, owner oracle |
 
 Run it again after every Java CPU / Security Alert (`04-` downloaded a new
 client JDK), every Forms patch (new `frmsal.jar`) and every CA change.
