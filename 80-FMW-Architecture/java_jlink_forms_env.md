@@ -224,8 +224,11 @@ the class is loaded.
 
 [`40-oracle_forms_client_bundle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/40-oracle_forms_client_bundle.sh)
 therefore reads `archive=` and `WebUtilArchive` of **every** section, finds
-the jars in `$ORACLE_HOME/forms/java` (plus `FORMS_CLIENT_EXTRA_JAR_DIRS`)
-and runs
+the jars in `$ORACLE_HOME/forms/java` – relative paths such as
+`lib/x.jar` included – plus `FORMS_CLIENT_EXTRA_JAR_DIRS` (by name; an
+absolute URL path like `/app/x.jar` is another web location and is listed
+as "not found") and runs (per jar, without class path – `--print-module-deps`
+is recursive)
 
 ```bash
 jdeps --ignore-missing-deps --print-module-deps --multi-release 21 -cp <all jars> <jar>
@@ -243,6 +246,14 @@ jdeps --jdk-internals --multi-release 21 -cp <all jars> <jars>
   library; until then the affected features fail on every FSAL client.
 - `jdeps` sees static references only: classes loaded by reflection or
   `ServiceLoader` → add the module to `FORMS_CLIENT_JLINK_MODULES`.
+- Not checked automatically: use of **non-exported** JDK internals
+  (`jdeps --jdk-internals` shows e.g. `sun.awt.AWTAccessor` → "JDK internal
+  API (java.desktop)"). On Java 17+ such a call fails with
+  `IllegalAccessError` unless the JVM gets `--add-exports` – check the
+  vendor's Java 17 notes for such a library. `sun.misc.Unsafe` is fine
+  (exported by `jdk.unsupported`, in the list).
+- Integration jars for **JavaFX or SWT** (not part of the JDK) only work if
+  the client brings that toolkit – `jdeps --ignore-missing-deps` hides them.
 
 Seen at a customer (**confirmed (live)** 2026-11-24, `jdeps` on the jars of
 the collector export): 14 own jars, three need `java.sql` (not in the list

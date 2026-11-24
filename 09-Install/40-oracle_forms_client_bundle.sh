@@ -447,11 +447,16 @@ if [ "$RUNTIME_MODE" = "jlink" ] && [ -n "${FRM_CFG:-}" ] && [ -f "$FRM_CFG" ]; 
     _jdeps="$JDK_HOME/bin/jdeps"
     _jars=(); _miss=()
     while IFS= read -r _j; do
+        # relative to /forms/java/ (also lib/x.jar), else by name in the extra
+        # directories; an absolute URL path (/app/x.jar) is another web location
         _b="$(basename "$_j")"; _hit=""
-        for _d in "$ORACLE_HOME/forms/java" ${EXTRA_JAR_DIRS//:/ }; do
-            [ -f "$_d/$_b" ] && { _hit="$_d/$_b"; break; }
-        done
-        [ -n "$_hit" ] && _jars+=("$_hit") || _miss+=("$_b")
+        case "$_j" in /*|http*) ;; *) [ -f "$ORACLE_HOME/forms/java/$_j" ] && _hit="$ORACLE_HOME/forms/java/$_j" ;; esac
+        if [ -z "$_hit" ]; then
+            for _d in "$ORACLE_HOME/forms/java" ${EXTRA_JAR_DIRS//:/ }; do
+                [ -f "$_d/$_b" ] && { _hit="$_d/$_b"; break; }
+            done
+        fi
+        [ -n "$_hit" ] && _jars+=("$_hit") || _miss+=("$_j")
     done < <(awk '/^[[:space:]]*[#;]/ {next}
                   { i = index($0, "="); if (!i) next
                     k = substr($0, 1, i - 1); gsub(/[[:space:]]/, "", k)
@@ -462,10 +467,12 @@ if [ "$RUNTIME_MODE" = "jlink" ] && [ -n "${FRM_CFG:-}" ] && [ -f "$FRM_CFG" ]; 
     elif [ ! -x "$_jdeps" ]; then
         warn "$(printf "%-22s %s" "Client jars:" "$_jdeps missing – ${#_jars[@]} jar(s) not checked")"
     else
-        _cp="$(IFS=:; printf '%s' "${_jars[*]}")"
+        mapfile -t _jars < <(printf '%s\n' "${_jars[@]}" | sort -u)
         _own=0; _removed=()
         for _j in "${_jars[@]}"; do
-            _mods="$("$_jdeps" --ignore-missing-deps --print-module-deps --multi-release 21 -cp "$_cp" "$_j" 2>/dev/null | tail -1)"
+            # per jar WITHOUT class path: --print-module-deps is recursive, with
+            # -cp the modules of other jars would be attributed to this one
+            _mods="$("$_jdeps" --ignore-missing-deps --print-module-deps --multi-release 21 "$_j" 2>/dev/null | tail -1)"
             _add="$(printf '%s' "$_mods" | tr ',' '\n' | grep -E '^[a-z][a-z0-9.]*$' \
                     | grep -vxF -f <(printf '%s' "$JLINK_MODULES,$JLINK_EXTRA" | tr ',' '\n') | paste -sd, -)"
             if [ -n "$_add" ]; then
@@ -474,14 +481,14 @@ if [ "$RUNTIME_MODE" = "jlink" ] && [ -n "${FRM_CFG:-}" ] && [ -f "$FRM_CFG" ]; 
             fi
             case "$(basename "$_j")" in frm*.jar|jacob.jar) ;; *) _own=$(( _own + 1 )) ;; esac
         done
-        while IFS= read -r _j; do _removed+=("$_j"); done < <("$_jdeps" --jdk-internals --multi-release 21 -cp "$_cp" "${_jars[@]}" 2>/dev/null \
+        while IFS= read -r _j; do _removed+=("$_j"); done < <("$_jdeps" --jdk-internals --multi-release 21 "${_jars[@]}" 2>/dev/null \
             | sed -n 's/^\([^ ]*\.jar\) -> JDK removed internal API.*/\1/p' | sort -u)
         ok "$(printf "%-22s %s" "Client jars:" "${#_jars[@]} from archive= / WebUtilArchive (${_own} own), modules added: ${JLINK_EXTRA:-none}")"
         if [ "${#_removed[@]}" -gt 0 ]; then
             warn "$(printf "%-22s %s" "Removed JDK API:" "${_removed[*]} – sun.misc.* etc. gone since Java 9, these classes fail on every Java 17+ client (FSAL)")"
             info "  details: $_jdeps --jdk-internals <jar>; fix: rebuild the jar (java.util.Base64) / newer version of the library"
         fi
-        unset _cp _own _removed _mods _add
+        unset _own _removed _mods _add
     fi
     [ "${#_miss[@]}" -gt 0 ] && info "$(printf "%-22s %s" "Jars not found:" "${_miss[*]} (not in forms/java / FORMS_CLIENT_EXTRA_JAR_DIRS – not checked)")"
     unset _jdeps _jars _miss _j _b _hit _d
