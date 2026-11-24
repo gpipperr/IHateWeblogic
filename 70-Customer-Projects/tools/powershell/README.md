@@ -189,6 +189,7 @@ the run had admin rights.
 .\export_forms_reports_conf.ps1 -OracleHome D:\Oracle\Middleware\Oracle_Home -DomainHome D:\Oracle\user_projects\domains\fr_domain
 .\export_forms_reports_conf.ps1 -Masked             # passwords masked, not encrypted - for an analysis
 .\export_forms_reports_conf.ps1 -NoFonts -Keep      # list fonts only, keep the staging directory
+.\export_forms_reports_conf.ps1 -JarDir D:\web\app   # jars of archive=/app/x.jar (URL path outside /forms/java)
 ```
 
 The Windows version of [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh):

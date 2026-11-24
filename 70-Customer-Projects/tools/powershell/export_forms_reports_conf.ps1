@@ -60,6 +60,10 @@
 .PARAMETER Keep
   Keep the unpacked staging directory.
 
+.PARAMETER JarDir
+  Directories with client jars that archive= names by URL path outside
+  /forms/java (e.g. /app/x.jar) - searched by file name.
+
 .EXAMPLE
   powershell.exe -ExecutionPolicy Bypass -File .\export_forms_reports_conf.ps1
 
@@ -79,6 +83,7 @@ param(
     [switch] $Masked,
     [switch] $NoFonts,
     [switch] $Keep,
+    [string[]] $JarDir = @(),
     # moved to collect_fmw_env.ps1 - accepted and ignored with a note
     [switch] $NoLoad,
     [int] $LoadDays = 0,
@@ -87,7 +92,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-16.2"   # bump on every change - shown in the report
+$SCRIPT_VERSION = "2026-11-24.1"   # bump on every change - shown in the report
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -279,16 +284,20 @@ if (Test-Path -LiteralPath $ear -PathType Leaf) {
 
 # --- customer jars (never frm*.jar / frmsal / jacob - they come from 14-/40-) ---
 $JARS = New-Object System.Collections.Generic.List[string]; $JARS.Add("jar;size;sha256;referenced_in;stored")
-$JREF = @{}
+$JREF = @{}; $JURL = @{}
 $JDIR = ihwt-jp @($OH, "forms", "java")
 # relative jar names (archive=, jnlp href) live in $OH/forms/java
 function _jpath { param([string] $j) if ([IO.Path]::IsPathRooted($j)) { return (ihwt-fwd $j) }; return (ihwt-fwd (Join-Path $JDIR ($j -replace '^\./', ''))) }
+# Oracle's own client jars (come with 14c / 40-) - NOT every frm*.jar: customers
+# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24)
+function _oracleJar { param([string] $b)
+    return ($b -match '^(frmall\.jar|frmall_jinit\.jar|frmsal\.jar|frmwebutil\.jar|frmmain\.jar|frmgeneric_laf\.jar|frmoracle_laf\.jar|frmresources.*\.jar|frmwebsocketjsi\.jar|frmbidi.*\.jar|jacob.*\.jar)$') }
 function _jadd  { param([string] $p, [string] $r) if ($JREF.ContainsKey($p)) { $JREF[$p] += $r } else { $JREF[$p] = $r } }
 foreach ($fw in $FORMS_CFGS) {
     foreach ($l in (ihwt-sections $fw)) {
         $sec, $k, $v = $l -split "`t", 3
         if ($k -cmatch '^(archive|archive_.*|WebUtilArchive|webUtilArchive)$') {
-            foreach ($j in ($v -split '[,\s]+')) { if ($j) { _jadd (_jpath $j) "formsweb.cfg[$sec].$k " } }
+            foreach ($j in ($v -split '[,\s]+')) { if ($j) { $jp0 = _jpath $j; _jadd $jp0 "formsweb.cfg[$sec].$k "; if ($j -match '^/') { $JURL[$jp0] = $true } } }
         }
     }
 }
@@ -309,15 +318,19 @@ if (Test-Path -LiteralPath $jn -PathType Leaf) {
 }
 foreach ($j in @(_glob $JDIR "*.jar")) { _jadd (ihwt-fwd $j) "" }
 foreach ($jp in @($JREF.Keys | Sort-Object)) {
-    $jb = Split-Path -Leaf $jp
-    if ($jb -like 'frm*.jar' -or $jb -like 'jacob*.jar') { continue }                          # Oracle / our 14c logic
+    $jb = Split-Path -Leaf $jp; $j0 = $jp
+    if (_oracleJar $jb) { continue }                                                             # Oracle / our 14c logic
     if ((ihwt-under $jp $OHF) -and -not (ihwt-under $jp (ihwt-fwd $JDIR))) { continue }         # other Oracle jars
+    # archive= with a leading / = URL path of the web server: look in -JarDir by name
+    $isUrl = $JURL.ContainsKey($j0) -and -not (Test-Path -LiteralPath $jp -PathType Leaf)
+    if ($isUrl) { foreach ($d in $JarDir) { $c = Join-Path $d $jb; if (Test-Path -LiteralPath $c -PathType Leaf) { $jp = ihwt-fwd $c; $isUrl = $false; break } } }
+    if ($isUrl) { $JARS.Add("$j0;-;-;$($JREF[$j0]);URL_PATH"); continue }
     if (Test-Path -LiteralPath $jp -PathType Leaf) {
         [void](_store $jp customer_jar "ihw_import/forms_java/$jb")
         $fi = Get-Item -LiteralPath $jp -Force
-        $JARS.Add(("{0};{1};{2};{3};{4}" -f $jp, $fi.Length, (Get-FileHash -LiteralPath $jp -Algorithm SHA256).Hash.ToLower(), $(if ($JREF[$jp]) { $JREF[$jp] } else { "in forms/java, not referenced" }), "ihw_import/forms_java/$jb"))
+        $JARS.Add(("{0};{1};{2};{3};{4}" -f $jp, $fi.Length, (Get-FileHash -LiteralPath $jp -Algorithm SHA256).Hash.ToLower(), $(if ($JREF[$j0]) { $JREF[$j0] } else { "in forms/java, not referenced" }), "ihw_import/forms_java/$jb"))
     } else {
-        $JARS.Add("$jp;-;-;$($JREF[$jp]);MISSING")
+        $JARS.Add("$j0;-;-;$($JREF[$j0]);MISSING")
     }
 }
 # signers of the customer jars (keytool of the JDK in the Oracle Home)
@@ -839,7 +852,7 @@ $REP.Add(""); $REP.Add("== Reports servers (ihw_import/reports_servers.txt) ==")
 $REP.Add(""); $REP.Add("== Web tier (ihw_import/web_tier.txt, web_tier_settings.txt) ==")
 if ($WT_FOUND.Count) { foreach ($e in $WT_FOUND) { $REP.Add("  $(ihwt-fwd $e)") } } else { $REP.Add("  none found") }
 foreach ($g in @($WT | Select-Object -Skip 1 | Group-Object { ($_ -split ';')[0] })) { $REP.Add(("  {0}: {1} route(s)" -f $g.Name, $g.Count)) }
-$REP.Add(""); $REP.Add("== Customer jars (ihw_import/jars.txt) $ND FSAL / JACOB / frm*.jar excluded =="); foreach ($l in $JARS) { $REP.Add("  $l") }
+$REP.Add(""); $REP.Add("== Customer jars (ihw_import/jars.txt) $ND FSAL / JACOB / Oracle frm*.jar excluded, URL_PATH = archive= outside /forms/java =="); foreach ($l in $JARS) { $REP.Add("  $l") }
 $REP.Add(""); $REP.Add("== Fonts (ihw_import/fonts.txt) ==")
 $REP.Add(("  {0} font file(s): {1} customer, {2} Microsoft, {3} free (skipped $ND 14b- deploys them)" -f $fontRows.Count, @($fontRows | Where-Object { $_[3] -eq 'customer' }).Count, @($fontRows | Where-Object { $_[3] -eq 'ms' }).Count, @($fontRows | Where-Object { $_[3] -eq 'free' }).Count))
 $REP.Add(""); $REP.Add("  Customer fonts (barcode, corporate ...) $ND must move to 14c, no replacement:")

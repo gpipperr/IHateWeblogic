@@ -21,7 +21,7 @@
 #                          applied): customer formsweb.cfg keys + sections,
 #                          env keys, webutil keys, cgicmd keys, uifont.ali
 #                          aliases, custom fonts, customer jars (never
-#                          FSAL / JACOB / frm*.jar – they come from 14- / 40-),
+#                          FSAL / JACOB / Oracle's frm*.jar – from 14- / 40-),
 #                          environment.conf proposal, Reports server list
 #              sources_*   paths of the Forms / Reports sources incl.
 #                          dependencies – inventory only, NO module content
@@ -35,13 +35,16 @@
 #            No IHateWeblogic library - bash + coreutils + openssl and the
 #            shared helpers ihw_tools_lib.sh next to this script.
 # Call     : ./export_forms_reports_conf.sh [-o ORACLE_HOME] [-d DOMAIN_HOME]
-#                 [-t OUTDIR] [--masked] [--no-fonts] [--keep]
+#                 [-t OUTDIR] [--masked] [--no-fonts] [--keep] [--jar-dir DIR]...
 #            -o / -d    default: environment, domain-registry.xml, process,
 #                       /oracle/product/mw, /u01/app/oracle/fmw ...
 #            -t         output directory (default /tmp)
 #            --masked   mask passwords, do not encrypt
 #            --no-fonts do not copy font files (only list them)
 #            --keep     keep the unpacked staging directory
+#            --jar-dir  directory with client jars that archive= names by URL
+#                       path outside /forms/java (e.g. /app/x.jar) - searched
+#                       by file name, repeatable
 #            (--no-load / --load-days / --rw-auth: moved to collect_fmw_env.sh
 #            2026-11-16 - accepted and ignored here with a note)
 # Runs as  : the software owner (oracle), not root
@@ -57,10 +60,10 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-16.2"   # bump on every change – shown in the report
+VERSION="2026-11-24.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
-MASKED=false; FONTS=true; KEEP=false; MOVED=""
+MASKED=false; FONTS=true; KEEP=false; MOVED=""; JAR_DIRS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OH="${2:-}"; shift ;;
@@ -69,6 +72,7 @@ while [ $# -gt 0 ]; do
         --masked)   MASKED=true ;;
         --no-fonts) FONTS=false ;;
         --keep)     KEEP=true ;;
+        --jar-dir)  JAR_DIRS+=("${2:-}"); shift ;;
         --no-load)  MOVED="$MOVED $1" ;;
         --load-days|--rw-auth) MOVED="$MOVED $1"; shift ;;
         -h|--help)  sed -n '2,52p' "$0"; printf 'Version: %s\n' "$VERSION"; exit 0 ;;
@@ -233,16 +237,30 @@ for ear in "$OH"/forms/j2ee/formsapp.ear; do
     rm -rf "${_wt:?}"
 done
 
-# --- customer jars (never frm*.jar / frmsal / jacob – they come from 14-/40-) ---
+# --- customer jars (never Oracle's frm*.jar / frmsal / jacob – they come from 14-/40-) ---
 JARS="$STAGE/ihw_import/jars.txt"
 printf 'jar;size;sha256;referenced_in;stored\n' > "$JARS"
-declare -A JREF=()
-# relative jar names (archive=, jnlp href) live in $OH/forms/java
+declare -A JREF=() JURL=()
+# relative jar names (archive=, jnlp href, also lib/x.jar) live in $OH/forms/java;
+# a leading / in archive= is a URL path of the web server (another location),
+# a file path only in an env CLASSPATH
 _jpath() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s' "$OH/forms/java/${1#./}" ;; esac; }
+# Oracle's own client jars (come with 14c / 40-) - NOT every frm*.jar: customers
+# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24)
+_oracle_jar() {
+    case "$1" in
+        frmall.jar|frmall_jinit.jar|frmsal.jar|frmwebutil.jar|frmmain.jar|frmgeneric_laf.jar|\
+        frmoracle_laf.jar|frmresources*.jar|frmwebsocketjsi.jar|frmbidi*.jar|jacob*.jar) return 0 ;;
+    esac
+    return 1
+}
 for fw in "${FORMS_CFGS[@]}"; do
     while IFS=$'\t' read -r sec k v; do
         case "$k" in archive|archive_*|WebUtilArchive|webUtilArchive)
-            for j in ${v//,/ }; do JREF[$(_jpath "$j")]+="formsweb.cfg[$sec].$k "; done ;; esac
+            for j in ${v//,/ }; do
+                JREF[$(_jpath "$j")]+="formsweb.cfg[$sec].$k "
+                case "$j" in /*) JURL[$j]=1 ;; esac         # URL path of the web server
+            done ;; esac
     done < <(_sections "$fw")
 done
 for ef in "${ENV_FILES[@]}"; do
@@ -261,8 +279,17 @@ for j in "$OH"/forms/java/*.jar; do [ -f "$j" ] && JREF[$j]+=""; done
 for jp in $(printf '%s\n' "${!JREF[@]}" | sort); do
     j="$jp"
     jb="$(basename "$jp")"
-    case "$jb" in frm*.jar|jacob*.jar) continue ;; esac       # Oracle / our 14c logic
+    _oracle_jar "$jb" && continue                             # Oracle / our 14c logic
     case "$jp" in "$OH"/*) case "$jp" in "$OH"/forms/java/*) ;; *) continue ;; esac ;; esac  # other Oracle jars
+    # URL path of archive= (no such file): look for the jar in --jar-dir by name
+    if [ ! -f "$jp" ] && [ -n "${JURL[$j]:-}" ]; then
+        for _jd in "${JAR_DIRS[@]}"; do [ -f "$_jd/$jb" ] && { jp="$_jd/$jb"; break; }; done
+    fi
+    if [ ! -f "$jp" ] && [ -n "${JURL[$j]:-}" ]; then
+        # archive= with a URL path outside /forms/java and not found: own web location
+        printf '%s;-;-;%s;URL_PATH\n' "$j" "${JREF[$j]}" >> "$JARS"
+        continue
+    fi
     if [ -f "$jp" ]; then
         _store "$jp" customer_jar "ihw_import/forms_java/$jb"
         printf '%s;%s;%s;%s;%s\n' "$jp" "$(stat -c %s "$jp")" "$(sha256sum "$jp" | cut -d' ' -f1)" \
@@ -648,7 +675,7 @@ unset _first_rs _rc _fp1
     printf '\n== Web tier (ihw_import/web_tier.txt, web_tier_settings.txt) ==\n'
     [ ${#WT_FOUND[@]} -gt 0 ] && printf '  %s\n' "${WT_FOUND[@]}" || printf '  none found\n'
     awk -F';' 'NR>1 {n[$1]++} END {for (t in n) printf "  %s: %d route(s)\n", t, n[t]}' "$WT_TXT"
-    printf '\n== Customer jars (ihw_import/jars.txt) – FSAL / JACOB / frm*.jar excluded ==\n'; sed 's/^/  /' "$JARS"
+    printf '\n== Customer jars (ihw_import/jars.txt) – FSAL / JACOB / Oracle frm*.jar excluded, URL_PATH = archive= outside /forms/java ==\n'; sed 's/^/  /' "$JARS"
     printf '\n== Fonts (ihw_import/fonts.txt) ==\n'
     printf '  %s font file(s): %s customer, %s Microsoft, %s free (skipped – 14b- deploys them)\n' \
         "$(($(wc -l < "$FONTS_TXT") - 1))" "$(grep -c ';customer;' "$FONTS_TXT")" "$(grep -c ';ms;' "$FONTS_TXT")" "$(grep -c ';free;' "$FONTS_TXT")"

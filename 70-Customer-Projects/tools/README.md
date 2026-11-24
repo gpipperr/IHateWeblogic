@@ -653,6 +653,7 @@ cd $ORACLE_BASE/tools
 | `--masked` | mask passwords in every file, archive not encrypted |
 | `--no-fonts` | list the font files only, do not copy them |
 | `--keep` | keep the unpacked staging directory (delete it yourself – customer data) |
+| `--jar-dir DIR` | directory with client jars that `archive=` names by a **URL path** outside `/forms/java` (e.g. `/app/x.jar`, served by another web location) – searched by file name, repeatable. Without it such a jar is listed as `URL_PATH` in `ihw_import/jars.txt` (since 2026-11-24.1) |
 
 `--no-load` / `--load-days` / `--rw-auth` moved to `collect_fmw_env.sh` with
 the load profile and the HTTPS listener certificates (2026-11-16.1); the
@@ -760,8 +761,13 @@ source passwords. Choose the mode **before** the run:
 | `manifest.csv`, `secrets_locations.txt` | `category;source;stored;size;sha256`; where passwords are (file:line:keyword, never the value) |
 
 **Never in the archive:** module files (`.fmb .fmx .pll .plx .mmb .mmx
-.olb .rdf .rep`) – only their paths and counts; `frm*.jar` and `jacob*.jar`
-(FSAL / JACOB come from our 14- / 40- logic and are never overwritten);
+.olb .rdf .rep`) – only their paths and counts; Oracle's own client jars
+(`frmall.jar`, `frmsal.jar`, `frmwebutil.jar`, `frmmain.jar`, `frm*_laf.jar`,
+`frmresources*.jar`, `frmwebsocketjsi.jar`) and `jacob*.jar` (FSAL / JACOB
+come from our 14- / 40- logic and are never overwritten). A customer jar
+named `frm….jar` is exported (until 2026-11-16.2 every `frm*.jar` was
+skipped); `archive=` entries with subdirectories (`lib/x.jar`) are
+resolved below `forms/java`;
 free fonts (Liberation / DejaVu / Carlito / Caladea – OS packages, 14b-
 deploys them).
 
