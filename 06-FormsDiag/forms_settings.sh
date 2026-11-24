@@ -217,6 +217,34 @@ if [ -n "$FRM_ENV" ]; then
     for _d in "${_pdirs[@]}"; do
         [ -n "$_d" ] && [ ! -d "$_d" ] && warn "PATH entry in default.env does not exist: $_d"
     done
+    # library paths: a JDK removed after a JDK update leaves libjsig.so
+    # unloadable ("cannot be preloaded" in formsapp-diagnostic.log) - the JVM in
+    # frmweb loses its signal chaining, frmweb can die with signal 11
+    # (customer 2026-11-24). Always through the JDK_HOME link, never a
+    # versioned JDK directory.
+    E_PRE="$(frm_env_get "$FRM_ENV" LD_PRELOAD)"
+    E_LLP="$(frm_env_get "$FRM_ENV" LD_LIBRARY_PATH)"
+    for _p in ${E_PRE//:/ }; do
+        if [ ! -e "$_p" ]; then
+            fail "LD_PRELOAD in default.env: file does not exist: $_p"
+            info "  frmweb runs without libjsig.so - set LD_PRELOAD=${JDK_HOME:-<JDK link>}/lib/libjsig.so (09-Install/14-oracle_setup_forms.sh --apply)"
+        elif [ -n "${JDK_HOME:-}" ] && [ "${_p#"${JDK_HOME%/}"/}" = "$_p" ]; then
+            warn "LD_PRELOAD in default.env not below JDK_HOME ($JDK_HOME): $_p - breaks with the next JDK update"
+        else
+            ok "LD_PRELOAD: $_p"
+        fi
+    done
+    IFS=':' read -ra _ldirs <<< "$E_LLP"
+    for _d in "${_ldirs[@]}"; do
+        [ -n "$_d" ] && [ ! -d "$_d" ] && warn "LD_LIBRARY_PATH entry in default.env does not exist: $_d"
+    done
+    # frmweb crash dumps (text stack traces of frmweb itself, no core file)
+    _tdir="$DOMAIN_HOME/system_components/FORMS/${FORMS_INSTANCE_NAME:-forms1}/trace"
+    _ndump="$(find "$_tdir" ${E_TRACE:+"$E_TRACE"} -maxdepth 1 -name 'frmweb_dump_*' -type f -mtime -30 2>/dev/null | wc -l)"
+    if [ "$_ndump" -gt 0 ]; then
+        warn "frmweb crash dumps in the last 30 days: $_ndump ($_tdir/frmweb_dump_*)"
+        info "  text stack traces (Last Trigger + call stack, no gdb needed) - collector 72_forms_crashes.txt summarises them"
+    fi
 else
     info "default.env not available"
 fi

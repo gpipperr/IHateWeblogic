@@ -10,6 +10,14 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-24
 
+- **Forms runtime crashes in the collector and the analysis:** `collect_fmw_env.sh`
+  2026-11-24.1 writes `72_forms_crashes.txt` – library paths of the Forms env
+  files (a `LD_PRELOAD` to the `libjsig.so` of a removed JDK breaks the
+  signal chaining of the JVM in `frmweb`), crashes / preload errors per day and
+  a summary of every `frmweb_dump_<pid>` (text stack trace, no gdb needed),
+  newest 10 dumps in `dumps/`; `06-FormsDiag/forms_settings.sh` checks
+  `LD_PRELOAD` / `LD_LIBRARY_PATH` and recent dumps
+  ([06-FormsDiag/README.md](06-FormsDiag/README.md)).
 - **Applications directory outside the Oracle Home for new installs:** new key
   `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`) in the
   interview, `setOption('AppDir')` in `08-oracle_setup_domain.sh` / domain

@@ -13,6 +13,9 @@
 #            (41_other_domains.txt) and whether WebGate is configured in an
 #            OHS instance (43_ohs.txt); Java4Shell facts (CPU AVX-512 VBMI,
 #            bundled JDK range, -XX:-UseBASE64Intrinsics - 20_java.txt);
+#            Forms runtime crashes (72_forms_crashes.txt + dumps/): library
+#            paths of the Forms env files exist?, crashes / LD_PRELOAD errors
+#            per day, frmweb_dump_<pid> stack traces (summary + newest 10);
 #            security facts of the domain (modes of the domain key /
 #            boot.properties, lockout, password rule, audit, OPSS filterPreset,
 #            apps on the AdminServer, owner groups, key copies, umask, ORDS
@@ -60,7 +63,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-19.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-24.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -630,6 +633,80 @@ if [ -n "$DH" ]; then
               printf '\n'; } >> "$OUT/71_log_errors.txt"
         done
     fi
+fi
+
+# =============================================================================
+# 9b. Forms runtime crashes (2026-11-24) - always, small:
+#     - library paths of the Forms env files (LD_PRELOAD / LD_LIBRARY_PATH)
+#       must exist on this host: a JDK removed after a JDK update leaves
+#       libjsig.so unloadable ("cannot be preloaded") - JNI signal chaining
+#       of the frmweb JVM is then gone
+#     - crashes / preload errors per day from the Forms diagnostic logs
+#     - frmweb_dump_<pid>: TEXT stack traces written by frmweb (no core
+#       file) - summary line per dump (ihwt_frmweb_dump) + the newest 10
+#       copied to dumps/ (max 1 MB each, masked)
+# =============================================================================
+if [ -n "$DH" ]; then
+    say "9/9 Forms runtime crashes"
+    _cr="$OUT/72_forms_crashes.txt"
+    mapfile -t _envs < <(find "$DH/config/fmwconfig/servers" -maxdepth 5 -path '*/formsapp*/config/*.env' -type f 2>/dev/null | sort)
+    _miss=""; _verj=""; _trdirs=""
+    {
+        printf '### Forms env files: library paths (must exist on this host; versioned = JDK directory with a version instead of the link)\n'
+        for _e in "${_envs[@]}"; do
+            for _k in LD_PRELOAD LD_LIBRARY_PATH; do
+                _v="$(ihwt_cfgval "$_e" "$_k" | tail -1)"
+                [ -n "$_v" ] || continue
+                printf '%s\n' "$_v" | tr ': ' '\n\n' | sed '/^$/d' | while read -r _p; do
+                    case "$_p" in *'$'*|*'%'*) continue ;; esac
+                    _st=ok; [ -e "$_p" ] || _st=missing
+                    _vj=-; printf '%s' "$_p" | grep -Eq '/(jdk|jre|java)[-_]?[0-9]+[._][0-9]' && _vj=versioned
+                    printf 'envpath;%s;%s;%s;%s;%s\n' "$_e" "$_k" "$_p" "$_st" "$_vj"
+                done
+            done
+            _t="$(ihwt_cfgval "$_e" FORMS_TRACE_DIR | tail -1)"
+            [ -n "$_t" ] && _trdirs="$_trdirs $_t"
+        done
+        printf '### rc=0\n\n'
+    } >> "$_cr"
+    _miss="$(awk -F';' '$1=="envpath" && $5=="missing" {n=split($2,a,"/"); print a[n] ":" $3 "=" $4}' "$_cr" | sort -u | paste -sd, -)"
+    _verj="$(awk -F';' '$1=="envpath" && $5=="ok" && $6=="versioned" {n=split($2,a,"/"); print a[n] ":" $3}' "$_cr" | sort -u | paste -sd, -)"
+    if [ "${#_envs[@]}" -eq 0 ]; then fact "Forms env library paths" "no Forms env files"
+    elif [ -n "$_miss" ]; then fact "Forms env library paths" "MISSING: $_miss"
+    else fact "Forms env library paths" "all exist${_verj:+ (versioned JDK path: $_verj)}"; fi
+    # crashes and preload errors per day (Forms diagnostic logs of all servers)
+    {
+        printf '### Forms runtime crashes / preload errors per day (formsapp-diagnostic*.log)\n'
+        cat "$DH"/servers/*/logs/formsapp-diagnostic*.log 2>/dev/null | awk '
+            /is terminating due to signal/ { d = substr($1, 2, 10); s = $0; sub(/.*due to signal /, "", s); sub(/[^0-9].*/, "", s); c[d ";signal " s]++ }
+            /cannot be preloaded/ { d = substr($1, 2, 10); o = "?"; if (match($0, /object \047[^\047]*\047/)) o = substr($0, RSTART + 8, RLENGTH - 9); c[d ";preload " o]++ }
+            /Stack trace for runtime process/ { d = substr($1, 2, 10); c[d ";stack trace written"]++ }
+            END { for (k in c) print "crash_day;" k ";" c[k] }' | sort
+        printf '### rc=0\n\n'
+    } >> "$_cr"
+    fact "Forms crashes (logs)" "$(awk -F';' '$1=="crash_day" && $3 ~ /^signal/ {n+=$4; if ($2 > l) l=$2} $1=="crash_day" && $3 ~ /^preload/ {p+=$4}
+        END {printf "%d runtime crashes (signal)%s, %d LD_PRELOAD errors", n, (l == "" ? "" : ", last " l), p}' "$_cr")"
+    # frmweb dumps (instance trace dirs + FORMS_TRACE_DIR of the env files)
+    mapfile -t _dumps < <(for _d in "$DH"/system_components/FORMS/*/trace $_trdirs; do
+                              [ -d "$_d" ] && find "$_d" -maxdepth 1 -name 'frmweb_dump_*' -type f -printf '%T@ %p\n' 2>/dev/null
+                          done | sort -rn | awk '!s[$2]++ {print $2}')
+    if [ "${#_dumps[@]}" -gt 0 ]; then
+        mkdir -p "$OUT/dumps"
+        {
+            printf '### frmweb dumps (newest first, max 200): frmweb_dump;file;mtime;bytes;FORM.BLOCK.FIELD;last trigger;kind;top frames;signature\n'
+            for _d in "${_dumps[@]:0:200}"; do ihwt_frmweb_dump "$_d"; done | mask
+            printf '### rc=0\n\n'
+        } >> "$_cr"
+        for _d in "${_dumps[@]:0:10}"; do
+            head -c 1048576 "$_d" | mask > "$OUT/dumps/$(basename "$_d")"
+            [ "$(wc -c < "$_d")" -gt 1048576 ] && printf '\n### truncated at 1 MB (original %s bytes)\n' "$(wc -c < "$_d")" >> "$OUT/dumps/$(basename "$_d")"
+        done
+        fact "Forms frmweb dumps" "$(awk -F';' -v lim="$(date -d '-30 days' '+%Y-%m-%d')" '$1=="frmweb_dump" {n++; if ($3 > l) l=$3; if (substr($3,1,10) >= lim) m++}
+            END {printf "%d (newest %s, %d in the last 30 days)", n, l, m}' "$_cr"), newest $(ls "$OUT/dumps" | wc -l) copied to dumps/"
+    else
+        fact "Forms frmweb dumps" "none"
+    fi
+    unset _cr _envs _e _k _v _t _miss _verj _trdirs _dumps _d
 fi
 
 # =============================================================================

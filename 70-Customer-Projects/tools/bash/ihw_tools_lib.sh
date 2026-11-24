@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-19.2"
+IHWT_LIB_VERSION="2026-11-24.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1382,4 +1382,35 @@ $(getent passwd | awk -F: -v g="$gid" '$4 == g {print $1}')"
     fi
     printf 'security;sudo;not-probed\n'
     return 0
+}
+
+# -----------------------------------------------------------------------------
+# ihwt_frmweb_dump FILE - one summary line of a Forms runtime dump
+#   (frmweb_dump_<pid>, written by frmweb itself on a crash: a TEXT stack
+#   trace, no core file - readable without gdb or symbols)
+#   frmweb_dump;<file>;<mtime>;<bytes>;<FORM.BLOCK.FIELD>;<last trigger>;
+#               <kind signal|error>;<top frames a>b>c>;<call stack signature>
+#   top frames: from the frame that got the signal, else the first frame
+#   after the dump / error handlers (skgudmp, kgdsdst, kgerinv ...)
+# -----------------------------------------------------------------------------
+ihwt_frmweb_dump() {
+    local f="$1"
+    [ -r "$f" ] || return 0
+    printf 'frmweb_dump;%s;%s;%s;' "$f" "$(date -r "$f" '+%Y-%m-%d %H:%M' 2>/dev/null)" "$(wc -c < "$f" | tr -d ' ')"
+    head -c 4194304 "$f" | tr -d '\r' | awk '
+        /^Last Trigger +FORM\/BLOCK\/FIELD:/ { sub(/^[^:]*: */, ""); fbf = $0; next }
+        /^Last trigger:/ { sub(/^Last trigger: */, ""); lt = $0; next }
+        /^Call stack signature:/ { sig = $NF; next }
+        /^[A-Za-z_][A-Za-z0-9_$.]*\(\)\+[0-9]+ +[a-z?]+ / {
+            nm = $1; sub(/\(\).*/, "", nm); n++; fr[n] = nm; ty[n] = $2
+            if ($2 == "signal" && !s) s = n
+        }
+        END {
+            gsub(/;/, ",", fbf); gsub(/;/, ",", lt)
+            st = s; kind = (s ? "signal" : "error")
+            if (!st) { for (i = 1; i <= n; i++) if (fr[i] !~ /^(kgdsdst|skgudmp|ksedst|ksedmp|ksfdmp|dbgex|dbge|dbgr|kgerinv|kgeriv|kgerin|kgesin|kgesic|kgeasi|kgerev|kgersel|siehjmpterm|__sighandler|sighandler|ssexhd|sslss|skgesig)/) { st = i; break } }
+            if (!st) st = 1
+            t = ""; for (i = st; i <= n && i < st + 6; i++) t = t (t == "" ? "" : ">") fr[i]
+            printf "%s;%s;%s;%s;%s\n", (fbf == "" ? "-" : fbf), (lt == "" ? "-" : lt), (n ? kind : "-"), (t == "" ? "-" : t), (sig == "" ? "-" : sig)
+        }'
 }
