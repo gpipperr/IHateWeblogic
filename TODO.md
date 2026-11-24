@@ -272,13 +272,11 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
-- [ ] **Forms runtime crashes – Windows collector** (`collect_fmw_env.ps1`):
-  the bash collector 2026-11-24.1 writes `72_forms_crashes.txt` (env library
-  paths, crashes per day, `frmweb_dump_*` summaries + `dumps/`); the Windows
-  side still lacks it – check where `frmweb.exe` writes its stack trace on
-  Windows and whether `PATH` entries of the env file replace the
-  `LD_PRELOAD` check there. Also open: MOS search pattern for the top frames
-  (`ifz*` / `kgh*` + call stack signature) in the analysis text.
+- [ ] **Forms runtime crashes – Windows host test** (`collect_fmw_env.ps1`
+  2026-11-24.1, tested only with pwsh on Linux): does `frmweb.exe` write
+  `frmweb_dump_<pid>` with the same name / format on Windows, and is the
+  `PATH` check (jvm.dll) right there? Also open: MOS search pattern for the
+  top frames (`ifz*` / `kgh*` + call stack signature) in the analysis text.
 - [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – the
   mitigation `-XX:-UseBASE64Intrinsics` is in `13-` / `engine_perf_settings.sh`
   and checked by `java_check.sh` (2026-11-18, every bundled JDK 11+, no CPU

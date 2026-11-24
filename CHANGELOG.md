@@ -17,7 +17,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   a summary of every `frmweb_dump_<pid>` (text stack trace, no gdb needed),
   newest 10 dumps in `dumps/`; `06-FormsDiag/forms_settings.sh` checks
   `LD_PRELOAD` / `LD_LIBRARY_PATH` and recent dumps
-  ([06-FormsDiag/README.md](06-FormsDiag/README.md)).
+  ([06-FormsDiag/README.md](06-FormsDiag/README.md)); the Windows collector
+  `collect_fmw_env.ps1` 2026-11-24.1 writes the same file (env `PATH` with
+  the JDK for `jvm.dll` instead of `LD_PRELOAD`).
 - **Applications directory outside the Oracle Home for new installs:** new key
   `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`) in the
   interview, `setOption('AppDir')` in `08-oracle_setup_domain.sh` / domain

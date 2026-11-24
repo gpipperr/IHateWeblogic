@@ -14,7 +14,9 @@
 #            OHS instance (43_ohs.txt), security facts of the domain (ACLs of
 #            the domain key / boot.properties, lockout, password rule, audit,
 #            OPSS filterPreset, apps on the AdminServer, owner groups, key
-#            copies, ORDS version - 46_security.txt, no values stored).
+#            copies, ORDS version - 46_security.txt, no values stored),
+#            Forms runtime crashes (72_forms_crashes.txt + dumps\: library
+#            paths of the env files, crashes per day, frmweb_dump_* summaries).
 #            The CONFIGURATION is not copied - that
 #            is export_forms_reports_conf.ps1; an analysis always needs both.
 #            Windows / PowerShell version of tools/bash/collect_fmw_env.sh
@@ -99,7 +101,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-19.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-24.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -680,6 +682,84 @@ if ($Logs -and $IHWT_ON_WINDOWS) {
     ihwt-runps 72_eventlog.txt "Windows event log: errors Application / System, last 7 days (max 300)" {
         Get-WinEvent -FilterHashtable @{ LogName = 'Application', 'System'; Level = 1, 2; StartTime = (Get-Date).AddDays(-7) } -MaxEvents 300 -ErrorAction SilentlyContinue |
             Format-Table -AutoSize -Wrap TimeCreated, LogName, ProviderName, Id, @{n='Message';e={ ($_.Message -split "`n")[0] }}
+    }
+}
+
+#==============================================================================
+# 9b. Forms runtime crashes (2026-11-24, like collect_fmw_env.sh) - always:
+#     - library paths of the Forms env files must exist on this host
+#       (Windows: PATH - jvm.dll of the JDK comes through it; LD_* on a Linux
+#       env file read with pwsh); versioned JDK directory instead of a link
+#     - crashes / preload errors per day from the Forms diagnostic logs
+#     - frmweb_dump_<pid> stack traces: summary line per dump + the newest
+#       10 copied to dumps\ (max 1 MB each, masked)
+#==============================================================================
+if ($DH) {
+    ihwt-say "9/9 Forms runtime crashes"
+    $cr = Join-Path $OUT "72_forms_crashes.txt"
+    $envs = @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "config", "fmwconfig", "servers")) -Recurse -Depth 4 -Filter '*.env' -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match '[\\/]formsapp[^\\/]*[\\/]config[\\/][^\\/]+\.env$' } | Sort-Object FullName)
+    $ep = New-Object System.Collections.Generic.List[string]; $trdirs = @()
+    foreach ($e in $envs) {
+        foreach ($k in @('LD_PRELOAD', 'LD_LIBRARY_PATH', 'PATH')) {
+            $v = @(ihwt-cfgval $e.FullName $k) | Select-Object -Last 1
+            if (-not $v) { continue }
+            $sep = if ($v -match ';' -or $v -match '^[A-Za-z]:\\') { ';' } else { ':' }
+            foreach ($p in ($v -split [regex]::Escape($sep))) {
+                $p = $p.Trim(); if (-not $p -or $p -match '[$%]') { continue }
+                $st = if (Test-Path -LiteralPath $p) { "ok" } else { "missing" }
+                $vj = if ($p -match '[\\/](jdk|jre|java)[-_]?[0-9]+[._][0-9]') { "versioned" } else { "-" }
+                $ep.Add(("envpath;{0};{1};{2};{3};{4}" -f $e.FullName, $k, $p, $st, $vj))
+            }
+        }
+        $t = @(ihwt-cfgval $e.FullName 'FORMS_TRACE_DIR') | Select-Object -Last 1
+        if ($t) { $trdirs += $t }
+    }
+    ihwt-append 72_forms_crashes.txt ("### Forms env files: library paths (must exist on this host; versioned = JDK directory with a version instead of the link)`n{0}`n### rc=0`n" -f ($ep -join "`n"))
+    $miss = @($ep | ForEach-Object { $c = $_ -split ';'; if ($c[4] -eq 'missing') { "{0}:{1}={2}" -f (Split-Path $c[1] -Leaf), $c[2], $c[3] } } | Sort-Object -Unique)
+    $verj = @($ep | ForEach-Object { $c = $_ -split ';'; if ($c[4] -eq 'ok' -and $c[5] -eq 'versioned') { "{0}:{1}" -f (Split-Path $c[1] -Leaf), $c[2] } } | Sort-Object -Unique)
+    if (-not $envs.Count) { ihwt-fact "Forms env library paths" "no Forms env files" }
+    elseif ($miss.Count) { ihwt-fact "Forms env library paths" ("MISSING: " + ($miss -join ',')) }
+    else { ihwt-fact "Forms env library paths" ("all exist" + $(if ($verj.Count) { " (versioned JDK path: " + ($verj -join ',') + ")" } else { "" })) }
+    # crashes and preload errors per day (Forms diagnostic logs of all servers)
+    $cd = @{}
+    $dlogs = @(Get-ChildItem -LiteralPath (Join-Path $DH "servers") -Directory -ErrorAction SilentlyContinue |
+               ForEach-Object { Get-ChildItem -LiteralPath (Join-Path $_.FullName "logs") -Filter 'formsapp-diagnostic*.log' -File -ErrorAction SilentlyContinue })
+    foreach ($m in @(Select-String -LiteralPath @($dlogs | ForEach-Object { $_.FullName }) -Pattern 'is terminating due to signal|cannot be preloaded|Stack trace for runtime process' -ErrorAction SilentlyContinue)) {
+        $l = $m.Line; if ($l.Length -lt 11) { continue }; $d = $l.Substring(1, 10)
+        if ($l -match 'due to signal (\d+)') { $key = "$d;signal $($Matches[1])" }
+        elseif ($l -match "object '([^']*)'") { $key = "$d;preload $($Matches[1])" }
+        elseif ($l -match 'cannot be preloaded') { $key = "$d;preload ?" }
+        else { $key = "$d;stack trace written" }
+        $cd[$key] = 1 + $(if ($cd.ContainsKey($key)) { $cd[$key] } else { 0 })
+    }
+    $cdl = @($cd.Keys | Sort-Object | ForEach-Object { "crash_day;{0};{1}" -f $_, $cd[$_] })
+    ihwt-append 72_forms_crashes.txt ("### Forms runtime crashes / preload errors per day (formsapp-diagnostic*.log)`n{0}`n### rc=0`n" -f ($cdl -join "`n"))
+    $nsig = 0; $npre = 0; $last = ""
+    foreach ($x in $cdl) { $c = $x -split ';'; if ($c[2] -like 'signal*') { $nsig += [int]$c[3]; if ($c[1] -gt $last) { $last = $c[1] } } elseif ($c[2] -like 'preload*') { $npre += [int]$c[3] } }
+    ihwt-fact "Forms crashes (logs)" ("{0} runtime crashes (signal){1}, {2} LD_PRELOAD errors" -f $nsig, $(if ($last) { ", last $last" } else { "" }), $npre)
+    # frmweb dumps (instance trace dirs + FORMS_TRACE_DIR of the env files)
+    $tdirs = @(Get-ChildItem -LiteralPath (ihwt-jp @($DH, "system_components", "FORMS")) -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName "trace" }) + $trdirs
+    $dumps = @($tdirs | Where-Object { ihwt-isdir $_ } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter 'frmweb_dump_*' -File -ErrorAction SilentlyContinue } |
+               Sort-Object FullName -Unique | Sort-Object LastWriteTime -Descending)
+    if ($dumps.Count) {
+        $dd = Join-Path $OUT "dumps"; New-Item -ItemType Directory -Path $dd -Force | Out-Null
+        $dl = @($dumps | Select-Object -First 200 | ForEach-Object { ihwt-frmweb-dump $_.FullName })
+        ihwt-append 72_forms_crashes.txt ("### frmweb dumps (newest first, max 200): frmweb_dump;file;mtime;bytes;FORM.BLOCK.FIELD;last trigger;kind;top frames;signature`n{0}`n### rc=0`n" -f (ihwt-mask ($dl -join "`n")))
+        foreach ($d in @($dumps | Select-Object -First 10)) {
+            try {
+                $fs = [IO.File]::Open($d.FullName, 'Open', 'Read', 'ReadWrite')
+                try { $n = [math]::Min($fs.Length, 1MB); $buf = New-Object byte[] $n; [void]$fs.Read($buf, 0, $n) } finally { $fs.Close() }
+                $txt = ihwt-mask ([Text.Encoding]::ASCII.GetString($buf))
+                if ($d.Length -gt 1MB) { $txt += "`n### truncated at 1 MB (original $($d.Length) bytes)" }
+                ihwt-write-file (Join-Path $dd $d.Name) $txt
+            } catch { }
+        }
+        $lim = (Get-Date).AddDays(-30)
+        ihwt-fact "Forms frmweb dumps" ("{0} (newest {1}, {2} in the last 30 days), newest {3} copied to dumps/" -f $dumps.Count, $dumps[0].LastWriteTime.ToString('yyyy-MM-dd HH:mm'),
+            @($dumps | Where-Object { $_.LastWriteTime -ge $lim }).Count, @(Get-ChildItem -LiteralPath $dd -File).Count)
+    } else {
+        ihwt-fact "Forms frmweb dumps" "none"
     }
 }
 

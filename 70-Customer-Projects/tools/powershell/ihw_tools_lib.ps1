@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-19.1"
+$IHWT_PS_LIB_VERSION = "2026-11-24.1"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -1710,4 +1710,43 @@ function ihwt-security {
     }
     $out.Add("security;sudo;not-probed")
     return $out.ToArray()
+}
+
+#------------------------------------------------------------------------------
+# ihwt-frmweb-dump FILE - one summary line of a Forms runtime dump
+#   (frmweb_dump_<pid>, a TEXT stack trace frmweb writes itself on a crash)
+#   the line of ihwt_frmweb_dump (bash):
+#   frmweb_dump;<file>;<mtime>;<bytes>;<FORM.BLOCK.FIELD>;<last trigger>;
+#               <kind signal|error>;<top frames a>b>c>;<call stack signature>
+#------------------------------------------------------------------------------
+function ihwt-frmweb-dump {
+    param([string] $f)
+    if (-not $f -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return $null }
+    $it = Get-Item -LiteralPath $f
+    $fbf = ""; $lt = ""; $sig = ""; $fr = New-Object System.Collections.Generic.List[string]; $s = 0
+    $text = ""
+    try {
+        $fs = [IO.File]::Open($f, 'Open', 'Read', 'ReadWrite')
+        try { $n = [math]::Min($fs.Length, 4MB); $buf = New-Object byte[] $n; [void]$fs.Read($buf, 0, $n); $text = [Text.Encoding]::ASCII.GetString($buf) } finally { $fs.Close() }
+    } catch { $text = "" }
+    foreach ($l in ($text -split "`r?`n")) {
+        if ($l -match '^Last Trigger +FORM/BLOCK/FIELD:\s*(.*)$') { $fbf = $Matches[1]; continue }
+        if ($l -match '^Last trigger:\s*(.*)$') { $lt = $Matches[1]; continue }
+        if ($l -match '^Call stack signature:.*\s(\S+)\s*$') { $sig = $Matches[1]; continue }
+        if ($l -match '^([A-Za-z_][A-Za-z0-9_$.]*)\(\)\+[0-9]+ +([a-z?]+) ') {
+            $fr.Add($Matches[1]); if ($Matches[2] -eq 'signal' -and -not $s) { $s = $fr.Count }
+        }
+    }
+    $kind = if ($s) { "signal" } else { "error" }
+    $st = $s
+    if (-not $st) {
+        for ($i = 1; $i -le $fr.Count; $i++) {
+            if ($fr[$i - 1] -notmatch '^(kgdsdst|skgudmp|ksedst|ksedmp|ksfdmp|dbgex|dbge|dbgr|kgerinv|kgeriv|kgerin|kgesin|kgesic|kgeasi|kgerev|kgersel|siehjmpterm|__sighandler|sighandler|ssexhd|sslss|skgesig)') { $st = $i; break }
+        }
+    }
+    if (-not $st) { $st = 1 }
+    $top = @(); for ($i = $st; $i -le $fr.Count -and $i -lt $st + 6; $i++) { $top += $fr[$i - 1] }
+    $c = { param($v) if ($v) { $v -replace ';', ',' } else { "-" } }
+    return ("frmweb_dump;{0};{1};{2};{3};{4};{5};{6};{7}" -f $f, $it.LastWriteTime.ToString('yyyy-MM-dd HH:mm'), $it.Length,
+            (& $c $fbf), (& $c $lt), $(if ($fr.Count) { $kind } else { "-" }), (& $c ($top -join '>')), (& $c $sig))
 }
