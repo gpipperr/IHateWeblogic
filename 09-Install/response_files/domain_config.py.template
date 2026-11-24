@@ -47,6 +47,11 @@ if _with_reports:
 # --- Domain options (set AFTER all addTemplate calls) ------------------------
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')
+# Applications directory (em.ear, forms/fads) next to the Oracle Home instead of
+# the default ORACLE_HOME/user_projects/applications/<domain> - a patched home
+# can then be swapped without copying it back (APPLICATIONS_HOME, tested
+# offline 2026-11-24: em.ear + source-path land there)
+setOption('AppDir', '##APPLICATIONS_HOME##')
 
 # --- Admin Server listen address / port --------------------------------------
 cd('/Servers/AdminServer')

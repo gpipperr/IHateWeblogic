@@ -228,6 +228,12 @@ PROTECT_NODE=("/" "$ORACLE_BASE" "$ORACLE_BASE/admin" "$HOME" "/tmp" "$(dirname 
 
 # Explicit whitelist – nothing outside this list is ever deleted.
 DELETE_TARGETS=("$ORACLE_HOME" "$DOMAIN_HOME" "$HOME/oradiag_oracle")
+# Applications directory of the domain (AppDir) – only when outside the home
+# (inside it goes with ORACLE_HOME)
+case "${APPLICATIONS_HOME:-}" in
+    ""|"$ORACLE_HOME"/*) ;;
+    *) DELETE_TARGETS+=("$APPLICATIONS_HOME") ;;
+esac
 [ -n "$DOMAIN_NAME" ] && DELETE_TARGETS+=("$AUTOSTART_DIR")
 case "${REPORTS_TMP:-}" in /tmp/?*) DELETE_TARGETS+=("$REPORTS_TMP") ;; esac
 for _t in /tmp/ihw_*; do [ -e "$_t" ] && DELETE_TARGETS+=("$_t"); done
@@ -436,6 +442,15 @@ if [ "$(basename "$_domains_parent")" = "domains" ] && [ -d "$_domains_parent" ]
     rmdir "$_domains_parent" && ok "  removed empty: $_domains_parent"
 fi
 unset _domains_parent
+
+if [ -n "${APPLICATIONS_HOME:-}" ]; then
+    _apps_parent="$(dirname "$APPLICATIONS_HOME")"
+    if [ "$(basename "$_apps_parent")" = "applications" ] && [ -d "$_apps_parent" ] \
+       && [ -z "$(ls -A "$_apps_parent")" ]; then
+        rmdir "$_apps_parent" && ok "  removed empty: $_apps_parent"
+    fi
+    unset _apps_parent
+fi
 
 # =============================================================================
 # 5. environment.conf aside

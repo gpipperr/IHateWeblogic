@@ -424,6 +424,24 @@ _ask ORACLE_BASE    "Oracle Base"               "/u01/app/oracle"               
 _ask ORACLE_HOME    "Oracle Home (FMW)"         "${ORACLE_BASE}/fmw"               "_val_dir"
 _ask JDK_HOME       "JDK 21 home (symlink)"     "${ORACLE_BASE}/java/jdk-21"       "_val_jdk"
 _ask DOMAIN_HOME    "Domain directory"          "${ORACLE_BASE}/domains/fr_domain" "_val_dir"
+# Applications directory of the domain (WLST AppDir: em.ear, forms/fads) – next
+# to the Oracle Home, not in ORACLE_HOME/user_projects, so a patched home can be
+# swapped (docs/forms_reports_patch_transfer_fmw_home.md). Existing domain: the
+# default is the directory its config.xml already uses.
+_app_default="${ORACLE_BASE}/applications/$(basename "$DOMAIN_HOME")"
+if [ -f "$DOMAIN_HOME/config/config.xml" ]; then
+    _app_src="$(grep -o '<source-path>[^<]*/em\.ear</source-path>' "$DOMAIN_HOME/config/config.xml" 2>/dev/null \
+                | head -1 | sed 's#<source-path>##; s#/em\.ear</source-path>##')"
+    [ -n "$_app_src" ] && _app_default="$_app_src"
+fi
+_ask APPLICATIONS_HOME "Applications dir (AppDir)"  "$_app_default"                   "_val_dir"
+case "$APPLICATIONS_HOME" in
+    "${ORACLE_HOME}"/*)
+        warn "APPLICATIONS_HOME is inside ORACLE_HOME – a home swap must copy it back."
+        warn "  Recommended for a new domain: ${ORACLE_BASE}/applications/$(basename "$DOMAIN_HOME")"
+        ;;
+esac
+unset _app_default _app_src
 _ask PATCH_STORAGE  "Patch storage directory"   "/srv/patch_storage"               "_val_patch_storage"
 # Optional archive (NFS / ZFS, same layout as PATCH_STORAGE) = master copy of all
 # installers + patches; PATCH_STORAGE is then only the fast local working copy:
@@ -881,6 +899,7 @@ _show "ORACLE_INVENTORY"     "$ORACLE_INVENTORY"
 _show "ORACLE_HOME"          "$ORACLE_HOME"
 _show "JDK_HOME"             "$JDK_HOME"
 _show "DOMAIN_HOME"          "$DOMAIN_HOME"
+_show "APPLICATIONS_HOME"    "$APPLICATIONS_HOME"
 _show "PATCH_STORAGE"        "$PATCH_STORAGE"
 _show "PATCH_ARCHIVE"        "${PATCH_ARCHIVE:-(none)}"
 _show "TNS_ADMIN"            "$TNS_ADMIN"
@@ -1050,6 +1069,10 @@ INSTALL_COMPONENTS="${INSTALL_COMPONENTS}"
 
 # --- WebLogic Domain ----------------------------------------------------------
 DOMAIN_HOME="${DOMAIN_HOME}"
+# Applications directory of the domain (WLST AppDir: em.ear, forms/fads), next to
+# the Oracle Home so a patched home can be swapped – set by 08-oracle_setup_domain.sh
+# (80-FMW-Architecture/weblogic_middleware_architecture.md §1a)
+APPLICATIONS_HOME="${APPLICATIONS_HOME}"
 # Public server name (URL the users type, certificate SAN) – Nginx server_name,
 # 08-SSL, FORMS_CLIENT_BASE_URL / ORDS_PUBLIC_URL; may differ from hostname -f
 WLS_SERVER_FQDN="${WLS_SERVER_FQDN}"

@@ -96,6 +96,9 @@ printLine
 # =============================================================================
 
 DOMAIN_NAME="$(basename "$DOMAIN_HOME")"
+# Applications directory (WLST AppDir: em.ear, forms/fads) next to the Oracle
+# Home; confs from before 2026-11-24 have no key -> default of 01-setup-interview.sh
+APPLICATIONS_HOME="${APPLICATIONS_HOME:-${ORACLE_BASE:-$(dirname "$ORACLE_HOME")}/applications/${DOMAIN_NAME}}"
 WLST_BIN="$ORACLE_HOME/oracle_common/common/bin/wlst.sh"
 
 TPL_WLS="$ORACLE_HOME/wlserver/common/templates/wls/wls.jar"
@@ -209,6 +212,10 @@ section "Planned Domain Configuration"
 
 printList "Domain name"        30 "$DOMAIN_NAME"
 printList "DOMAIN_HOME"        30 "$DOMAIN_HOME"
+printList "APPLICATIONS_HOME"  30 "$APPLICATIONS_HOME"
+case "$APPLICATIONS_HOME" in
+    "$ORACLE_HOME"/*) warn "APPLICATIONS_HOME is inside ORACLE_HOME – a home swap must copy it back (weblogic_middleware_architecture.md §1a)" ;;
+esac
 printList "ORACLE_HOME"        30 "$ORACLE_HOME"
 printList "Admin user"         30 "${WL_USER}"
 printList "Admin listen"       30 "${WLS_LISTEN_ADDRESS}:${WLS_ADMIN_PORT}"
@@ -311,6 +318,14 @@ _cleanup_domain_py() {
 
 trap '_cleanup_domain_py' EXIT
 
+# Parent of the applications directory (writeDomain creates the leaf itself)
+_app_parent="$(dirname "$APPLICATIONS_HOME")"
+if [ ! -d "$_app_parent" ]; then
+    mkdir -p "$_app_parent" && ok "Created: $_app_parent" \
+        || { fail "Cannot create $_app_parent – 03-root_user_oracle.sh --apply"; print_summary; exit 2; }
+fi
+unset _app_parent
+
 section "WLST Script"
 
 # Substitute all ##PLACEHOLDER## markers in the template
@@ -318,6 +333,7 @@ sed \
     -e "s|##ORACLE_HOME##|${ORACLE_HOME}|g" \
     -e "s|##DOMAIN_HOME##|${DOMAIN_HOME}|g" \
     -e "s|##DOMAIN_NAME##|${DOMAIN_NAME}|g" \
+    -e "s|##APPLICATIONS_HOME##|${APPLICATIONS_HOME}|g" \
     -e "s|##WLS_ADMIN_USER##|${WL_USER}|g" \
     -e "s|##WLS_ADMIN_PWD##|${INTERNAL_WL_PWD}|g" \
     -e "s|##WLS_LISTEN_ADDRESS##|${WLS_LISTEN_ADDRESS}|g" \
@@ -552,6 +568,12 @@ if [ -f "$_cfg" ]; then
     if $WITH_FORMS; then
         grep -q 'time-taken' "$_cfg" && ok "WLS_FORMS access log with time-taken" \
             || warn "time-taken missing in the WLS_FORMS access log – 06-FormsDiag/forms_perf_settings.sh --apply --fix-accesslog"
+    fi
+    # Applications directory = APPLICATIONS_HOME (AppDir), em.ear deployed from there
+    if grep -q "<source-path>${APPLICATIONS_HOME}/em\.ear</source-path>" "$_cfg"; then
+        ok "em.ear deployed from APPLICATIONS_HOME ($APPLICATIONS_HOME)"
+    else
+        warn "em.ear not in APPLICATIONS_HOME: $(grep -o '<source-path>[^<]*em\.ear' "$_cfg" | sed 's#<source-path>##' | head -1)"
     fi
     # Node Manager credentials from the template (else random until 11-)
     _nm_user="$(sed -n 's:.*<node-manager-username>\(.*\)</node-manager-username>.*:\1:p' "$_cfg" | head -1)"

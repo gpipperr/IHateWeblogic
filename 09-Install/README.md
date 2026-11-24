@@ -47,7 +47,7 @@ Background per step – **why** the domain looks like this (`80-FMW-Architecture
 
 | Step | Background |
 |---|---|
-| `05-`/`06-` homes, two JDKs | [the four homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes) |
+| `05-`/`06-` homes, two JDKs | [the five homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes) |
 | `07-` repository | [rcu_middleware_architecture.md](../80-FMW-Architecture/rcu_middleware_architecture.md) |
 | `08-` domain, servers, clusters | [building blocks](../80-FMW-Architecture/weblogic_middleware_architecture.md#3-the-building-blocks) |
 | `10-`/`11-`/`30-` boot, Node Manager, autostart | [Node Manager](../80-FMW-Architecture/weblogic_middleware_architecture.md#34-node-manager), [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain) |

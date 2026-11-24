@@ -26,7 +26,7 @@ explained in the background documents of
 | Script | Purpose | Why – background |
 |---|---|---|
 | [`os_check.sh`](#os_checksh) | OS release, RAM/CPU/disk, ulimits, kernel parameters, SELinux + firewall, packages, hostname | [OS parameters](../09-Install/docs/00-root_set_os_parameter.md), [firewall + sshd](../09-Install/docs/00-root_set_os_parameter.md#firewall-and-ssh-hardening-01-root_os_baselinesh-sections-8--9) |
-| [`java_check.sh`](#java_checksh) | `JAVA_HOME`, JDK version/vendor, JDK of every running WLS JVM **and of the Reports engines**, heap, Log4j scan, Java4Shell mitigation of the bundled JDK | [the homes incl. both JDKs](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes), [Reports engines](../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts) |
+| [`java_check.sh`](#java_checksh) | `JAVA_HOME`, JDK version/vendor, JDK of every running WLS JVM **and of the Reports engines**, heap, Log4j scan, Java4Shell mitigation of the bundled JDK | [the homes incl. both JDKs](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes), [Reports engines](../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts) |
 | [`port_check.sh`](#port_checksh) | listen addresses/ports from `config.xml` + Node Manager, live sockets, TCP and HTTP checks | [how the parts are joined](../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined), [who starts whom](../80-FMW-Architecture/weblogic_middleware_architecture.md#4-who-starts-whom--the-control-chain); `frmweb` listen ports – [forms_runtime_architecture.md §1](../80-FMW-Architecture/forms_runtime_architecture.md#1-the-parts) |
 | [`db_connect_check.sh`](#db_connect_checksh) | 6-step DB diagnosis: DNS / ping / TCP / TNS / service / login | [who logs in where](../80-FMW-Architecture/rcu_middleware_architecture.md#3-who-logs-in-where), [password expiry](../80-FMW-Architecture/rcu_middleware_architecture.md#61-password-expiry--a-real-risk) |
 | [`ssl_check.sh`](#ssl_checksh) | who terminates TLS (Nginx / WLS / OHS), live TLS analysis, certificates incl. WebLogic demo certificates, keystores | [08-SSL](../08-SSL/README.md), [which certificates are needed](../80-FMW-Architecture/forms_jakob_webutil.md#9-which-certificates-are-needed) |
@@ -131,7 +131,7 @@ Read-only – no options. **Why:** an FMW host has **two JDKs** – the
 standalone Oracle JDK (`JDK_HOME`) for WebLogic and the Node Manager, and
 the FMW-bundled `$ORACLE_HOME/oracle_common/jdk`, which the Reports engines
 use – see
-[the homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes)
+[the homes](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes)
 and [Reports engines](../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts).
 
 | Section | What is checked |

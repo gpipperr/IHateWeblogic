@@ -573,6 +573,8 @@ _check_dir "$ORACLE_HOME"
 _check_dir "$(dirname "$JDK_HOME")"        oracle oinstall
 _check_dir "$(dirname "$DOMAIN_HOME")"     oracle oinstall
 _check_dir "$(dirname "$(dirname "$DOMAIN_HOME")")"  oracle oinstall
+# Parent of the applications directory (WLST AppDir, next to the Oracle Home)
+_check_dir "$(dirname "${APPLICATIONS_HOME:-$ORACLE_BASE/applications/$(basename "$DOMAIN_HOME")}")" oracle oinstall
 _check_dir "$PATCH_STORAGE"                oracle oinstall
 _check_dir "$PATCH_STORAGE/bin"            oracle oinstall
 # personal SQL scripts (login.sql ...) - SQLPATH / ORACLE_PATH of the switcher (docs 5b)

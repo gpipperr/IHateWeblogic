@@ -283,7 +283,7 @@ $ORACLE_HOME/oracle_common/jdk                  (FMW-bundled JDK, part of the ho
             Updated only by an Oracle patch (component oracle.jdk) – open item
 ```
 
-Background: [the four homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+Background: [the five homes, two JDKs](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes).
 
 > **[`detect_env_conf.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/00-Setup/detect_env_conf.sh) without an existing conf** (taking over a system) proposes
 > `JDK_HOME` in this order (since 2026-10-29; before, the bundled JDK came

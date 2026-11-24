@@ -97,7 +97,7 @@ transfer the home.
 | bundled JDK `$ORACLE_HOME/oracle_common/jdk` | **yes** | part of the home, patched with OPatch |
 | home inventory `$ORACLE_HOME/inventory/` | **yes** | the patch state – section 4 |
 | `$ORACLE_HOME/.patch_storage` (1.5 GB on the test host) | **yes** | `opatch rollback` and the conflict check of the next cycle need it |
-| `$ORACLE_HOME/user_projects/applications/<domain>/` (`em.ear`, `forms/`, `.fads.domain`) | **no** – stays per host | written at domain creation, belongs to the domain ([§7a](../80-FMW-Architecture/weblogic_middleware_architecture.md#what-the-domain-leaves-in-the-home)) |
+| applications directory (`em.ear`, `forms/`, `.fads.domain`): `APPLICATIONS_HOME` of new installs, `$ORACLE_HOME/user_projects/applications/<domain>/` in the old layout | **no** – stays per host | written at domain creation, belongs to the domain ([§1a](../80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what)) |
 | `$ORACLE_HOME/domain-registry.xml` | **no** – stays per host | list of the domains of this home |
 | JACOB / signed jars of [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) (`forms/java/jacob.jar`, `extensions.jnlp`, `forms/webutil/win*/jacob-*.dll`) | from the master, then copy back or rerun `14-` | signed per environment if the certificates differ |
 | `$ORACLE_HOME/envPropertiesCache/` | **no** | runtime cache, rebuilt |
@@ -106,18 +106,21 @@ transfer the home.
 | central inventory | **no** – reference copy only | section 4 |
 | nginx, certificates, `environment.conf`, `*.des3` | **no** | per host, bound to the host |
 
-**Target layout: the applications directory outside the home.** Today WLST
-puts `user_projects/applications/<domain>` into the Oracle Home, because our
-domain template sets no `AppDir` (**confirmed (live)**: `config.xml` of the
-test host points to `/u01/app/oracle/fmw/user_projects/applications/fr_domain/em.ear`).
+**Target layout: the applications directory outside the home.** Without
+`AppDir` WLST puts `user_projects/applications/<domain>` into the Oracle Home
+(**confirmed (live)**: `config.xml` of the test host points to
+`/u01/app/oracle/fmw/user_projects/applications/fr_domain/em.ear`).
 
-New installations should put it next to the domains, for example
-`/u01/app/oracle/applications/fr_domain`. This is the layout of Oracle's
-Enterprise Deployment Guide (`…/applications/<domain>` next to
-`…/domains/<domain>`). The home then holds no domain file except
-`domain-registry.xml`, and the transfer gets simpler. This is open as an
-install change and a migration (TODO). **Until a domain is migrated, the
-`user_projects/` directory is copied back from the old home** (section 6 E).
+Since 2026-11-24 new installations of this library put it next to the
+domains: `APPLICATIONS_HOME`, default `/u01/app/oracle/applications/fr_domain`
+(interview + [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh),
+`setOption('AppDir')`). This is the layout of Oracle's Enterprise Deployment
+Guide (`…/applications/<domain>` next to `…/domains/<domain>`). The home then
+holds no domain file except `domain-registry.xml`, and the transfer gets
+simpler. Roles of the homes and what a patch does in which one:
+[architecture §1a](../80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what). Existing domains keep the old layout until they are
+migrated (TODO) – **for them the `user_projects/` directory is copied back
+from the old home** (section 6 E).
 
 ---
 
@@ -309,6 +312,7 @@ mv /u01/app/oracle/fmw /u01/app/oracle/fmw.prev_$CYCLE
 mv /u01/app/oracle/fmw.new /u01/app/oracle/fmw
 
 # 4. bring back what belongs to this host's domain
+#    user_projects only in the old layout (APPLICATIONS_HOME inside the home)
 cp -a /u01/app/oracle/fmw.prev_$CYCLE/user_projects      /u01/app/oracle/fmw/
 cp -a /u01/app/oracle/fmw.prev_$CYCLE/domain-registry.xml /u01/app/oracle/fmw/
 #    JACOB / signed jars: rerun 09-Install/14-oracle_setup_forms.sh, or copy the files of section 3
@@ -365,6 +369,10 @@ Oracle Home has to be done on every environment:
   test host are identical to a file of the home. A patch of such a file
   reaches neither an OPatch-patched nor a transferred domain. Check this per
   cycle (§7a).
+- **`em.ear` in the applications directory:** a copy of
+  `em/archives/applications/em_fmwconsole.ear` made at domain creation. A patch
+  of that EAR (CPU Oct 2026: the `/em` cookie fix of 39995927) reaches neither
+  way – the domain keeps the old copy ([§1a](../80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what)). Refresh procedure open (TODO).
 - **OS and nginx:** with `dnf`, on every host.
 
 ---
@@ -378,7 +386,8 @@ Oracle Home has to be done on every environment:
 | files of root in the home | check before packing (section 6 B) |
 | SELinux contexts (if enforcing) | `tar` does not keep them by default – `restorecon -R` on the new home, or `tar --selinux` |
 | disk space | home twice for some days |
-| applications directory inside the home | install change `AppDir` + migration of existing domains – TODO |
+| applications directory inside the home | new installs: `APPLICATIONS_HOME` outside the home (2026-11-24); migration of existing domains – TODO |
+| `em.ear` copy never patched | finding 2026-11-24 – check + refresh procedure + MOS research – TODO |
 | live test 14c on the test host | open – TODO |
 | script `07-Maintenance/fmw_home_transfer.sh` (`pack`, `check`, `stage`, `switch`, `rollback`) | idea – after the live test |
 

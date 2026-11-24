@@ -8,6 +8,20 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-24
+
+- **Applications directory outside the Oracle Home for new installs:** new key
+  `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`) in the
+  interview, `setOption('AppDir')` in `08-oracle_setup_domain.sh` / domain
+  template, directory in `03-`, removed by `99-`
+  ([08-oracle_setup_domain.md](09-Install/docs/08-oracle_setup_domain.md)).
+- **Architecture "the five homes":** Oracle Home, Domain Home and Applications
+  Home with a drawing and a table of what a patch does in which home
+  ([weblogic_middleware_architecture.md §1a](80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what)).
+- **Finding: the domain's `em.ear` is never patched** – the `/em` cookie fix of
+  the FMW Control BP of the CPU Oct 2026 is not active on the test host;
+  check and refresh procedure open (TODO).
+
 ## 2026-11-23
 
 - **Patch concept "patch once, transfer the FMW home":** patch master =

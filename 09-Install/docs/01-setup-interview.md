@@ -84,6 +84,7 @@ rm mos_sec.conf
 | `ORACLE_HOME` | `$ORACLE_BASE/fmw` | will be created if absent |
 | `JDK_HOME` | `$ORACLE_BASE/java/jdk-21` | `java -version` check |
 | `DOMAIN_HOME` | `$ORACLE_BASE/domains/fr_domain` | – |
+| `APPLICATIONS_HOME` | `$ORACLE_BASE/applications/<basename DOMAIN_HOME>`; for an existing domain the directory its `config.xml` already uses (`em.ear` source path) | WARN if inside `ORACLE_HOME` – applications directory of the domain (WLST `AppDir`: `em.ear`, `forms/fads`) next to the Oracle Home, so a patched home can be swapped ([architecture §1a](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what)) |
 | `PATCH_STORAGE` | `/srv/patch_storage` | disk space ≥ 20 GB |
 | `PATCH_ARCHIVE` | *(empty = none)* | optional NFS/ZFS master copy of installers + patches (same layout); readable directory, not `PATCH_STORAGE` – `07-Maintenance/patch_storage.sh pull/clean` |
 | `ORACLE_INVENTORY` | one level above `ORACLE_BASE` (`/opt/oraInventory` when `ORACLE_BASE` has depth 1) | WARN if inside `ORACLE_BASE`; on a host with an existing inventory (local RCU DB, reinstall) enter that one – `03-` writes `/etc/oraInst.loc` |

@@ -19,7 +19,7 @@ domain `fr_domain`) – replace them with your `environment.conf` values.
 
 ---
 
-## 1. Terms – the four "homes"
+## 1. Terms – the five "homes"
 
 | Term | Path (this layout) | What it is | Changes when |
 |---|---|---|---|
@@ -27,6 +27,7 @@ domain `fr_domain`) – replace them with your `environment.conf` values.
 | **WebLogic Home** (`WL_HOME`) | `$ORACLE_HOME/wlserver` | the WebLogic Server part of the Oracle Home | patches |
 | **Domain Home** (`DOMAIN_HOME`) | `/u01/app/oracle/domains/fr_domain` | the **configuration and runtime state** of one domain: `config/config.xml`, `config/fmwconfig/` (OPSS, components), `servers/<name>/` (logs, state, cache), `nodemanager/`, `bin/` (start scripts) | configuration, every start (logs, tmp) |
 | **Node Manager Home** | `$DOMAIN_HOME/nodemanager` | properties, log and process ids of the per-domain Node Manager | NM configuration |
+| **Applications Home** (`APPLICATIONS_HOME`, WLST `AppDir`) | new installs of this repo: `/u01/app/oracle/applications/fr_domain`; Oracle default and the test host: `$ORACLE_HOME/user_projects/applications/fr_domain` | the **deployment sources the domain got at creation**: `em.ear` (FMW Control), `forms/fads`, `.fads.domain` – `config.xml` deploys `em` from here | only at domain creation – **not by a patch**, see [§1a](#1a-oracle-home-domain-home-applications-home--who-holds-what) |
 
 Further homes of the platform:
 
@@ -35,7 +36,6 @@ Further homes of the platform:
 | JDK | `/u01/app/oracle/java/jdk-21` (`JDK_HOME`, symlink → `jdk-21.0.x`) | used by the WebLogic servers and the Node Manager (`setDomainEnv.sh`, `setNMJavaHome.sh`), by OPatch / `wlst.sh` (`$ORACLE_HOME/oui/.globalEnv.properties`) and by ORDS. Updated by switching the link (`02b- --upgrade-jdk` / `07-Maintenance/80-`); installer and `createDomain` write the resolved path – [`07-Maintenance/domain_jdk_path.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh) puts the link back (by hand: [FormsReports_change_java](../70-Customer-Projects/FormsReports_change_java/README.md)) |
 | FMW-bundled JDK | `$ORACLE_HOME/oracle_common/jdk` | **used by the Reports engines** – `$DOMAIN_HOME/reports/bin/reports.sh` puts it first in `PATH`; test host 2026-10-19: 17.0.12 from July 2024 while `JDK_HOME` is 21.0.12.1 (**confirmed (live)**, `/proc/<pid>/exe`); since 2026-10-24 `JDK_HOME` = 21.0.13.0.2 (CPU Oct 2026), the bundled JDK is still 17.0.12 – no Oracle patch for it yet (SR). JDK updates via `JDK_HOME` do not reach it – checked by [`02-Checks/java_check.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/java_check.sh) and [`10-Monitoring/cve_inventory.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/10-Monitoring/cve_inventory.sh) |
 | Inventory | `/u01/app/oracle/oraInventory` | OUI/OPatch registry of the Oracle Homes |
-| Application directory | `$ORACLE_HOME/user_projects/applications/fr_domain` | `em.ear` lives here (**confirmed (live)**, `config.xml` source path). Created with the domain, but **inside the Oracle Home** in this layout – see [§7a](#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home) |
 | Autostart control (this repo) | `$ORACLE_BASE/admin/fr_domain/ctrl` | `fmw_ctl.sh`, WLST keyfiles, logs – [`09-Install/30-configure_autostart.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/30-configure_autostart.sh) |
 
 **Rule of thumb:** *Oracle Home = what Oracle delivered, Domain Home = what
@@ -45,6 +45,86 @@ a domain – they are the source for new domains and are replaced by patches.
 Middleware Concepts", 14c Understanding Oracle Fusion Middleware)
 The rule has exceptions in both directions, see
 [§7a](#7a-what-a-patch-changes--oracle-home-domain-home-swapped-home).
+
+### 1a. Oracle Home, Domain Home, Applications Home – who holds what
+
+```ascii?name=fmw-homes
+ ORACLE_BASE  /u01/app/oracle
+  |
+  +-- fmw/                    ORACLE_HOME - software, same on every host,
+  |     wlserver/ oracle_common/ em/ forms/ reports/ bin/ OPatch/ inventory/
+  |     em/archives/applications/em_fmwconsole.ear   <- patched by OPatch
+  |     domain-registry.xml  (lists the domains of this home)
+  |          ^                         |  writeDomain copies it ONCE
+  |          | libraries + apps        v
+  +-- domains/fr_domain/      DOMAIN_HOME - configuration + runtime state
+  |     config/config.xml
+  |       <source-path> fmw/...           (formsapp, reports, EM libraries ...)
+  |       <source-path> applications/fr_domain/em.ear
+  |     servers/*/tmp, cache  (unpacked copies, rebuilt at start)
+  |                                    |
+  +-- applications/fr_domain/ APPLICATIONS_HOME - deployment sources of
+        em.ear  forms/fads  .fads.domain          the domain (WLST AppDir)
+```
+
+| Home | Holds | Written by | Same on every host? |
+|---|---|---|---|
+| Oracle Home | the software, incl. the source archives of all templates | installer, OPatch, a home swap | yes (one patch level) |
+| Domain Home | `config.xml`, OPSS / component configuration, logs, state | domain creation, configuration, every start | no – per domain |
+| Applications Home | copies of template archives the domain deploys from (`em.ear`), FADS marker | `writeDomain`, once | no – per domain |
+
+**What the Applications Home is for.** `writeDomain` does not deploy every
+application from the Oracle Home: for FMW Control it copies
+`em/archives/applications/em_fmwconsole.ear` into the applications directory as
+`em.ear`, fills the host / port placeholders of `META-INF/emoms.properties`
+(`localhost`, `7001`) and deploys `em` from that copy (`nostage`). The
+directory is needed at runtime – it is no cache – and there is nothing in it
+to configure by hand. The copy is a thin shell (86 KB: `em.war` with
+`web.xml`, `weblogic.xml`, skins); the EM code itself comes from shared
+libraries in the Oracle Home (`emcore` = `em_fmwconsole.war`, `emas.war`,
+`em_forms.war`, ADF). (**confirmed (live)** 2026-11-24, `config.xml`, `unzip -l`)
+
+Without `AppDir` WLST puts the directory into the Oracle Home
+(`user_projects/applications/<domain>`). [`08-oracle_setup_domain.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/08-oracle_setup_domain.sh)
+sets `AppDir` to `APPLICATIONS_HOME` since 2026-11-24 (default
+`$ORACLE_BASE/applications/<domain>`, the layout of Oracle's Enterprise
+Deployment Guide), so the software and the domain's own files are cleanly
+apart and a patched home can be swapped
+([forms_reports_patch_transfer_fmw_home.md](../docs/forms_reports_patch_transfer_fmw_home.md)).
+Existing domains keep their layout. `domain-registry.xml` always stays in the
+Oracle Home.
+
+**What a patch does in which home**
+
+| Home | `opatch apply` (in place) | Home swap ([transfer concept](../docs/forms_reports_patch_transfer_fmw_home.md)) | JDK update |
+|---|---|---|---|
+| Oracle Home | written: binaries, jars, EARs, home inventory, `.patch_storage`; Forms / Reports QPRs relink | replaced as a whole; copy back `domain-registry.xml` and the JACOB / signed jars of `14-` | the bundled `oracle_common/jdk` only through its own patch |
+| Domain Home | not touched; the servers load the new code after a restart; `servers/*/tmp` / `cache` are rebuilt ([`clean_domain_tmp.sh`](#deleting-the-rebuildable-files)); copies made at creation stay old ([§7a](#what-the-home-does-not-reach)) | stays; `clean_domain_tmp.sh --apply` | not touched as long as everything uses the `JDK_HOME` link (`domain_jdk_path.sh`) |
+| Applications Home | **not touched** – `em.ear` stays the copy of the creation day (see below) | stays (old layout: copied back from the old home) – the same gap | – |
+| `JDK_HOME` (link) | – | own step: switch the link, apply `java.security` / `cacerts` again | new directory, link switched |
+| Central inventory | only the registration of the home; the patch list is in the home inventory | only checked | – |
+
+In short: **a patch changes the Oracle Home only.** Domain Home and
+Applications Home keep their state – that is why they can stay in place when
+the home is swapped, and why a patch to a file that was *copied* into them
+never arrives.
+
+**`em.ear` is never patched** (**confirmed (live)** 2026-11-24, test host).
+The FMW Control bundle patch 39995927 (CPU Oct 2026, applied 2026-10-24)
+changes exactly one file, `em_fmwconsole.ear:em.war/WEB-INF/weblogic.xml`
+(its `actions.xml`): Bug 39638518 "Scope the FMW Control session cookie to
+/em to prevent collisions with /console" (`<cookie-path>/em</cookie-path>`).
+The source EAR in the Oracle Home has it; the domain's `em.ear` of 2026-10-15
+does not, and `/em` still answers `Set-Cookie: ADMINCONSOLESESSION=…; path=/`.
+The README's post-install step is only "lspatches, start all processes".
+A domain created after the patch gets the fixed copy (WLST test domain
+2026-11-24). Open: Oracle's way to refresh it (MOS), a check and a refresh
+procedure – [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md). Per cycle, check whether a patch touches the
+source EAR:
+
+```bash
+grep -l em_fmwconsole.ear $ORACLE_HOME/.patch_storage/*/original_patch/etc/config/actions.xml
+```
 
 ---
 
@@ -460,6 +540,7 @@ repeat the checks at the end of this section on the host you patch.
 | Stays old after the patch | Where | What to do |
 |---|---|---|
 | Copies made when the domain was created | 304 of 1,063 domain files are identical to a file in the home, mostly `config/fmwconfig/components/FORMS` (163) and `ReportsToolsComponent` (34) | Nothing in this cycle: no patch changed a file of the same name. Check per cycle, a patch of such a file would not reach the domain |
+| `em.ear` in the applications directory | copy of `O/em/archives/applications/em_fmwconsole.ear` (not part of the 304: the comparison above only covered `$DOMAIN_HOME`) | **Missed in the CPU Oct 2026**: the cookie fix of 39995927 is not active – [§1a](#1a-oracle-home-domain-home-applications-home--who-holds-what) |
 | Unpacked applications | `servers/*/tmp/_WL_user`, `_WL_internal` | Rebuilt at start. To be sure, delete them with [`clean_domain_tmp.sh`](#deleting-the-rebuildable-files) |
 | The JDK of the domain | `JDK_HOME`, separate from the home | Updated on its own, see §1 |
 | Settings from security advice | `config.xml` | Only by changing the configuration |
@@ -471,14 +552,15 @@ Files in the home that are newer than the domain and do not come from a patch:
 
 | File in `$ORACLE_HOME` | Written by |
 |---|---|
-| `user_projects/applications/<domain>/em.ear` (86 KB, source path of EM in `config.xml`), `.fads.domain`, `forms/fads` | domain creation |
+| `user_projects/applications/<domain>/em.ear` (86 KB, source path of EM in `config.xml`), `.fads.domain`, `forms/fads` – only in the old layout; new installs put them into `APPLICATIONS_HOME` ([§1a](#1a-oracle-home-domain-home-applications-home--who-holds-what)) | domain creation |
 | `domain-registry.xml` (list of the domains of this home) | domain creation |
 | `forms/java/jacob.jar`, `jacob.jar.orig`, `extensions.jnlp`, `forms/webutil/win32` + `win64/jacob-*.dll`, signed jars of an overlay | [`09-Install/14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) |
 | `envPropertiesCache/` | at runtime |
 
 OPatch leaves all of them alone: `em.ear` still has its date of 2026-10-15 although the
-FMW Control patch of 2026-10-24 changed `O/em`. They only matter when the **whole
-home is replaced**.
+FMW Control patch of 2026-10-24 changed `O/em` – and with it the cookie fix of that patch
+never reached EM ([§1a](#1a-oracle-home-domain-home-applications-home--who-holds-what)).
+For a home swap they matter because they live inside the replaced home.
 
 ### Swapping a patched home
 
@@ -497,8 +579,9 @@ the test host.
    grep '<source-path>' $DOMAIN_HOME/config/config.xml | grep user_projects
    ls -la $ORACLE_HOME/user_projects/applications/ $ORACLE_HOME/domain-registry.xml
    ```
-   If the application directory is outside the home (for example
-   `/oracle/user_projects/applications`), this point does not apply.
+   If the application directory is outside the home (`APPLICATIONS_HOME` of new
+   installs, or a customer layout such as `/oracle/user_projects/applications`), this
+   point does not apply.
 3. Swap the home, then copy `user_projects/` and `domain-registry.xml` from the old one.
 4. Run [`14-oracle_setup_forms.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/14-oracle_setup_forms.sh) again, or copy the files of the table above.
 5. Delete the rebuildable files (next section), then start.

@@ -108,7 +108,7 @@ releases); steps 3–4 concept. Prototype of the later steps = the manual check 
 ### cve_inventory.sh (step 1, implemented)
 
 Background: the homes and the two JDKs it inventories –
-[weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes); the Reports / Forms KPIs a
+[weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes); the Reports / Forms KPIs a
 later collector reads come from `05-`/`06-`, explained in
 [reports_engine_architecture.md §6](../80-FMW-Architecture/reports_engine_architecture.md#6-performance-parameters-rwserverconf) and
 [forms_runtime_architecture.md §5](../80-FMW-Architecture/forms_runtime_architecture.md#5-memory-and-limits).

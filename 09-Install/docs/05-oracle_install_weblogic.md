@@ -25,7 +25,7 @@ the link back in. The installer also brings the second, bundled JDK
 `oracle_common/jdk` (used by the Reports engines).
 
 Background – Oracle Home, Middleware Home, the two JDKs and the building
-blocks this layer provides: [weblogic_middleware_architecture.md §1 / §3](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+blocks this layer provides: [weblogic_middleware_architecture.md §1 / §3](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes).
 
 ---
 

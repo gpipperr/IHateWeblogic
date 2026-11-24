@@ -8,6 +8,8 @@
 
 ORACLE_HOME=/u01/app/oracle/fmw
 DOMAIN_HOME=/u01/app/oracle/domains/fr_domain
+# Applications directory of the domain (WLST AppDir: em.ear, forms/fads), outside ORACLE_HOME
+APPLICATIONS_HOME=/u01/app/oracle/applications/fr_domain
 JDK_HOME=/u01/app/oracle/java/jdk-21
 
 ORACLE_BASE=/u01/app/oracle

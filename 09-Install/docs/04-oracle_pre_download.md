@@ -14,7 +14,7 @@ description: "Download the Oracle FMW 14.1.2 installers and patches for Forms & 
 ## Download Sources
 
 Background per download: the two JDKs –
-[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes);
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes);
 JACOB / WebUtil – [forms_jakob_webutil.md](../../80-FMW-Architecture/forms_jakob_webutil.md);
 client Java (jlink) – [java_jlink_forms_env.md](../../80-FMW-Architecture/java_jlink_forms_env.md);
 CVU / RCU database – [rcu_middleware_architecture.md §9](../../80-FMW-Architecture/rcu_middleware_architecture.md#9-database-requirements-for-the-repository-19c--26ai);

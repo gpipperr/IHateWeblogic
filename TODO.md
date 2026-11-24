@@ -425,10 +425,20 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
     `lspatches` = manifest, way back; first real domain start after
     `clean_domain_tmp.sh --apply`
   - [ ] read KB694158 (WLS PSU post-install)
-  - [ ] applications directory outside the home: `setOption('AppDir')` in
-    `09-Install/response_files/domain_config.py.template` + key
-    `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`),
-    migration of existing domains (move + `source-path` in `config.xml`)
+  - [x] applications directory outside the home for new installs (2026-11-24):
+    key `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`),
+    interview, `setOption('AppDir')` in `08-` / template, `03-`, `99-`;
+    architecture §1a "the five homes" – first real `writeDomain` with the full
+    template still open (offline WLST mini domain tested)
+  - [ ] migration of existing domains (test host, customers): move the
+    applications directory + `source-path` in `config.xml`, domain stopped
+  - [ ] **`em.ear` is never patched** (finding 2026-11-24, architecture §1a):
+    the cookie fix of FMW Control BP 39995927 (Bug 39638518, `/em` cookie
+    path) is not active on the test host – MOS research (Oracle's refresh
+    way?), read-only check (domain `em.ear` vs.
+    `em/archives/applications/em_fmwconsole.ear`, live `Set-Cookie` path),
+    refresh procedure (isolated test first), per-cycle `actions.xml` grep in
+    the patch-cycle analysis
   - [ ] script `07-Maintenance/fmw_home_transfer.sh` (`pack`, `check`,
     `stage`, `switch`, `rollback`) – after the live test
 - [ ] **Reports mail** ([reports_mail_handling.md](80-FMW-Architecture/reports_mail_handling.md),

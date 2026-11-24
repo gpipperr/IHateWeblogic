@@ -319,7 +319,7 @@ Control, ADF, OPSS …) are **not** in it.
 ## Special case Java – two JDKs, one alert
 
 Background – why an FMW host has two JDKs and who runs on which:
-[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes),
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes),
 [reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts).
 
 The October cycle shows why Java gets its own section: the CPU of

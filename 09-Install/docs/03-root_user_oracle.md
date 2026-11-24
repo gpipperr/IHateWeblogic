@@ -19,8 +19,8 @@ environment variables, and directory structure.
 
 ---
 
-Background – the four homes and who runs as `oracle`:
-[weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes);
+Background – the five homes and who runs as `oracle`:
+[weblogic_middleware_architecture.md §1 / §7](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes);
 why `JAVA_HOME` = `JDK_HOME` and not the bundled JDK: same document, §1;
 why one `TNS_ADMIN`: [forms_runtime_architecture.md §2.1](../../80-FMW-Architecture/forms_runtime_architecture.md#21-oracle-net--where-frmweb-finds-the-database-alias),
 [reports_engine_architecture.md §5.2](../../80-FMW-Architecture/reports_engine_architecture.md#52-oracle-net--three-places-for-one-tns_admin).
@@ -305,7 +305,8 @@ explicitly in `environment.conf` — do not place the inventory at root level.
 mkdir -p /u01/app/oracle/fmw
 mkdir -p /u01/app/oracle/java
 mkdir -p /u01/app/oraInventory      # ← one level above ORACLE_BASE
-mkdir -p /u01/user_projects/domains
+mkdir -p /u01/app/oracle/domains
+mkdir -p /u01/app/oracle/applications   # APPLICATIONS_HOME parent (WLST AppDir)
 chown -R oracle:oinstall /u01
 chmod -R 755 /u01/app/oracle
 chmod 750 /u01/app/oraInventory

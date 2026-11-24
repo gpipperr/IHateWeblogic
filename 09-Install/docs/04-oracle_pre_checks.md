@@ -129,7 +129,7 @@ that refuses the connection, or a REJECT rule instead of a silent proxy.
 
 Background – why the ports must be free and only on 127.0.0.1 later:
 [how the parts are joined](../../80-FMW-Architecture/weblogic_middleware_architecture.md#6-how-the-parts-are-joined);
-the two JDKs: [§1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+the two JDKs: [§1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes).
 
 Runs the following checks in sequence and reports OK/WARN/FAIL for each:
 

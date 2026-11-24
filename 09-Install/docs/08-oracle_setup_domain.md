@@ -125,6 +125,9 @@ addTemplate('$ORACLE_HOME/ReportsServerComponent/common/templates/wls/oracle.rep
 # Domain options – set AFTER all addTemplate calls
 setOption('ServerStartMode', 'prod')
 setOption('OverwriteDomain', 'true')
+# Applications directory (em.ear, forms/fads) next to the Oracle Home –
+# without it WLST uses $ORACLE_HOME/user_projects/applications/<domain>
+setOption('AppDir', 'APPLICATIONS_HOME')
 
 # Admin Server listen address
 cd('/Servers/AdminServer')
@@ -256,6 +259,12 @@ for the full WLST/OPSS procedure (manual and scripted).
   WARN, WLST overwrites it (`OverwriteDomain`)
 - Substitutes `##PLACEHOLDER##` values in `response_files/domain_config.py.template`
   into a temp file (`/tmp/domain_cfg_PID.py`, mode 600); deleted via `trap EXIT`
+- **Applications directory** `APPLICATIONS_HOME` (since 2026-11-24): shown in
+  the plan, WARN if inside `ORACLE_HOME`; `--apply` creates its parent and
+  passes it as `##APPLICATIONS_HOME##` (`setOption('AppDir')`); confs without
+  the key get `$ORACLE_BASE/applications/<domain>`. The verification checks
+  that `em.ear` is deployed from there (WARN otherwise) – see *Applications
+  directory outside the Oracle Home*
 - Runs `wlst.sh /tmp/domain_cfg_PID.py` to create the domain
 - Selects the templates by `INSTALL_COMPONENTS` (see *Components*), checks that
   they exist, passes `##WITH_FORMS##` / `##WITH_REPORTS##` to the WLST script
@@ -338,6 +347,10 @@ ls -la $DOMAIN_HOME/servers/WLS_REPORTS/    # not with FORMS_ONLY
 
 # All data sources point to the RCU database (none left at dbhost.example.com)
 grep -h "<url>" $DOMAIN_HOME/config/jdbc/*.xml | sort | uniq -c
+
+# em.ear deployed from APPLICATIONS_HOME, nothing new in the Oracle Home
+grep '<source-path>' $DOMAIN_HOME/config/config.xml | grep em.ear
+ls $APPLICATIONS_HOME              # em.ear  forms/  .fads.domain
 ```
 
 **Re-creating the domain needs fresh RCU schemas.** `writeDomain` binds the OPSS
@@ -378,6 +391,24 @@ The domain is not started here: next step is `09-oracle_configure.sh`
 - The WLST script file containing the password is created in a temp location and
   deleted immediately after WLST exits (trap EXIT)
 - Node Manager must be started before managed servers can be started via WLST
+
+### Applications directory outside the Oracle Home (`APPLICATIONS_HOME`, since 2026-11-24)
+
+`writeDomain` copies the application archives of the templates (`em.ear`, `forms/fads`,
+`.fads.domain`) into an applications directory, and `config.xml` deploys `em` from
+there. Without `AppDir` that directory is `$ORACLE_HOME/user_projects/applications/<domain>`,
+inside the software. The template sets `setOption('AppDir', '##APPLICATIONS_HOME##')`,
+default `$ORACLE_BASE/applications/<domain>`, so a patched Oracle Home can be swapped
+without copying it back ([forms_reports_patch_transfer_fmw_home.md](../../docs/forms_reports_patch_transfer_fmw_home.md)).
+Tested offline on 2026-11-24 (WLST mini domain: `em.ear` and its `source-path` in the
+new directory, `user_projects` in the home unchanged).
+
+- `domain-registry.xml` stays in `$ORACLE_HOME` – WLST always writes it there.
+- Confs without the key: `08-` uses the default above; the interview proposes the
+  directory an existing domain already uses.
+- Existing domains keep their layout; moving them is a TODO.
+- What the directory is for and what a patch does in which home:
+  [architecture §1a](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1a-oracle-home-domain-home-applications-home--who-holds-what).
 
 ### Loopback only: SSL listen ports off, Coherence on the listen address
 

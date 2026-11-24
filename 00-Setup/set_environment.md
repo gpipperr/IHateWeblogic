@@ -175,7 +175,7 @@ whichenv     # what is set now
 `TNS_ADMIN`, `NLS_LANG` and the login `JAVA_HOME` come from
 `~oracle/.bash_profile`, written by [`09-Install/03-root_user_oracle.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/03-root_user_oracle.sh)
 (`JAVA_HOME=$JDK_HOME`, the one `TNS_ADMIN` of `environment.conf`). Why
-`JDK_HOME` and not the bundled JDK: [weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes).
+`JDK_HOME` and not the bundled JDK: [weblogic_middleware_architecture.md §1](../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes).
 Details of `setdb`: [tools/README.md](../70-Customer-Projects/tools/README.md#ihw_shell_envsh).
 
 ---

@@ -328,7 +328,7 @@ fix 21.0.13.1 / 8u513 (CPU435) – see "Special case Java".
 ## Special case Java – two JDKs, one alert
 
 Background – why an FMW host has two JDKs and who runs on which:
-[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-four-homes),
+[weblogic_middleware_architecture.md §1](../../80-FMW-Architecture/weblogic_middleware_architecture.md#1-terms--the-five-homes),
 [reports_engine_architecture.md §1](../../80-FMW-Architecture/reports_engine_architecture.md#1-the-parts).
 
 Java gets its own section since the October cycle: the CPU of 20 October
