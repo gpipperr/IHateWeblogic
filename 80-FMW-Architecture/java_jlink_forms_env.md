@@ -136,8 +136,16 @@ not to enable it" (**documented**). Linking from the running image can only
 produce images of **that** platform – cross-building for Windows on Linux
 still needs the Windows JMOD files. JDK 21 (used here) ships `jmods/`
 (**confirmed (live)**: 70 files in the Windows and 69 in the Linux JDK).
-Whether later Oracle JDK releases still ship `jmods/`: check before moving
-the clients to Java 25 (**assumption**).
+Oracle JDK 25.0.5.1 and 27.0.1.1 (Linux x64) still ship `jmods/` (69 / 65
+files, **confirmed (live)** 2026-11-24) – a cross-build stays possible.
+
+**`jdk.jsobject` is gone in JDK 27** (**confirmed (live)** 2026-11-24, `java
+--list-modules`: 21 and 25 have it, 27 not – deprecated for removal in JDK
+24, `netscape.javascript` moved to JavaFX). `frmall.jar` references it
+(section 3), so a Forms client runtime with this module list cannot be
+linked from JDK 27. Java 25 (LTS) has every module of the list – whether
+FSAL of Forms 14.1.2 is **certified** for Java 25 is open (Oracle documents
+17 and 21).
 
 ---
 
@@ -403,7 +411,10 @@ meant for Forms only and served only to Forms users of the server.
   alternative to the bundled `cacerts` – not tested.
 - `fsalJavaVersion` in `formsweb.cfg` against the runtime version
   ([40-forms_client_distribution.md](../09-Install/docs/40-forms_client_distribution.md) §3.1).
-- JMOD files in future Oracle JDK releases (JEP 493).
+- ~~JMOD files in future Oracle JDK releases (JEP 493)~~ – 25 and 27 still
+  ship them (2026-11-24); 27 drops `jdk.jsobject` (section 2.5).
+- Client runtime on Java 25: certification of FSAL 14.1.2, test build with
+  the Windows JDK 25 `jmods`.
 - Runtime of 2026-11-24 (`zip-0`, `de,en`) on a Windows client: start,
   FSAL session, German formats – built and checked on Linux only.
 
