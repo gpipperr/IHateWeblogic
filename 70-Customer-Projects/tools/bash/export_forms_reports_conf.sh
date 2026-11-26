@@ -63,7 +63,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-26.1"   # bump on every change – shown in the report
+VERSION="2026-11-26.2"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; MOVED=""; JAR_DIRS=()
@@ -112,11 +112,15 @@ if [ -z "$OH" ] || [ ! -d "$OH/OPatch" ]; then
     done
 fi
 [ -d "${OH:-/nonexistent}" ] || { printf 'ORACLE_HOME not found – use -o\n' >&2; exit 2; }
+# no trailing / (ORACLE_HOME=/app/oracle/mw/ at a customer 2026-11-26: "$OH"/* then
+# matched nothing and Oracle's own jlib / forms/j2ee jars were exported as customer jars)
+while [ "${OH%/}" != "$OH" ] && [ "$OH" != / ]; do OH="${OH%/}"; done
 if [ -z "$DH" ] && [ -r "$OH/domain-registry.xml" ]; then
     DH="$(sed -n 's/.*location="\([^"]*\)".*/\1/p' "$OH/domain-registry.xml" | head -1)"
 fi
 [ -z "$DH" ] && DH="$(ps -eo args 2>/dev/null | sed -n 's/.*-Dweblogic\.RootDirectory=\([^ ]*\).*/\1/p' | head -1)"
 [ -f "${DH:-/nonexistent}/config/config.xml" ] || { printf 'DOMAIN_HOME not found (config/config.xml) – use -d\n' >&2; exit 2; }
+while [ "${DH%/}" != "$DH" ] && [ "$DH" != / ]; do DH="${DH%/}"; done
 CFG="$DH/config/fmwconfig"
 
 STAGE="$OUTBASE/$NAME"

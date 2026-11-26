@@ -63,7 +63,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-24.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-26.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -155,6 +155,7 @@ if [ -z "$OH" ] || [ ! -d "$OH/OPatch" ]; then
     done
 fi
 [ -d "${OH:-/nonexistent}/OPatch" ] || { printf 'ORACLE_HOME not found – use -o\n' >&2; OH=""; }
+while [ "${OH%/}" != "$OH" ] && [ "$OH" != / ]; do OH="${OH%/}"; done   # ORACLE_HOME=/app/oracle/mw/ seen 2026-11-26
 if [ -z "$DH" ] && [ -n "$OH" ] && [ -r "$OH/domain-registry.xml" ]; then
     DH="$(sed -n 's/.*location="\([^"]*\)".*/\1/p' "$OH/domain-registry.xml" | head -1)"
 fi
