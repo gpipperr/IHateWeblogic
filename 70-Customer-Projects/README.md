@@ -165,6 +165,20 @@ file with the old path (23 on the 14.1.2 test host, incl. `oui/` and
 manual twin of
 [07-Maintenance/domain_jdk_path.sh](https://github.com/gpipperr/IHateWeblogic/blob/main/07-Maintenance/domain_jdk_path.sh).
 
+### ORDS 26.3.1 update + APEX 26.2.1 patch – CSPU November 2026 (German cookbook)
+
+→ [OrdsApex_Patch_cspu_202611/README.md](OrdsApex_Patch_cspu_202611/README.md)
+
+The short manual way for an existing standalone ORDS (Jetty, systemd) with
+APEX 26.2 in a PDB, done from the application server:
+- paths are read from the running process;
+- new ORDS next to the old one, path switched in the unit;
+- `ords install --db-only` with the existing pool;
+- APEX patch 40040466: images copied over `/i/`, `catpatch.sql` as SYS in
+  the PDB.
+
+The scripted twin is `12-APEX-Ords/06-` / `03-`.
+
 ### tools – standalone helpers for customer hosts (12c and 14c)
 
 → [tools/README.md](tools/README.md)

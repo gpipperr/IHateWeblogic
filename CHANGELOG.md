@@ -10,6 +10,17 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-26
 
+- **ORDS / APEX cookbook CSPU Nov 2026**
+  ([70-Customer-Projects/OrdsApex_Patch_cspu_202611/](70-Customer-Projects/OrdsApex_Patch_cspu_202611/README.md)):
+  German, simple manual way for an existing standalone ORDS 26.x → 26.3.1
+  plus the APEX 26.2 Patch Set Bundle 40040466 (→ 26.2.1), from the
+  application server.
+  - ORDS home, config, Java and unit are read from the running process.
+  - The path is switched in the unit or in `/etc/ords.conf`.
+  - `ords install --db-only` upgrades the schema with the existing pool.
+  - For APEX: the images go over `/i/`, then `catpatch.sql` as SYS in the
+    PDB.
+
 - **Customer tools `java_check_fmw.sh` and `check_fix_libzrc_glibc.sh`:** which
   Java WebLogic / Reports / frmweb really use, a bent `oracle_common/jdk` and
   every missing or versioned JDK path after a JDK switch; check and repair of

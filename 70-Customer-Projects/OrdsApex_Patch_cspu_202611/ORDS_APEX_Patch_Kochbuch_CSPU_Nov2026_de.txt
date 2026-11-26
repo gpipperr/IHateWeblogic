@@ -1,0 +1,858 @@
+==========================================================================
+  ORDS-Update + APEX-Patch - CSPU November 2026
+  ORDS 26.x  -> 26.3.1.303.1615   (ords-latest.zip, Stand 2026-11-26)
+  APEX 26.2  -> 26.2.1            (Patch Set Bundle 40040466)
+==========================================================================
+
+  Zielgruppe : Administrator des Application Servers (oracle + root/sudo)
+  Umgebung   : ORDS standalone (Jetty) als systemd-Service auf dem
+               Application Server, Apache/Nginx davor, APEX in einer PDB.
+               Alles wird VOM APPLICATION SERVER aus gemacht (SQL*Plus
+               dort, keine Anmeldung am DB-Server noetig).
+  Erstellt   : 2026-11-26
+  Grundlage  : - README.txt im Patch 40040466 (APEX 26.2.1, Okt 26 2026),
+                 Abschnitt "(III) Patch Installation Instructions"
+               - Oracle CPU431 (CSPU Nov 2026, Database Products):
+                 ORDS 24.2.0-26.3.0 betroffen (bis CVSS 9.8) -> ORDS 26.3.1,
+                 APEX 26.2.0 betroffen (CVE-2026-114849/-114850) -> 26.2.1
+               - IHateWeblogic/12-APEX-Ords/README.md Abschnitt 6 (Upgrade)
+               - IHateWeblogic/80-FMW-Architecture/ords_architecture.md
+               - Testlauf auf dem Testhost 2026-11-18 (ORDS 26.3.0 ->
+                 26.3.1 in 7 s, catpatch 24 s)
+  Wichtig    : - ORDS hat KEINE Patches: ein ORDS-Update ist immer eine neue
+                 Software neben der alten + Upgrade des Schemas ORDS_METADATA.
+               - ORDS-Schema-Upgrade und APEX-Patch sind EINWEG-Schritte in
+                 der Datenbank. Der Weg zurueck ist nur ein DB-Backup.
+                 -> VOR dem Termin: Restore Point / RMAN-Backup der PDB durch
+                    den DBA, VM-Snapshot des Application Servers.
+               - Reihenfolge: erst ORDS, dann APEX (ORDS muss >= APEX sein).
+
+==========================================================================
+
+ZIEL-STAND
+----------
+
+  Komponente          Ziel                       Schritt
+  ------------------  -------------------------  -------
+  ORDS Software       26.3.1.303.1615            4 - 5
+  ORDS_METADATA       26.3.1.r3031615            6
+  APEX (Datenbank)    26.2.1 (PATCH_VERSION 1)   9
+  APEX Images (/i/)   apex_version.js = 26.2.1   8
+
+VORAUSSETZUNGEN
+---------------
+
+  - DB-Backup / Restore Point der PDB (DBA), VM-Snapshot.
+  - SYS-Passwort der Datenbank (wird nur versteckt abgefragt).
+  - SQL*Plus auf dem Application Server (FMW-Home ueber setfmw oder
+    Instant Client) - wird in SCHRITT 0 geprueft.
+  - root bzw. sudo fuer systemctl und die Unit-Datei.
+  - Platz: ca. 1,5 GB unter $WORK (ZIPs 0,3 GB, Sicherung Images ca.
+    0,4 GB, neue ORDS-Software 0,2 GB unter $ORDS_BASE).
+  - Wartungsfenster ca. 30 Minuten, APEX ist zweimal kurz weg
+    (SCHRITT 5-7 und SCHRITT 8-10).
+
+Pfade der Beispiel-Umgebung (wie beim Kunden gesehen, bei Bedarf in
+SCHRITT 0 anpassen):
+
+  ORDS Software (alt)  /oracle/product/ords/ords        <- aus dem Prozess
+  ORDS Config          /oracle/product/ords/config      (--config ... serve)
+  APEX Images (/i/)    /oracle/product/apex_26.2/apex/images
+                       (Apache: Alias "/i/" ... in ssl.conf)
+  Java von ORDS        aus dem laufenden Prozess (/proc/<pid>/exe)
+
+Was wo landet:
+
+  /oracle/install/ords_apex_cspu_nov2026/    $WORK  <- SCHRITT 0
+    ords_apex_env.sh                         Variablen fuer jedes Terminal
+                                             <- SCHRITT 0 / 1
+    zip/                                     $ZIPDIR <- SCHRITT 2
+      ords-latest.zip                        OTN, ohne Login
+      p40040466_262_Generic.zip              MOS, Login (APEX-Downloadseite)
+    40040466/                                ausgepackter APEX-Patch
+                                             <- SCHRITT 8 (catpatch.sql,
+                                                images/, README.txt)
+    logs/                                    $LOGDIR, alle Ausgaben
+    backup/                                  $BACKUP <- SCHRITT 3
+      ords_config_vorher.tgz                 komplette ORDS-Config
+      <unit>.service.vorher                  Kopie der systemd-Unit
+      apex_images_vorher.tgz                 /i/-Verzeichnis vor dem Patch
+  /oracle/product/ords/ords-26.3.1.303.1615/ $NEW_HOME <- SCHRITT 4 (neu)
+  /oracle/product/ords/ords/                 $OLD_HOME bleibt liegen
+                                             (Rueckweg, Aufraeumen erst
+                                             nach der Abnahme)
+
+Quelldateien:
+
+  Datei                         Inhalt                      Schritt
+  ----------------------------  --------------------------  -------
+  ords-latest.zip               ORDS 26.3.1.303.1615,       2, 4
+                                200 MB (199963705 Byte),
+                                SHA-256 9f39890c26c3c2c3da1d
+                                54687827574578536fcf970083
+                                3329c0a604d2ac5f4d
+  p40040466_262_Generic.zip     APEX 26.2 Patch Set Bundle  2, 8
+                                -> 26.2.1, 4,5 MB, SHA-256
+                                620fa757d89d37af0a753f1062
+                                a7d17e95c86e43921c15d1329b
+                                78156699100a
+                                NUR "_262_" = fuer APEX 26.2
+
+Regeln fuer den ganzen Lauf:
+
+  - Jeder Schritt nennt den Benutzer. Neues Terminal oder su -> zuerst
+    SCHRITT 0.3 (Variablen laden).
+  - Jede Ausgabe mit tee nach $LOGDIR - das ist der Nachweis.
+  - Bei "STOP" nicht weitermachen, Ausgabe sichern, melden.
+
+
+=====================================================
+SCHRITT 0: Variablen setzen  (als oracle, System laeuft)
+=====================================================
+
+  ---------------------------------------------------
+  0.1 Arbeitsverzeichnis anlegen
+  ---------------------------------------------------
+
+  export WORK=/oracle/install/ords_apex_cspu_nov2026
+
+  mkdir -p $WORK/zip $WORK/logs $WORK/backup
+
+  ls -ld $WORK/zip $WORK/logs $WORK/backup
+  # Erwartet: drei Verzeichnisse, Besitzer oracle.
+
+  ---------------------------------------------------
+  0.2 Variablen-Datei schreiben (einmal)
+  ---------------------------------------------------
+
+  vi $WORK/ords_apex_env.sh
+
+  # In vi:  i  (einfuegen), dann diese Zeilen eintippen oder einfuegen.
+  # Pfade der Beispiel-Umgebung - weichen sie ab, HIER anpassen:
+
+export WORK=/oracle/install/ords_apex_cspu_nov2026
+export ZIPDIR=$WORK/zip
+export LOGDIR=$WORK/logs
+export BACKUP=$WORK/backup
+export ORDS_CONFIG=/oracle/product/ords/config
+export APEX_IMAGES=/oracle/product/apex_26.2/apex/images
+export APEX_PATCH=40040466
+export NLS_LANG=American_America.AL32UTF8
+
+  # Dann  Esc  und  :wq  (speichern und beenden).
+  # Die Zeilen beginnen ganz links, ohne Leerzeichen davor.
+
+  ---------------------------------------------------
+  0.3 Variablen laden (in JEDEM neuen Terminal)
+  ---------------------------------------------------
+
+  . /oracle/install/ords_apex_cspu_nov2026/ords_apex_env.sh
+
+  echo "ORDS_CONFIG=$ORDS_CONFIG APEX_IMAGES=$APEX_IMAGES"
+  # Erwartet: beide Pfade. LEER? -> 0.2 fehlt.
+
+  ls $ORDS_CONFIG
+  # Erwartet: databases  global
+
+  ls $APEX_IMAGES/apex_version.txt $APEX_IMAGES/apex_version.js
+  # Erwartet: beide Dateien. "No such file" -> /i/ zeigt woanders hin,
+  # siehe 1.4 und dann APEX_IMAGES in 0.2 korrigieren.
+
+  ---------------------------------------------------
+  0.4 SQL*Plus vorhanden?
+  ---------------------------------------------------
+
+  sqlplus -v
+  # Erwartet: "SQL*Plus: Release ..." (19.x, 23.x oder 12.2.x des FMW-Homes)
+  # "command not found" -> setfmw (unsere Tools) oder Instant Client in
+  # den PATH, dann noch einmal.
+
+
+=====================================================
+SCHRITT 1: Ist-Stand festhalten  (als oracle, System laeuft)
+=====================================================
+
+  ---------------------------------------------------
+  1.1 Laufender ORDS-Prozess
+  ---------------------------------------------------
+
+  ORDS_PID=$(pgrep -u oracle -f "java.*ords.war.*serve")
+
+  echo "ORDS_PID=$ORDS_PID"
+  # Erwartet: EINE Nummer. Leer -> ORDS laeuft nicht, erst klaeren.
+  # Zwei Nummern -> mehrere ORDS-Instanzen, nur eine pro Durchlauf!
+
+  tr '\0' ' ' < /proc/$ORDS_PID/cmdline | tee $LOGDIR/01_ords_prozess.txt
+  # Erwartet z.B.: /usr/lib/jvm/jre-21-openjdk/bin/java
+  #   -Doracle.dbtools.cmdline.home=/oracle/product/ords/ords ...
+  #   -jar /oracle/product/ords/ords/ords.war --config /oracle/product/ords/config serve
+  # Pruefen: steht hinter --config derselbe Pfad wie $ORDS_CONFIG?
+
+  ---------------------------------------------------
+  1.2 Alte ORDS-Software und Java aus dem Prozess ableiten
+  ---------------------------------------------------
+
+  OLD_WAR=$(tr '\0' '\n' < /proc/$ORDS_PID/cmdline | grep "ords.war$")
+
+  OLD_HOME=$(dirname "$OLD_WAR")
+
+  ORDS_JAVA=$(readlink -f /proc/$ORDS_PID/exe)
+
+  echo "OLD_HOME=$OLD_HOME  ORDS_JAVA=$ORDS_JAVA"
+  # Erwartet z.B.: OLD_HOME=/oracle/product/ords/ords
+  #                ORDS_JAVA=/usr/lib/jvm/java-21-openjdk-.../bin/java
+  # OLD_HOME leer -> der Prozess startet ords ohne "-jar ...ords.war":
+  # Pfad aus der Ausgabe von 1.1 (cmdline.home=...) von Hand setzen.
+
+  "$ORDS_JAVA" -version
+  # Erwartet: 17 oder 21 (ORDS 26.x braucht Java 17 oder 21).
+
+  echo "export OLD_HOME=$OLD_HOME" >> $WORK/ords_apex_env.sh
+
+  echo "export ORDS_BASE=$(dirname $OLD_HOME)" >> $WORK/ords_apex_env.sh
+
+  echo "export JAVA_HOME=${ORDS_JAVA%/bin/java}" >> $WORK/ords_apex_env.sh
+
+  . $WORK/ords_apex_env.sh
+
+  echo "ORDS_BASE=$ORDS_BASE JAVA_HOME=$JAVA_HOME"
+  # Erwartet: /oracle/product/ords  und das Java-Verzeichnis ohne /bin/java
+
+  ---------------------------------------------------
+  1.3 Welcher systemd-Service startet ORDS?
+  ---------------------------------------------------
+
+  systemctl status $ORDS_PID | head -3
+  # Erwartet z.B.:
+  #   * ords.service - Oracle REST Data Services
+  #     Loaded: loaded (/etc/systemd/system/ords.service; enabled; ...)
+  # Der Name vor ".service" ist ORDS_UNIT, der Pfad hinter "loaded (" ist
+  # die Unit-Datei.
+
+  echo "export ORDS_UNIT=ords" >> $WORK/ords_apex_env.sh
+  # "ords" durch den Namen aus der Ausgabe darueber ersetzen, wenn er
+  # anders heisst (z.B. ords@ords_1).
+
+  . $WORK/ords_apex_env.sh
+
+  systemctl cat $ORDS_UNIT | tee $LOGDIR/01_ords_unit.txt
+  # Zeigt die Unit-Datei UND alle Drop-ins (Zeilen "# /etc/systemd/...").
+  # Notieren: in welcher Datei steht der Pfad $OLD_HOME?
+
+  grep -n "$OLD_HOME" $LOGDIR/01_ords_unit.txt
+  # Treffer in ExecStart / Environment  -> SCHRITT 5 Fall A (Unit-Datei)
+  # kein Treffer, ExecStart ruft ords.sh -> Pfad steht in /etc/ords.conf
+  #   (ORDS_BASE=...), SCHRITT 5 Fall B:
+
+  grep -n "ORDS_BASE" /etc/ords.conf
+  # Nur bei Fall B noetig. "No such file" bei Fall A ist normal.
+
+  ---------------------------------------------------
+  1.4 Wohin zeigt /i/ (Webserver)?
+  ---------------------------------------------------
+
+  grep -rn '"/i/"\|/i/ ' /etc/httpd/conf.d/ /etc/nginx/ 2>/dev/null
+  # Erwartet z.B.:
+  #   ssl.conf: Alias "/i/" "/oracle/product/apex_26.2/apex/images/"
+  # Das Verzeichnis muss gleich $APEX_IMAGES sein. Sonst 0.2 korrigieren.
+
+  grep gApexVersion $APEX_IMAGES/apex_version.js | tee $LOGDIR/01_images_vorher.txt
+  # Erwartet: var gApexVersion = "26.2.0";
+  # Hinweis: apex_version.txt bleibt auch nach dem Patch "26.2" - die
+  # Patch-Stufe steht nur in apex_version.js und in der Datenbank.
+
+  ---------------------------------------------------
+  1.5 ORDS-Version und Konfiguration
+  ---------------------------------------------------
+
+  $OLD_HOME/bin/ords --config $ORDS_CONFIG --version | tee $LOGDIR/01_ords_version.txt
+  # Erwartet z.B.: Oracle REST Data Services 26.3.0.r2721811
+  # Schon 26.3.1.r3031615 -> ORDS ist aktuell, SCHRITT 4-7 ueberspringen.
+
+  $OLD_HOME/bin/ords --config $ORDS_CONFIG config list > $LOGDIR/01_ords_config_list.txt
+
+  grep -E "db\.|standalone\.http\.port|feature\." $LOGDIR/01_ords_config_list.txt
+  # Erwartet z.B.:
+  #   db.connectionType   basic   (oder tns / customurl)
+  #   db.hostname         <dbhost>
+  #   db.port             1521
+  #   db.servicename      <pdb_service>
+  #   db.username         ORDS_PUBLIC_USER
+  #   standalone.http.port 8080
+  # Fehlt standalone.http.port -> Default 8080.
+
+  ls $ORDS_CONFIG/databases
+  # Erwartet: default
+  # Mehrere Pools (z.B. default + apex2)? -> melden, dann gilt das
+  # Kochbuch pro Pool (SCHRITT 6 mit --db-pool <name>).
+
+  ---------------------------------------------------
+  1.6 Datenbank-Verbindung fuer SQL*Plus festlegen
+  ---------------------------------------------------
+
+  # Aus der Ausgabe von 1.5 EINE der beiden Zeilen ausfuehren:
+  #   db.connectionType basic:
+  #     echo "export DB_CONNECT=//<db.hostname>:<db.port>/<db.servicename>" >> $WORK/ords_apex_env.sh
+  #   db.connectionType tns:
+  #     echo "export TNS_ADMIN=<db.tnsDirectory>" >> $WORK/ords_apex_env.sh
+  #     echo "export DB_CONNECT=<db.tnsAliasName>" >> $WORK/ords_apex_env.sh
+
+  . $WORK/ords_apex_env.sh
+
+  echo "DB_CONNECT=$DB_CONNECT"
+  # Erwartet z.B.: //dbhost.example.com:1521/pdb1_service
+
+  ---------------------------------------------------
+  1.7 Stand in der Datenbank (als SYS in der PDB)
+  ---------------------------------------------------
+
+  cd $LOGDIR
+
+  sqlplus sys@$DB_CONNECT as sysdba
+  # Fragt nach dem SYS-Passwort (versteckt).
+
+  # --- in SQL*Plus eingeben ---
+
+      spool 01_db_vorher.txt
+
+      show con_name
+      -- Erwartet: der PDB-Name (z.B. PDB1), NICHT CDB$ROOT.
+      -- CDB$ROOT -> falscher Service, STOP: DB_CONNECT pruefen.
+
+      select comp_id, version, status, schema from dba_registry where comp_id = 'APEX';
+      -- Erwartet: APEX  26.2.0  VALID  APEX_260200
+      -- 26.2.1 -> APEX ist schon gepatcht, SCHRITT 8-10 ueberspringen.
+
+      select version_no from apex_release;
+      -- Erwartet: 26.2.0
+
+      select version from ords_metadata.ords_version;
+      -- Erwartet z.B.: 26.3.0.r2721811
+
+      select owner, count(*) from dba_objects where status = 'INVALID' and owner in ('APEX_260200','ORDS_METADATA','SYS') group by owner;
+      -- Erwartet: keine Zeile oder nur wenige SYS-Objekte. Zahl notieren,
+      -- sie wird in SCHRITT 10 verglichen.
+
+      spool off
+
+      exit
+
+  # --- Ende SQL*Plus ---
+
+
+=====================================================
+SCHRITT 2: Downloads  (Arbeitsplatz-PC oder Server, System laeuft)
+=====================================================
+
+  ---------------------------------------------------
+  2.1 ORDS Latest (OTN, ohne Login)
+  ---------------------------------------------------
+
+  # Seite: https://www.oracle.com/database/sqldeveloper/technologies/db-actions/download/
+  # Direkter Link (darf der Server ins Internet):
+
+  cd $ZIPDIR
+
+  curl -L -o ords-latest.zip https://download.oracle.com/otn_software/java/ords/ords-latest.zip
+
+  # Kein Internet am Server -> am PC laden und nach $ZIPDIR kopieren.
+
+  ---------------------------------------------------
+  2.2 APEX Patch Set Bundle (MOS, Login noetig)
+  ---------------------------------------------------
+
+  # 1. https://www.oracle.com/tools/downloads/apex-downloads/
+  #    -> Abschnitt "Oracle APEX 26.2" -> Link "Patch Set Bundle"
+  #       (fuehrt zu My Oracle Support, Patch 40040466).
+  # 2. Mit dem Support-Login anmelden, Plattform "Generic", Datei
+  #    p40040466_262_Generic.zip laden.
+  # 3. Gibt es dort einen NEUEREN Bundle-Patch fuer 26.2 (PATCH_VERSION 2
+  #    usw.)? Dann den nehmen - er enthaelt die Fixes von 40040466. In
+  #    diesem Kochbuch dann ueberall APEX_PATCH auf die neue Nummer
+  #    setzen (0.2).
+  # 4. Die ZIP nach $ZIPDIR kopieren (WinSCP o.ae.).
+
+  ---------------------------------------------------
+  2.3 Dateien pruefen
+  ---------------------------------------------------
+
+  cd $ZIPDIR
+
+  ls -l
+  # Erwartet:
+  #   ords-latest.zip                  199963705
+  #   p40040466_262_Generic.zip        4491xxx
+
+  sha256sum ords-latest.zip p${APEX_PATCH}_262_Generic.zip | tee $LOGDIR/02_sha256.txt
+  # Erwartet (Stand 2026-11-26):
+  #   9f39890c26c3c2c3da1d54687827574578536fcf9700833329c0a604d2ac5f4d  ords-latest.zip
+  #   620fa757d89d37af0a753f1062a7d17e95c86e43921c15d1329b78156699100a  p40040466_262_Generic.zip
+  # ORDS anders? -> Oracle hat inzwischen ein neueres ords-latest - in
+  # Ordnung, Version wird in 4.1 angezeigt. APEX anders -> Download
+  # wiederholen, Wert auf der MOS-Seite (SHA-256) vergleichen.
+
+
+=====================================================
+SCHRITT 3: Sicherung  (als oracle, System laeuft)
+=====================================================
+
+  cd $ORDS_CONFIG/..
+
+  tar czf $BACKUP/ords_config_vorher.tgz $(basename $ORDS_CONFIG)
+
+  tar tzf $BACKUP/ords_config_vorher.tgz | head
+  # Erwartet: config/  config/databases/  config/global/ ...
+  # Die Config enthaelt den Wallet (cwallet.sso) mit dem Pool-Passwort -
+  # die Sicherung bleibt auf dem Server (Modus 600):
+
+  chmod 600 $BACKUP/ords_config_vorher.tgz
+
+  cp -p $(systemctl show -p FragmentPath --value $ORDS_UNIT) $BACKUP/$ORDS_UNIT.service.vorher
+
+  ls -l $BACKUP
+  # Erwartet: ords_config_vorher.tgz und <unit>.service.vorher
+
+  cd $APEX_IMAGES
+
+  tar czf $BACKUP/apex_images_vorher.tgz .
+  # Dauert ca. 1 Minute (ca. 600 MB Bilder -> ca. 300-400 MB Archiv).
+
+  ls -lh $BACKUP/apex_images_vorher.tgz
+  # Erwartet: ein paar hundert MB.
+
+  ls $OLD_HOME/lib/ext 2>/dev/null
+  # Erwartet: keine Ausgabe oder nur Oracle-Dateien.
+  # Eigene JARs (Plugins, JDBC-Treiber)? -> merken, in 4.3 mitkopieren.
+
+
+=====================================================
+SCHRITT 4: Neue ORDS-Software auspacken  (als oracle, System laeuft)
+=====================================================
+
+  ---------------------------------------------------
+  4.1 Version aus der ZIP lesen
+  ---------------------------------------------------
+
+  unzip -l $ZIPDIR/ords-latest.zip | grep -o "ords-plugin-api-[0-9.]*[0-9]" > $LOGDIR/04_ords_zip_version.txt
+
+  NEW_VER=$(sed "s/ords-plugin-api-//" $LOGDIR/04_ords_zip_version.txt)
+
+  echo "NEW_VER=$NEW_VER"
+  # Erwartet: NEW_VER=26.3.1.303.1615
+
+  echo "export NEW_HOME=$ORDS_BASE/ords-$NEW_VER" >> $WORK/ords_apex_env.sh
+
+  . $WORK/ords_apex_env.sh
+
+  echo "NEW_HOME=$NEW_HOME"
+  # Erwartet: /oracle/product/ords/ords-26.3.1.303.1615
+
+  ---------------------------------------------------
+  4.2 Auspacken
+  ---------------------------------------------------
+
+  mkdir $NEW_HOME
+  # "File exists" -> schon ausgepackt (zweiter Versuch), 4.2 ueberspringen.
+
+  unzip -q $ZIPDIR/ords-latest.zip -d $NEW_HOME
+
+  ls $NEW_HOME
+  # Erwartet: bin docs examples icons lib linux-support ... ords.war scripts
+
+  $NEW_HOME/bin/ords --config $ORDS_CONFIG --version
+  # Erwartet: Oracle REST Data Services 26.3.1.r3031615
+  # Der alte ORDS laeuft dabei weiter - --version liest nur.
+
+  ---------------------------------------------------
+  4.3 Eigene JARs mitnehmen (nur wenn 3. eigene Dateien gezeigt hat)
+  ---------------------------------------------------
+
+  # cp -p $OLD_HOME/lib/ext/<eigene.jar> $NEW_HOME/lib/ext/
+
+
+=====================================================
+SCHRITT 5: ORDS stoppen und Pfad im Service umstellen  (als root)
+=====================================================
+
+  ---------------------------------------------------
+  5.1 Variablen als root
+  ---------------------------------------------------
+
+  sudo -i
+
+  . /oracle/install/ords_apex_cspu_nov2026/ords_apex_env.sh
+
+  echo "ORDS_UNIT=$ORDS_UNIT OLD_HOME=$OLD_HOME NEW_HOME=$NEW_HOME"
+  # Erwartet: alle drei gefuellt. LEER -> SCHRITT 1.2 / 1.3 / 4.1.
+
+  ---------------------------------------------------
+  5.2 ORDS stoppen  (ab hier ist APEX nicht erreichbar)
+  ---------------------------------------------------
+
+  systemctl stop $ORDS_UNIT
+
+  systemctl is-active $ORDS_UNIT
+  # Erwartet: inactive
+
+  pgrep -f "java.*ords.war.*serve"
+  # Erwartet: keine Ausgabe. Noch eine Nummer -> 30 s warten, noch einmal.
+
+  ---------------------------------------------------
+  5.3 Fall A: Pfad steht in der Unit-Datei / im Drop-in
+  ---------------------------------------------------
+
+  UNIT_FILE=$(grep -l "$OLD_HOME" /etc/systemd/system/$ORDS_UNIT.service /etc/systemd/system/$ORDS_UNIT.service.d/*.conf 2>/dev/null)
+
+  echo "UNIT_FILE=$UNIT_FILE"
+  # Erwartet: die Datei aus 1.3, z.B. /etc/systemd/system/ords.service
+  # Leer -> Fall B (5.4).
+
+  echo ":%s#$OLD_HOME/#$NEW_HOME/#g"
+  # Erwartet z.B.:
+  #   :%s#/oracle/product/ords/ords/#/oracle/product/ords/ords-26.3.1.303.1615/#g
+  # Diese Zeile kopieren - sie ist gleich der vi-Befehl.
+
+  vi $UNIT_FILE
+
+  # In vi: die kopierte Zeile einfuegen (beginnt mit ":"), Enter.
+  # vi meldet "N substitutions on N lines". Dann  :wq
+  # Steht in der Datei nur ".../ords/ords" OHNE "/" am Ende (z.B.
+  # -Doracle.dbtools.cmdline.home=/oracle/product/ords/ords), diese
+  # Stelle von Hand auf $NEW_HOME aendern.
+
+  grep -n "ords" $UNIT_FILE
+  # Erwartet: ExecStart / Environment zeigen auf ords-26.3.1.303.1615,
+  # --config zeigt WEITER auf die alte Config ($ORDS_CONFIG).
+
+  systemctl daemon-reload
+
+  ---------------------------------------------------
+  5.4 Fall B: Pfad steht in /etc/ords.conf (Oracle ords.sh)
+  ---------------------------------------------------
+
+  cp -p /etc/ords.conf $BACKUP/ords.conf.vorher
+
+  vi /etc/ords.conf
+
+  # In vi: Zeile ORDS_BASE=... suchen ( /ORDS_BASE ), Wert auf den Pfad
+  # von $NEW_HOME aendern, dann  :wq
+
+  grep -n "ORDS_BASE" /etc/ords.conf
+  # Erwartet: ORDS_BASE=/oracle/product/ords/ords-26.3.1.303.1615
+
+  exit
+  # zurueck zu oracle
+
+
+=====================================================
+SCHRITT 6: ORDS-Schema upgraden  (als oracle, ORDS gestoppt)
+=====================================================
+
+  . /oracle/install/ords_apex_cspu_nov2026/ords_apex_env.sh
+
+  cd $LOGDIR
+
+  $NEW_HOME/bin/ords --config $ORDS_CONFIG install --db-only --admin-user "SYS AS SYSDBA" --log-folder $LOGDIR 2>&1 | tee $LOGDIR/06_ords_install.txt
+  # Benutzt die bestehende DB-Verbindung aus der Config (Pool "default").
+  # Fragt nur nach dem SYS-Passwort:
+  #   Enter the database password for SYS AS SYSDBA:
+  # Erwartet (Testlauf, Dauer ca. 10 s):
+  #   Oracle REST Data Services - Non-Interactive Install
+  #   Connecting to database user: ORDS_PUBLIC_USER url: jdbc:oracle:thin:@...
+  #   INFO  Upgrading Oracle REST Data Services schema 26.3.0.r2721811
+  #         to version 26.3.1.r3031615 in <PDB>
+  #   INFO  Completed upgrade for Oracle REST Data Services version
+  #         26.3.1.r3031615. Elapsed time: 00:00:07.192
+  # Mehrere Pools -> zusaetzlich  --db-pool <name>  (einmal je Pool).
+  # Fehler (ORA-01017, ORA-12514, "Exception") -> STOP, Ausgabe sichern.
+  # Bis hierher ist die Datenbank NICHT geaendert.
+
+
+=====================================================
+SCHRITT 7: ORDS starten und APEX testen  (als root, dann Browser)
+=====================================================
+
+  sudo systemctl start $ORDS_UNIT
+
+  sudo systemctl status $ORDS_UNIT | head -5
+  # Erwartet: Active: active (running)
+
+  pgrep -u oracle -f "java.*ords.war.*serve" | head -1 > $LOGDIR/07_ords_pid.txt
+
+  tr '\0' ' ' < /proc/$(cat $LOGDIR/07_ords_pid.txt)/cmdline | grep -o "ords-[0-9.]*[0-9]/ords.war"
+  # Erwartet: ords-26.3.1.303.1615/ords.war
+  # Zeigt noch den alten Pfad -> SCHRITT 5 hat nicht gegriffen
+  # (daemon-reload vergessen?).
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/ords/apex
+  # Port aus 1.5 (standalone.http.port), Default 8080.
+  # Erwartet: 302  (Weiterleitung zur Anmeldeseite)
+  # 000 -> ORDS startet noch (bis 60 s), noch einmal. Danach:
+  #   journalctl -u $ORDS_UNIT -n 50
+
+  # Browser: https://<server>/ords/apex
+  #   - Anmeldeseite kommt, Anmeldung an einem Workspace klappt.
+  #   - Eine echte Anwendung kurz aufrufen.
+  # STOP bei Fehlern -> Bekannte Probleme, sonst Rueckweg ORDS.
+
+  $NEW_HOME/bin/ords --config $ORDS_CONFIG --version | tee $LOGDIR/07_ords_version_nachher.txt
+  # Erwartet: Oracle REST Data Services 26.3.1.r3031615
+
+  # ORDS ist fertig. Ab hier der APEX-Patch.
+
+
+=====================================================
+SCHRITT 8: APEX-Patch auspacken, ORDS stoppen, Images kopieren
+           (als oracle; ORDS-Stop als root)
+=====================================================
+
+  ---------------------------------------------------
+  8.1 Auspacken
+  ---------------------------------------------------
+
+  . /oracle/install/ords_apex_cspu_nov2026/ords_apex_env.sh
+
+  cd $WORK
+
+  unzip -q $ZIPDIR/p${APEX_PATCH}_262_Generic.zip
+
+  ls $WORK/$APEX_PATCH
+  # Erwartet: README.txt  catpatch.sql  catpatch_appcon.sql
+  #           catpatch_con.sql  images  (und weitere .sql)
+
+  grep gApexVersion $WORK/$APEX_PATCH/images/apex_version.js
+  # Erwartet: var gApexVersion = "26.2.1";
+
+  ---------------------------------------------------
+  8.2 Wohin zeigt /i/ - noch einmal kontrollieren
+  ---------------------------------------------------
+
+  grep -rn '"/i/"\|/i/ ' /etc/httpd/conf.d/ /etc/nginx/ 2>/dev/null
+
+  echo "APEX_IMAGES=$APEX_IMAGES"
+  # Erwartet: beide zeigen auf dasselbe Verzeichnis
+  #   /oracle/product/apex_26.2/apex/images
+  # Unterschiedlich -> STOP, sonst landen die Bilder im falschen Ordner.
+
+  ---------------------------------------------------
+  8.3 ORDS stoppen  (README Schritt 3: niemand darf waehrend des
+      Patches auf APEX zugreifen)
+  ---------------------------------------------------
+
+  sudo systemctl stop $ORDS_UNIT
+
+  sudo systemctl is-active $ORDS_UNIT
+  # Erwartet: inactive
+
+  ---------------------------------------------------
+  8.4 Images ueber das /i/-Verzeichnis kopieren  (README Schritt 7)
+  ---------------------------------------------------
+
+  cp -rf $WORK/$APEX_PATCH/images/. $APEX_IMAGES/
+
+  grep gApexVersion $APEX_IMAGES/apex_version.js | tee $LOGDIR/08_images_nachher.txt
+  # Erwartet: var gApexVersion = "26.2.1";
+  # Sicherung der alten Bilder: $BACKUP/apex_images_vorher.tgz (SCHRITT 3)
+
+
+=====================================================
+SCHRITT 9: APEX-Patch in der Datenbank  (als oracle, ORDS gestoppt)
+=====================================================
+
+  ---------------------------------------------------
+  9.1 Ins Patch-Verzeichnis, NLS_LANG pruefen
+  ---------------------------------------------------
+
+  cd $WORK/$APEX_PATCH
+
+  echo "NLS_LANG=$NLS_LANG"
+  # Erwartet: NLS_LANG=American_America.AL32UTF8   (README Schritt 5)
+  # Leer -> export NLS_LANG=American_America.AL32UTF8
+
+  ---------------------------------------------------
+  9.2 Als SYS an der PDB anmelden und catpatch.sql starten
+  ---------------------------------------------------
+
+  sqlplus sys@$DB_CONNECT as sysdba
+
+  # --- in SQL*Plus eingeben ---
+
+      show con_name
+      -- Erwartet: der PDB-Name aus 1.7, NICHT CDB$ROOT.
+
+      select version, status from dba_registry where comp_id = 'APEX';
+      -- Erwartet: 26.2.0  VALID
+
+      @catpatch.sql
+      -- APEX in der PDB = catpatch.sql (README Schritt 6). catpatch_con.sql
+      -- nur, wenn APEX im CDB$ROOT installiert ist - hier nicht.
+      -- Laeuft ca. 1 Minute, schreibt catpatch.log in dieses Verzeichnis.
+      -- Erwartet am Ende z.B.:
+      --   . Oracle APEX 26.2.%
+      --   . Patch Set Exception 40040466
+      --   ...
+      --   Complete Patch 40040466: ...
+      -- BEKANNT UND HARMLOS: danach endet SQL*Plus von selbst, ggf. mit
+      --   "ORA-20001: Stop further processing. This error can be ignored."
+      -- "ORA-20001: You can only use this script to patch release 26.2.%"
+      --   -> falsche DB / falsche APEX-Version, STOP.
+
+  # --- Ende SQL*Plus (SQL*Plus beendet sich selbst) ---
+
+  cp -p $WORK/$APEX_PATCH/catpatch.log $LOGDIR/09_catpatch.log
+
+  grep -n "ORA-\|PLS-\|SP2-" $LOGDIR/09_catpatch.log
+  # Erwartet: keine Zeile, oder nur das harmlose "ORA-20001: Stop further
+  # processing". Andere Fehler -> STOP, Log sichern, melden.
+
+  ---------------------------------------------------
+  9.3 Ergebnis in der Datenbank pruefen
+  ---------------------------------------------------
+
+  cd $LOGDIR
+
+  sqlplus sys@$DB_CONNECT as sysdba
+
+  # --- in SQL*Plus eingeben ---
+
+      spool 09_db_nachher.txt
+
+      select version, status from dba_registry where comp_id = 'APEX';
+      -- Erwartet: 26.2.1  VALID
+
+      select version_no from apex_release;
+      -- Erwartet: 26.2.1
+
+      select patch_number, patch_version, installed_on from apex_260200.apex_patches;
+      -- Erwartet: 40040466  1  <heute>
+
+      select version from ords_metadata.ords_version;
+      -- Erwartet: 26.3.1.r3031615
+
+      select owner, count(*) from dba_objects where status = 'INVALID' and owner in ('APEX_260200','ORDS_METADATA','SYS') group by owner;
+      -- Erwartet: nicht mehr als in 1.7.
+
+      spool off
+
+      exit
+
+  # --- Ende SQL*Plus ---
+
+
+=====================================================
+SCHRITT 10: ORDS starten, APEX testen  (als root, dann Browser)
+=====================================================
+
+  sudo systemctl start $ORDS_UNIT
+
+  sudo systemctl status $ORDS_UNIT | head -5
+  # Erwartet: Active: active (running)
+
+  curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/ords/apex
+  # Erwartet: 302   (000 -> bis 60 s warten, noch einmal)
+
+  curl -sk https://localhost/i/apex_version.js
+  # Ueber den Webserver. Erwartet: var gApexVersion = "26.2.1";
+
+  # Browser (Cache leeren bzw. Strg+F5):
+  #   - https://<server>/ords/apex -> Anmeldung am Workspace
+  #   - im App Builder: Hilfe (?) -> "About" -> "Version: 26.2.1"
+  #   - eine echte Anwendung aufrufen, eine Seite mit Bericht / Grid
+  #     (keine kaputten Icons, keine JavaScript-Fehler)
+  #   - Workspace INTERNAL -> Instanz verwalten -> Anmeldung klappt
+
+  sudo systemctl is-enabled $ORDS_UNIT
+  # Erwartet: enabled  (startet nach einem Reboot wieder)
+
+
+=====================================================
+SCHRITT 11: Aufraeumen  (als oracle, erst NACH der Abnahme)
+=====================================================
+
+  # Erst nach einigen Tagen ohne Probleme:
+
+  ls -d $ORDS_BASE/ords*
+  # Erwartet: ords (alt) und ords-26.3.1.303.1615 (neu)
+
+  # Alte Software loeschen - Pfad erst anzeigen, dann loeschen:
+  echo "${OLD_HOME:?}"
+
+  # rm -rf "${OLD_HOME:?}"
+
+  # rm -rf "${WORK:?}/${APEX_PATCH:?}"
+  # Die Sicherungen unter $BACKUP und die Logs unter $LOGDIR bleiben
+  # (Nachweis). Die Config-Sicherung enthaelt den Wallet: Modus 600
+  # lassen oder nach der Abnahme loeschen.
+
+
+==========================================================================
+RUECKWEG
+==========================================================================
+
+  Was                       Wie
+  ------------------------  ----------------------------------------------
+  ORDS Software             nur solange SCHRITT 6 NICHT gelaufen ist:
+  (vor SCHRITT 6)           sudo systemctl stop $ORDS_UNIT
+                            sudo cp -p $BACKUP/$ORDS_UNIT.service.vorher <UNIT_FILE>
+
+                            (Fall B: $BACKUP/ords.conf.vorher -> /etc/ords.conf)
+                            sudo systemctl daemon-reload
+
+                            sudo systemctl start $ORDS_UNIT
+
+  ORDS nach SCHRITT 6       ORDS_METADATA ist schon 26.3.1 - der alte ORDS
+                            passt nicht mehr sicher dazu. Rueckweg = DB-
+                            Restore (Restore Point) + Unit zurueck (oben).
+  ORDS Config               cd $ORDS_CONFIG/..  und
+                            tar xzf $BACKUP/ords_config_vorher.tgz
+
+  APEX Images               cd $APEX_IMAGES  und
+                            tar xzf $BACKUP/apex_images_vorher.tgz
+
+  APEX Datenbank            Ein Patch Set Bundle laesst sich NICHT
+                            deinstallieren - Rueckweg = DB-Restore
+                            (Restore Point / RMAN) + Images zurueck.
+
+
+==========================================================================
+BEKANNTE PROBLEME
+==========================================================================
+
+  Problem : "ords: command not found" / "Unable to locate a Java Runtime"
+  Ursache : JAVA_HOME fehlt im Terminal.
+  Loesung : SCHRITT 0.3 (Variablen laden) - JAVA_HOME steht seit 1.2 in
+            ords_apex_env.sh.
+
+  Problem : SCHRITT 6 fragt nach Tablespace, Proxy-User oder Features.
+  Ursache : ORDS findet keine bestehende Installation (falsche Config oder
+            falscher Pool).
+  Loesung : Strg+C, NICHTS installieren. --config und Pool pruefen (1.5).
+
+  Problem : ORA-01017 in SCHRITT 6 oder 9.
+  Ursache : falsches SYS-Passwort, oder SYS darf sich remote nicht
+            anmelden (Passwortdatei / REMOTE_LOGIN_PASSWORDFILE).
+  Loesung : Mit dem DBA klaeren; Test: sqlplus sys@$DB_CONNECT as sysdba
+
+  Problem : show con_name zeigt CDB$ROOT.
+  Ursache : DB_CONNECT zeigt auf den CDB-Service.
+  Loesung : Service der PDB nehmen (derselbe wie im ORDS-Pool, 1.5).
+
+  Problem : Apache/Nginx meldet 502/503 nach dem Start.
+  Ursache : ORDS braucht beim ersten Start bis 60 s.
+  Loesung : warten; sonst  journalctl -u $ORDS_UNIT -n 50
+
+  Problem : APEX zeigt alte Version oder kaputte Icons.
+  Ursache : Browser-Cache, oder Images nicht im /i/-Verzeichnis des
+            Webservers.
+  Loesung : Strg+F5; SCHRITT 8.2 / 8.4 pruefen (apex_version.js = 26.2.1
+            ueber https://<server>/i/apex_version.js).
+
+  Problem : apex_version.txt zeigt nach dem Patch weiter "26.2".
+  Ursache : Der Patch schreibt diese Datei nicht neu.
+  Loesung : Kein Fehler - Nachweis ist apex_version.js und dba_registry.
+
+  Problem : ORDS lauscht auf 0.0.0.0 (alle Netzwerkkarten).
+  Ursache : "--ip-addresses 0.0.0.0" in der Unit bzw. Standard von Jetty.
+  Loesung : Nicht Teil dieses Termins. Spaeter: ORDS nur auf 127.0.0.1
+            (standalone.binds), Zugriff nur ueber den Webserver - siehe
+            IHateWeblogic/80-FMW-Architecture/ords_architecture.md.
