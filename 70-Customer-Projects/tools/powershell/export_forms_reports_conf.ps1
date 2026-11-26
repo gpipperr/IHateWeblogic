@@ -62,7 +62,10 @@
 
 .PARAMETER JarDir
   Directories with client jars that archive= names by URL path outside
-  /forms/java (e.g. /app/x.jar) - searched by file name.
+  /forms/java (e.g. /frmopt/lib/x.jar) - searched by file name, path below the
+  first URL segment (lib\x.jar) and full path. Needed only when the document
+  roots / aliases of OHS, Apache and Nginx on this host do not hold the jar
+  (they are searched first).
 
 .EXAMPLE
   powershell.exe -ExecutionPolicy Bypass -File .\export_forms_reports_conf.ps1
@@ -92,7 +95,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-24.1"   # bump on every change - shown in the report
+$SCRIPT_VERSION = "2026-11-26.1"   # bump on every change - shown in the report
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -282,22 +285,89 @@ if (Test-Path -LiteralPath $ear -PathType Leaf) {
     finally { if ($wz) { $wz.Dispose() }; if ($za) { $za.Dispose() } }
 }
 
-# --- customer jars (never frm*.jar / frmsal / jacob - they come from 14-/40-) ---
+# --- customer jars (never Oracle's frm*.jar / frmsal / jacob.jar - they come from 14-/40-) ---
 $JARS = New-Object System.Collections.Generic.List[string]; $JARS.Add("jar;size;sha256;referenced_in;stored")
-$JREF = @{}; $JURL = @{}
+$JREF = @{}; $JURL = @{}; $JSRC = @{}
 $JDIR = ihwt-jp @($OH, "forms", "java")
-# relative jar names (archive=, jnlp href) live in $OH/forms/java
-function _jpath { param([string] $j) if ([IO.Path]::IsPathRooted($j)) { return (ihwt-fwd $j) }; return (ihwt-fwd (Join-Path $JDIR ($j -replace '^\./', ''))) }
+# relative jar names (archive=, jnlp href, lib/x.jar) live below the codebase of
+# the section - /forms/java = $OH/forms/java; a leading / = URL path of the web server
+function _jpath { param([string] $j) if ($j -match '^[\\/]' -or [IO.Path]::IsPathRooted($j)) { return (ihwt-fwd $j) }; return (ihwt-fwd (Join-Path $JDIR ($j -replace '^\./', ''))) }
 # Oracle's own client jars (come with 14c / 40-) - NOT every frm*.jar: customers
-# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24)
+# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24); only jacob.jar
+# itself - a renamed jacob_1.jar is exported (2026-11-26)
 function _oracleJar { param([string] $b)
-    return ($b -match '^(frmall\.jar|frmall_jinit\.jar|frmsal\.jar|frmwebutil\.jar|frmmain\.jar|frmgeneric_laf\.jar|frmoracle_laf\.jar|frmresources.*\.jar|frmwebsocketjsi\.jar|frmbidi.*\.jar|jacob.*\.jar)$') }
+    return ($b -match '^(frmall\.jar|frmall_jinit\.jar|frmsal\.jar|frmwebutil\.jar|frmmain\.jar|frmgeneric_laf\.jar|frmoracle_laf\.jar|frmresources.*\.jar|frmwebsocketjsi\.jar|frmbidi.*\.jar|jacob\.jar)$') }
 function _jadd  { param([string] $p, [string] $r) if ($JREF.ContainsKey($p)) { $JREF[$p] += $r } else { $JREF[$p] = $r } }
+# URL prefix -> directory of the web servers (2026-11-26, like the bash version):
+# OHS (DocumentRoot / Alias, default instances\<n>\htdocs), Apache, Nginx (root,
+# location + alias) - to find a jar archive= names by a URL path (/frmopt/x.jar)
+$URL_DIRS = New-Object System.Collections.Generic.List[string]
+foreach ($d in @(_dirs (ihwt-jp @($CFG, "components", "OHS", "instances"))) + @(_dirs (ihwt-jp @($CFG, "components", "OHS")) | Where-Object { (Split-Path -Leaf $_) -notin @("instances", "mbeans") })) {
+    $n = Split-Path -Leaf $d
+    $URL_DIRS.Add("/`t" + (ihwt-jp @($CFG, "components", "OHS", "instances", $n, "htdocs")))
+    foreach ($f in @((Join-Path $d "httpd.conf"), (Join-Path $d "ssl.conf")) + @(_glob (Join-Path $d "moduleconf") "*.conf")) {
+        foreach ($m in [regex]::Matches((_text $f), '(?m)^\s*(DocumentRoot|Alias)\s+(?:(\S+)\s+)?"?([^"\s]+)"?')) {
+            $pfx = if ($m.Groups[1].Value -eq 'DocumentRoot') { "/" } else { $m.Groups[2].Value }
+            $dir = $m.Groups[3].Value.Replace('${ORACLE_INSTANCE}', $DH).Replace('${COMPONENT_TYPE}', 'OHS').Replace('${COMPONENT_NAME}', $n).Replace('${PRODUCT_HOME}', (Join-Path $OH "ohs")).Replace('${ORACLE_HOME}', $OH)
+            if ($pfx) { $URL_DIRS.Add("$pfx`t$dir") }
+        }
+    }
+}
+foreach ($e in @(ihwt-webtier-find @() $procs)) {
+    $t = $e.Substring(0, $e.IndexOf(';')); $f = $e.Substring($e.IndexOf(';') + 1)
+    $cf = @($f) + @(_glob (Join-Path (Split-Path -Parent $f) "conf.d") "*.conf")
+    foreach ($c in $cf) {
+        $txt = _text $c
+        if ($t -eq 'nginx') {
+            $loc = ""
+            foreach ($l in ($txt -split "`r?`n")) {
+                $l = $l -replace '#.*$', ''
+                if ($l -match 'location\s+(?:\^~\s+)?([^~=\s{][^\s{]*)') { $loc = $Matches[1] }
+                if ($l -match '^\s*alias\s+([^;\s]+)' -and $loc) { $URL_DIRS.Add("$loc`t$($Matches[1])") }
+                if ($l -match '^\s*root\s+([^;\s]+)') { $URL_DIRS.Add("/`t$($Matches[1])") }
+            }
+        } elseif ($t -in @('apache', 'ohs')) {
+            foreach ($m in [regex]::Matches($txt, '(?m)^\s*(DocumentRoot|Alias)\s+(?:(\S+)\s+)?"?([^"\s]+)"?')) {
+                $pfx = if ($m.Groups[1].Value -eq 'DocumentRoot') { "/" } else { $m.Groups[2].Value }
+                if ($pfx) { $URL_DIRS.Add("$pfx`t$($m.Groups[3].Value)") }
+            }
+        }
+    }
+}
+$URL_DIRS = @($URL_DIRS | Select-Object -Unique | Sort-Object { -($_.IndexOf("`t")) })
+function _url_find {
+    param([string] $u)
+    foreach ($e in $URL_DIRS) {
+        $pfx, $dir = $e -split "`t", 2; $pfx = $pfx.TrimEnd('/') + '/'
+        if (-not $u.StartsWith($pfx, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        $c = Join-Path $dir ($u.Substring($pfx.Length))
+        if (Test-Path -LiteralPath $c -PathType Leaf) { return (ihwt-fwd $c) }
+    }
+    foreach ($jd in $JarDir) {     # -JarDir: name, path below the first URL segment, full path
+        foreach ($r in @((Split-Path -Leaf $u), ($u -replace '^/[^/]+/', ''), $u.TrimStart('/'))) {
+            $c = Join-Path $jd $r; if (Test-Path -LiteralPath $c -PathType Leaf) { return (ihwt-fwd $c) }
+        }
+    }
+    return ""
+}
+# every jar list of formsweb.cfg: archive*, WebUtilArchive, cache_archive_ex
+# (name;preload), own *Archive keys (FrmOptArchive ...) + fsal_archive (resource
+# file of the FSAL client, e.g. frmopt.properties); relative = below the codebase
 foreach ($fw in $FORMS_CFGS) {
+    $cbs = @{}
+    foreach ($l in (ihwt-sections $fw)) { $sec, $k, $v = $l -split "`t", 3; if ($k -ieq 'codebase') { $cbs[$sec] = $v } }
     foreach ($l in (ihwt-sections $fw)) {
         $sec, $k, $v = $l -split "`t", 3
-        if ($k -cmatch '^(archive|archive_.*|WebUtilArchive|webUtilArchive)$') {
-            foreach ($j in ($v -split '[,\s]+')) { if ($j) { $jp0 = _jpath $j; _jadd $jp0 "formsweb.cfg[$sec].$k "; if ($j -match '^/') { $JURL[$jp0] = $true } } }
+        if ($k -notmatch '(?i)archive') { continue }
+        $cb = if ($cbs.ContainsKey($sec)) { $cbs[$sec] } elseif ($cbs.ContainsKey('default')) { $cbs['default'] } else { '/forms/java' }
+        $cb = $cb.TrimEnd('/')
+        foreach ($j in ($v -split '[,\s]+')) {
+            $j = ($j -split ';')[0] -replace ':preload$', ''
+            if ($j -notmatch '(?i)\.(jar|properties|zip|cab)$') { continue }
+            if ($j -match '^/forms/java/') { $j = $j.Substring(12) }
+            elseif ($j -notmatch '^/' -and $cb -and $cb -ne '/forms/java') { $j = "$cb/" + ($j -replace '^\./', '') }
+            $jp0 = _jpath $j; _jadd $jp0 "formsweb.cfg[$sec].$k "
+            if ($j -match '^/') { $JURL[$jp0] = $true }
         }
     }
 }
@@ -316,19 +386,29 @@ if (Test-Path -LiteralPath $jn -PathType Leaf) {
         foreach ($m in [regex]::Matches($l, 'href="([^"]+\.jar)"')) { _jadd (_jpath $m.Groups[1].Value) "extensions.jnlp " }
     }
 }
-foreach ($j in @(_glob $JDIR "*.jar")) { _jadd (ihwt-fwd $j) "" }
-foreach ($jp in @($JREF.Keys | Sort-Object)) {
+foreach ($j in @(_glob $JDIR "*.jar") + @(_glob (Join-Path $JDIR "lib") "*.jar")) { _jadd (ihwt-fwd $j) "" }
+# forms/java first (flat names in the export), URL paths / other places after
+$JDIRF = ihwt-fwd $JDIR
+foreach ($jp in @($JREF.Keys | Sort-Object @{ e = { if (ihwt-under $_ $JDIRF) { 0 } else { 1 } } }, @{ e = { $_ } })) {
     $jb = Split-Path -Leaf $jp; $j0 = $jp
     if (_oracleJar $jb) { continue }                                                             # Oracle / our 14c logic
     if ((ihwt-under $jp $OHF) -and -not (ihwt-under $jp (ihwt-fwd $JDIR))) { continue }         # other Oracle jars
-    # archive= with a leading / = URL path of the web server: look in -JarDir by name
+    # archive= with a leading / = URL path of the web server: document roots /
+    # aliases of the web servers, then -JarDir
     $isUrl = $JURL.ContainsKey($j0) -and -not (Test-Path -LiteralPath $jp -PathType Leaf)
-    if ($isUrl) { foreach ($d in $JarDir) { $c = Join-Path $d $jb; if (Test-Path -LiteralPath $c -PathType Leaf) { $jp = ihwt-fwd $c; $isUrl = $false; break } } }
+    if ($isUrl) { $c = _url_find $j0; if ($c) { $jp = $c; $isUrl = $false } }
     if ($isUrl) { $JARS.Add("$j0;-;-;$($JREF[$j0]);URL_PATH"); continue }
     if (Test-Path -LiteralPath $jp -PathType Leaf) {
-        [void](_store $jp customer_jar "ihw_import/forms_java/$jb")
+        # same name from two places (forms/java/x.jar and /frmopt/x.jar): keep both
+        $dst = "ihw_import/forms_java/$jb"; $real = (Get-Item -LiteralPath $jp -Force).FullName
+        if ($SEEN.ContainsKey($dst) -and $JSRC[$dst] -ne $real) {
+            if ($JURL.ContainsKey($j0)) { $dst = "ihw_import/forms_java/url" + ((Split-Path -Parent $j0) -replace '[\\/]', '_') + "/$jb" }
+            else { $dst = "ihw_import/forms_java/forms_java" + (((Split-Path -Parent ((ihwt-fwd $jp).Substring($JDIRF.Length))) -replace '[\\/]', '_').TrimEnd('_')) + "/$jb" }
+        }
+        $JSRC[$dst] = $real
+        [void](_store $jp customer_jar $dst)
         $fi = Get-Item -LiteralPath $jp -Force
-        $JARS.Add(("{0};{1};{2};{3};{4}" -f $jp, $fi.Length, (Get-FileHash -LiteralPath $jp -Algorithm SHA256).Hash.ToLower(), $(if ($JREF[$j0]) { $JREF[$j0] } else { "in forms/java, not referenced" }), "ihw_import/forms_java/$jb"))
+        $JARS.Add(("{0};{1};{2};{3};{4}" -f $jp, $fi.Length, (Get-FileHash -LiteralPath $jp -Algorithm SHA256).Hash.ToLower(), $(if ($JREF[$j0]) { $JREF[$j0] + $(if ($JURL.ContainsKey($j0)) { " url=$j0" } else { "" }) } else { "in forms/java, not referenced" }), $dst))
     } else {
         $JARS.Add("$j0;-;-;$($JREF[$j0]);MISSING")
     }
@@ -746,7 +826,7 @@ if (@($pm.Keys | Where-Object { $_ -match '^([A-Za-z]:/|//)' }).Count) {
 # 8. environment.conf proposal
 #==============================================================================
 $rows = @($RSV | Select-Object -Skip 1 | Where-Object { $_ -notmatch '^#' })
-$row1 = $(if ($rows.Count) { $rows[0] -split ';' } else { @() })
+$row1 = @(if ($rows.Count) { $rows[0] -split ';' })   # @(): an empty $() is $null (no Reports server, 2026-11-26)
 $rc = $(if ($row1.Count -gt 3) { _text $row1[3] } else { "" })
 function _eng { param([string] $a) if ($rc -match "$a=`"([0-9]+)`"") { return $Matches[1] }; return "" }
 $fp1 = _first @(foreach ($ef in $ENV_FILES) { ihwt-cfgval $ef 'FORMS_PATH' })

@@ -8,6 +8,17 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-26
+
+- **Configuration export finds every client jar:** `export_forms_reports_conf`
+  2026-11-26.1 (bash + PowerShell) reads all jar lists of `formsweb.cfg`
+  (`cache_archive_ex`, own `*Archive` keys, `fsal_archive` resources, the
+  `codebase` of the section), resolves URL paths like `/frmopt/x.jar` through
+  the document roots / aliases of OHS, Apache and Nginx on the host, exports
+  renamed `jacob_*.jar` and keeps equal names from two places; the Windows
+  export no longer stops on a host without Reports server
+  ([tools/README.md](70-Customer-Projects/tools/README.md#export_forms_reports_confsh)).
+
 ## 2026-11-24
 
 - **Forms runtime crashes in the collector and the analysis:** `collect_fmw_env.sh`

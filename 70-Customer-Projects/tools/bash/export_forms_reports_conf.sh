@@ -43,8 +43,11 @@
 #            --no-fonts do not copy font files (only list them)
 #            --keep     keep the unpacked staging directory
 #            --jar-dir  directory with client jars that archive= names by URL
-#                       path outside /forms/java (e.g. /app/x.jar) - searched
-#                       by file name, repeatable
+#                       path outside /forms/java (e.g. /frmopt/lib/x.jar) -
+#                       searched by file name, path below the first URL
+#                       segment (lib/x.jar) and full path; repeatable. Needed
+#                       only when the document roots / aliases of OHS, Apache
+#                       and Nginx on this host do not hold it (searched first)
 #            (--no-load / --load-days / --rw-auth: moved to collect_fmw_env.sh
 #            2026-11-16 - accepted and ignored here with a note)
 # Runs as  : the software owner (oracle), not root
@@ -60,7 +63,7 @@ umask 077
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
 . "$_IHWT_DIR/ihw_tools_lib.sh" || { printf 'ihw_tools_lib.sh missing next to %s\n' "$0" >&2; exit 2; }
-VERSION="2026-11-24.1"   # bump on every change – shown in the report
+VERSION="2026-11-26.1"   # bump on every change – shown in the report
 
 OH="${ORACLE_HOME:-}"; DH="${DOMAIN_HOME:-}"; OUTBASE="/tmp"
 MASKED=false; FONTS=true; KEEP=false; MOVED=""; JAR_DIRS=()
@@ -240,27 +243,90 @@ done
 # --- customer jars (never Oracle's frm*.jar / frmsal / jacob – they come from 14-/40-) ---
 JARS="$STAGE/ihw_import/jars.txt"
 printf 'jar;size;sha256;referenced_in;stored\n' > "$JARS"
-declare -A JREF=() JURL=()
-# relative jar names (archive=, jnlp href, also lib/x.jar) live in $OH/forms/java;
-# a leading / in archive= is a URL path of the web server (another location),
-# a file path only in an env CLASSPATH
+declare -A JREF=() JURL=() JSRC=()
+# relative jar names (archive=, jnlp href, also lib/x.jar) live below the
+# codebase of the section - /forms/java = $OH/forms/java; a leading / in
+# archive= is a URL path of the web server (another location), a file path
+# only in an env CLASSPATH
 _jpath() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s' "$OH/forms/java/${1#./}" ;; esac; }
 # Oracle's own client jars (come with 14c / 40-) - NOT every frm*.jar: customers
-# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24)
+# name their own jars frm*.jar too (frmopt.jar seen 2026-11-24); only jacob.jar
+# itself is Oracle's WebUtil logic of 14- - a renamed jacob_1.jar is exported
 _oracle_jar() {
     case "$1" in
         frmall.jar|frmall_jinit.jar|frmsal.jar|frmwebutil.jar|frmmain.jar|frmgeneric_laf.jar|\
-        frmoracle_laf.jar|frmresources*.jar|frmwebsocketjsi.jar|frmbidi*.jar|jacob*.jar) return 0 ;;
+        frmoracle_laf.jar|frmresources*.jar|frmwebsocketjsi.jar|frmbidi*.jar|jacob.jar) return 0 ;;
     esac
     return 1
 }
+# URL prefix -> directory of the web servers on this host (2026-11-26): OHS
+# (DocumentRoot / Alias of every instance, default instances/<n>/htdocs),
+# Apache and Nginx (DocumentRoot / root, Alias / location+alias) - to find a
+# jar that archive= names by a URL path outside /forms/java (/frmopt/x.jar)
+_url_dirs() {
+    local d n f
+    for d in "$CFG"/components/OHS/instances/* "$CFG"/components/OHS/*; do
+        [ -d "$d" ] || continue; n="$(basename "$d")"
+        case "$n" in instances|mbeans) continue ;; esac
+        printf '/\t%s\n' "$CFG/components/OHS/instances/$n/htdocs"
+        for f in "$d"/httpd.conf "$d"/ssl.conf "$d"/moduleconf/*.conf; do
+            [ -f "$f" ] || continue
+            sed -n -E 's/^[[:space:]]*DocumentRoot[[:space:]]+"?([^"[:space:]]+)"?.*/\/\t\1/p; s/^[[:space:]]*Alias[[:space:]]+([^[:space:]]+)[[:space:]]+"?([^"[:space:]]+)"?.*/\1\t\2/p' "$f" \
+                | sed -e "s#\${ORACLE_INSTANCE}#$DH#g" -e "s#\${COMPONENT_TYPE}#OHS#g" -e "s#\${COMPONENT_NAME}#$n#g" \
+                      -e "s#\${PRODUCT_HOME}#$OH/ohs#g" -e "s#\${ORACLE_HOME}#$OH#g"
+        done
+    done
+    for f in /etc/httpd/conf/httpd.conf /etc/httpd/conf.d/*.conf /etc/apache2/sites-enabled/*; do
+        [ -r "$f" ] || continue
+        sed -n -E 's/^[[:space:]]*DocumentRoot[[:space:]]+"?([^"[:space:]]+)"?.*/\/\t\1/p; s/^[[:space:]]*Alias[[:space:]]+([^[:space:]]+)[[:space:]]+"?([^"[:space:]]+)"?.*/\1\t\2/p' "$f"
+    done
+    for f in /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf /etc/nginx/default.d/*.conf; do
+        [ -r "$f" ] || continue
+        awk '{ sub(/#.*/, "") }
+             /location[[:space:]]+[^~=[:space:]]/ { loc = $0; sub(/.*location[[:space:]]+(\^~[[:space:]]+)?/, "", loc); sub(/[[:space:]{].*/, "", loc) }
+             /^[[:space:]]*alias[[:space:]]/ { v = $2; sub(/;$/, "", v); if (loc != "") print loc "\t" v }
+             /^[[:space:]]*root[[:space:]]/  { v = $2; sub(/;$/, "", v); print "/\t" v }' "$f"
+    done
+}
+mapfile -t URL_DIRS < <(_url_dirs | awk -F'\t' 'NF==2 && !s[$0]++ {print length($1) "\t" $0}' | sort -rn | cut -f2-)
+# _url_find URLPATH -> file of the web servers / --jar-dir (empty = not found)
+_url_find() {
+    local u="$1" e pfx dir rest jd
+    for e in "${URL_DIRS[@]}"; do
+        pfx="${e%%$'\t'*}"; dir="${e#*$'\t'}"; pfx="${pfx%/}/"
+        case "$u" in "$pfx"*) rest="${u#"$pfx"}" ;; *) continue ;; esac
+        [ -f "$dir/$rest" ] && { printf '%s' "$dir/$rest"; return 0; }
+    done
+    for jd in "${JAR_DIRS[@]}"; do      # --jar-dir: name, path below the first segment, full path
+        for rest in "$(basename "$u")" "${u#/*/}" "${u#/}"; do
+            [ -f "$jd/$rest" ] && { printf '%s' "$jd/$rest"; return 0; }
+        done
+    done
+    return 1
+}
+# every jar list of formsweb.cfg: archive*, WebUtilArchive, cache_archive_ex
+# (name;preload), own *Archive keys (FrmOptArchive ...) - plus fsal_archive
+# (resource file of the FSAL client, e.g. frmopt.properties); relative names
+# below the codebase of the section ([default] /forms/java)
+declare -A CODEBASE=()
 for fw in "${FORMS_CFGS[@]}"; do
+    while IFS=$'\t' read -r sec k v; do [ "$(printf '%s' "$k" | tr 'A-Z' 'a-z')" = codebase ] && CODEBASE[$sec]="$v"; done < <(_sections "$fw")
     while IFS=$'\t' read -r sec k v; do
-        case "$k" in archive|archive_*|WebUtilArchive|webUtilArchive)
-            for j in ${v//,/ }; do
-                JREF[$(_jpath "$j")]+="formsweb.cfg[$sec].$k "
-                case "$j" in /*) JURL[$j]=1 ;; esac         # URL path of the web server
-            done ;; esac
+        kl="$(printf '%s' "$k" | tr 'A-Z' 'a-z')"
+        case "$kl" in *archive*) ;; *) continue ;; esac
+        cb="${CODEBASE[$sec]:-${CODEBASE[default]:-/forms/java}}"; cb="${cb%/}"
+        for j in ${v//,/ }; do
+            j="${j%%;*}"; j="${j%:preload}"; j="${j%:*}"
+            [ -n "$j" ] || continue
+            case "$j" in *.jar|*.properties|*.zip|*.cab) ;; *) continue ;; esac
+            case "$j" in
+                /forms/java/*) j="${j#/forms/java/}" ;;
+                /*) ;;
+                *) [ "$cb" != /forms/java ] && [ -n "$cb" ] && j="$cb/${j#./}" ;;
+            esac
+            JREF[$(_jpath "$j")]+="formsweb.cfg[$sec].$k "
+            case "$j" in /forms/java/*) ;; /*) JURL[$j]=1 ;; esac         # URL path of the web server
+        done
     done < <(_sections "$fw")
 done
 for ef in "${ENV_FILES[@]}"; do
@@ -275,15 +341,17 @@ for jn in "$OH"/forms/java/extensions.jnlp; do
         JREF[$(_jpath "$j")]+="extensions.jnlp "
     done
 done
-for j in "$OH"/forms/java/*.jar; do [ -f "$j" ] && JREF[$j]+=""; done
-for jp in $(printf '%s\n' "${!JREF[@]}" | sort); do
+for j in "$OH"/forms/java/*.jar "$OH"/forms/java/lib/*.jar; do [ -f "$j" ] && JREF[$j]+=""; done
+# forms/java first (flat names in the export), URL paths / other places after
+for jp in $(printf '%s\n' "${!JREF[@]}" | awk -v oh="$OH/forms/java/" '{print (index($0, oh) == 1 ? 0 : 1) "\t" $0}' | sort | cut -f2-); do
     j="$jp"
     jb="$(basename "$jp")"
     _oracle_jar "$jb" && continue                             # Oracle / our 14c logic
     case "$jp" in "$OH"/*) case "$jp" in "$OH"/forms/java/*) ;; *) continue ;; esac ;; esac  # other Oracle jars
-    # URL path of archive= (no such file): look for the jar in --jar-dir by name
+    # URL path of archive= (no such file): document roots / aliases of the web
+    # servers, then --jar-dir (name, path below the first URL segment)
     if [ ! -f "$jp" ] && [ -n "${JURL[$j]:-}" ]; then
-        for _jd in "${JAR_DIRS[@]}"; do [ -f "$_jd/$jb" ] && { jp="$_jd/$jb"; break; }; done
+        _f="$(_url_find "$j")" && jp="$_f"
     fi
     if [ ! -f "$jp" ] && [ -n "${JURL[$j]:-}" ]; then
         # archive= with a URL path outside /forms/java and not found: own web location
@@ -291,9 +359,16 @@ for jp in $(printf '%s\n' "${!JREF[@]}" | sort); do
         continue
     fi
     if [ -f "$jp" ]; then
-        _store "$jp" customer_jar "ihw_import/forms_java/$jb"
+        # same name from two places (forms/java/x.jar and /frmopt/x.jar): keep both
+        _dst="ihw_import/forms_java/$jb"
+        if [ -n "${SEEN[$_dst]:-}" ] && [ "$(readlink -f "$jp")" != "${JSRC[$_dst]:-}" ]; then
+            if [ -n "${JURL[$j]:-}" ]; then _dst="ihw_import/forms_java/url$(dirname "$j" | tr '/' '_')/$jb"
+            else _r="${jp#"$OH"/forms/java}"; _dst="ihw_import/forms_java/forms_java$(dirname "$_r" | tr '/' '_' | sed 's/_$//')/$jb"; fi
+        fi
+        JSRC[$_dst]="$(readlink -f "$jp")"
+        _store "$jp" customer_jar "$_dst"
         printf '%s;%s;%s;%s;%s\n' "$jp" "$(stat -c %s "$jp")" "$(sha256sum "$jp" | cut -d' ' -f1)" \
-            "${JREF[$j]:-in forms/java, not referenced}" "ihw_import/forms_java/$jb" >> "$JARS"
+            "${JREF[$j]:-in forms/java, not referenced}${JURL[$j]:+ url=$j}" "$_dst" >> "$JARS"
     else
         printf '%s;-;-;%s;MISSING\n' "$jp" "${JREF[$j]}" >> "$JARS"
     fi
