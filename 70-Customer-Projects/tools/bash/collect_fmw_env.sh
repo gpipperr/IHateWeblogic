@@ -63,7 +63,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-26.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-26.2"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -605,6 +605,10 @@ fact "Public cloud / CPU arch" "$(_lv cloud) / $(_lv cpu_arch)"
 fact "Oracle DB on this host" "$(_lv oracle_db_instances)$(awk -F';' '$1=="host" && $2=="oracle_db_edition" {e=e (e==""?"":", ") $3} END {if (e!="") printf " - edition (installation): %s", e}' "$_lic")"
 fact "ORDS on this host" "process: $(_lv ords_process); in the domain: $(awk -F';' '$1=="deployment" && tolower($2) ~ /ords|apex/ {d=d (d==""?"":",") $2} END {print (d=="" ? "no" : d)}' "$_lic")"
 unset _lic
+# ORDS / APEX: details in the third collector collect_ords_apex.sh (2026-11-26)
+_ords="$(ihwt_ords_find 2>/dev/null | awk -F';' '$3 !~ /^software/ {n++; m[$3]++} END {for (k in m) s=s (s==""?"":", ") m[k] " " k; if (n) printf "found: %d (%s) - run collect_ords_apex.sh for the ORDS / APEX analysis", n, s}')"
+fact "ORDS / APEX" "${_ords:-none found}"
+unset _ords
 
 # =============================================================================
 # 8. Load profile - AGGREGATED counts only (ihw_tools_lib ihwt_load_profile)

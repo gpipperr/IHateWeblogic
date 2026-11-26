@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-24.1"
+IHWT_LIB_VERSION="2026-11-26.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1413,4 +1413,114 @@ ihwt_frmweb_dump() {
             t = ""; for (i = st; i <= n && i < st + 6; i++) t = t (t == "" ? "" : ">") fr[i]
             printf "%s;%s;%s;%s;%s\n", (fbf == "" ? "-" : fbf), (lt == "" ? "-" : lt), (n ? kind : "-"), (t == "" ? "-" : t), (sig == "" ? "-" : sig)
         }'
+}
+
+# =============================================================================
+# ORDS / APEX discovery (collect_ords_apex.sh, fact in collect_fmw_env.sh)
+# =============================================================================
+# ihwt_ords_war_version WAR - ORDS version from the jar names in WEB-INF/lib
+ihwt_ords_war_version() {
+    unzip -l "$1" 2>/dev/null | grep -oE 'WEB-INF/lib/ords-[a-z-]+-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.jar' \
+        | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}'
+}
+# ihwt_apex_version DIR - APEX version of an images directory (apex_version.txt)
+ihwt_apex_version() {
+    sed -n 's/.*Version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' "$1/apex_version.txt" 2>/dev/null | head -1
+}
+# _ihwt_ords_cfgval CONFIGDIR KEY - value of an entry of global/settings.xml
+_ihwt_ords_cfgval() {
+    sed -n "s#.*<entry key=\"$2\">\([^<]*\)</entry>.*#\1#p" "$1/global/settings.xml" 2>/dev/null | head -1
+}
+# ihwt_ords_find - every ORDS installation of the host, one line each:
+#   ords;<id>;<mode>;<home>;<war>;<config>;<pid>;<unit>;<user>;<ports>
+#   mode: standalone | tomcat | weblogic | standalone-stopped | tomcat-stopped | not-running
+#         (config dir without process) | old-layout (configuration before
+#         ORDS 22: defaults.xml) | software / software-used (unpacked ORDS
+#         ZIP, used by an instance of this list or not)
+#   sources: processes (ords.war serve / bin/ords, Tomcat Bootstrap with an
+#   ords web application, WebLogic server with an ORDS deployment), systemd
+#   units *ords*, a bounded find (settings.xml / ords.war / defaults.xml);
+#   IHWT_ORDS_EXTRA="dir ..." = more homes / config dirs (option of the collector)
+ihwt_ords_find() {
+    local p a usr mode home war cfg unit ports base id key f u ex seen=" " wars=" " roots
+    _ihwt_ords_out() {   # mode home war cfg pid unit user ports
+        local k="$4" w="$3"
+        [ "$k" = - ] && k=""; [ "$w" = - ] && w=""; k="${k:-$w}"
+        k="$(readlink -f "$k" 2>/dev/null || printf '%s' "$k")"
+        case "$1" in software*) k="$(readlink -f "$w" 2>/dev/null)#sw" ;; esac
+        case "$seen" in *" $k "*) return 0 ;; esac
+        seen="$seen$k "
+        [ -n "$w" ] && case "$1" in software*) false ;; *) true ;; esac && wars="$wars$(readlink -f "$w" 2>/dev/null) "
+        id="$6"; id="${id%.service}"; id="${id#*@}"
+        if [ -z "$id" ] || [ "$id" = - ]; then
+            if [ -n "$4" ] && [ "$4" != - ]; then id="$(basename "$(dirname "$4")")"; else id="$(basename "${2:-x}")"; fi
+        fi
+        printf 'ords;%s;%s;%s;%s;%s;%s;%s;%s;%s\n' "$id" "$1" "${2:--}" "${3:--}" "${4:--}" "${5:--}" "${6:--}" "${7:--}" "${8:--}"
+    }
+    _ihwt_arg() { printf '%s\n' "$a" | sed -n "s#^$1##p" | head -1; }
+    _ihwt_next() { printf '%s\n' "$a" | awk -v k="$1" 'f {print; exit} $0 == k {f=1}'; }
+    # 1. processes
+    for p in $(pgrep -f 'ords\.war|oracle\.dbtools\.launcher|bin/ords|catalina\.startup\.Bootstrap|weblogic\.Server' 2>/dev/null); do
+        a="$(cat "/proc/$p/cmdline" 2>/dev/null | tr '\0' '\n')"; [ -n "$a" ] || continue
+        usr="$(ps -o user= -p "$p" 2>/dev/null | tr -d ' ')"
+        unit="$(sed -n 's#.*/\([^/]*\.service\)$#\1#p' "/proc/$p/cgroup" 2>/dev/null | head -1)"
+        ports="$(ss -Hltnp 2>/dev/null | awk -v p="pid=$p," 'index($0, p) {n=split($4, x, ":"); print x[n]}' | sort -un | paste -sd, -)"
+        cfg="$(_ihwt_next --config)"; [ -z "$cfg" ] && cfg="$(_ihwt_arg '-Dconfig.url=')"
+        war=""; home=""; mode=""
+        if printf '%s\n' "$a" | grep -q 'catalina\.startup\.Bootstrap'; then
+            base="$(_ihwt_arg '-Dcatalina.base=')"
+            for f in "$base"/webapps/ords*.war "$base"/webapps/ords; do [ -e "$f" ] && { war="$f"; break; }; done
+            [ -n "$war" ] || continue
+            [ -z "$cfg" ] && cfg="$(grep -hoE 'config\.url=[^ "]+' "$base/bin/setenv.sh" 2>/dev/null | head -1 | cut -d= -f2)"
+            [ -z "$cfg" ] && cfg="$(grep -hoE 'name="config\.url"[^>]*value="[^"]+"' "$base"/conf/Catalina/*/ords*.xml 2>/dev/null | head -1 | sed 's/.*value="//; s/"$//')"
+            home="$base"; mode=tomcat
+        elif printf '%s\n' "$a" | grep -q 'weblogic\.Server'; then
+            base="$(_ihwt_arg '-Dweblogic.RootDirectory=')"; [ -z "$base" ] && base="$(readlink -f "/proc/$p/cwd" 2>/dev/null)"
+            war="$(tr -d '\n' < "$base/config/config.xml" 2>/dev/null | grep -oE '<source-path>[^<]*ords[^<]*\.war</source-path>' | sed 's#</\{0,1\}source-path>##g' | head -1)"
+            [ -n "$war" ] || continue
+            [ -z "$cfg" ] && cfg="$(grep -hoE 'config\.url=[^ "]+' "$base/bin/setUserOverrides.sh" "$base/bin/setDomainEnv.sh" 2>/dev/null | head -1 | cut -d= -f2)"
+            home="$base"; mode=weblogic
+        else
+            home="$(_ihwt_arg '-Doracle.dbtools.cmdline.home=')"
+            war="$(_ihwt_next -jar)"; case "$war" in *.war) ;; *) war="${home:+$home/ords.war}" ;; esac
+            [ -n "$war$cfg" ] || continue
+            mode=standalone
+        fi
+        _ihwt_ords_out "$mode" "$home" "$war" "$cfg" "$p" "${unit:--}" "$usr" "$ports"
+    done
+    # 2. systemd units not running (ExecStart of the unit / template instance)
+    for u in $( { systemctl list-units --all --plain --no-legend '*ords*' 2>/dev/null | awk '$1 ~ /\.service$/ {print $1}'
+                  for f in /etc/systemd/system/*ords*.service /usr/lib/systemd/system/*ords*.service; do
+                      [ -f "$f" ] && case "$(basename "$f")" in *@.service) ;; *) basename "$f" ;; esac; done; } | sort -u); do
+        ex="$(systemctl cat "$u" 2>/dev/null | sed -n 's/^ExecStart=//p' | tail -1)"
+        [ -n "$ex" ] || continue
+        id="${u%.service}"; id="${id#*@}"; ex="${ex//%i/$id}"
+        a="$(printf '%s\n' $ex)"
+        cfg="$(_ihwt_next --config)"; [ -z "$cfg" ] && cfg="$(_ihwt_arg '-Dconfig.url=')"
+        home="$(printf '%s\n' "$a" | sed -n 's#^\(.*\)/bin/ords$#\1#p' | head -1)"
+        war="${home:+$home/ords.war}"; [ -z "$war" ] && war="$(printf '%s\n' "$a" | grep '\.war$' | head -1)"
+        [ -n "$cfg$war" ] || continue
+        usr="$(systemctl cat "$u" 2>/dev/null | sed -n 's/^User=//p' | tail -1)"
+        _ihwt_ords_out standalone-stopped "$home" "$war" "$cfg" - "$u" "${usr:--}" "$(_ihwt_ords_cfgval "$cfg" standalone.http.port)"
+    done
+    # 3. bounded find: installations that do not run (+ old configuration layout)
+    roots=""; for f in /u01 /u02 /opt /app /srv /oracle /etc/ords $IHWT_ORDS_EXTRA; do [ -d "$f" ] && roots="$roots $f"; done
+    [ -n "$roots" ] || return 0
+    timeout 60 find $roots -maxdepth 7 \( -path '*/global/settings.xml' -o -name 'ords*.war' -o -name defaults.xml \) -type f 2>/dev/null \
+        | grep -v -e '/\.patch_storage/' -e '/backup' -e '/ConfigBackup/' | sort | while read -r f; do
+        case "$f" in
+            */global/settings.xml) cfg="$(dirname "$(dirname "$f")")"
+                _ihwt_ords_out not-running - - "$cfg" - - "$(stat -c %U "$f" 2>/dev/null)" "$(_ihwt_ords_cfgval "$cfg" standalone.http.port)" ;;
+            */webapps/ords*.war) home="$(dirname "$(dirname "$f")")"     # Tomcat that does not run
+                case "$wars" in *" $(readlink -f "$f") "*) continue ;; esac
+                _ihwt_ords_out tomcat-stopped "$home" "$f" - - - "$(stat -c %U "$f" 2>/dev/null)" \
+                    "$(grep -oE '<Connector[^>]*port="[0-9]+"' "$home/conf/server.xml" 2>/dev/null | grep -v AJP | grep -oE '[0-9]+"$' | tr -d '"' | head -1)" ;;
+            */ords.war) home="$(dirname "$f")"
+                # unpacked ORDS software: used by an instance above (link / path) or lying around
+                case "$wars" in *" $(readlink -f "$f") "*) mode=software-used ;; *) mode=software ;; esac
+                _ihwt_ords_out "$mode" "$home" "$f" - - - "$(stat -c %U "$f" 2>/dev/null)" - ;;
+            */defaults.xml) grep -q 'db\.\|apex\.' "$f" 2>/dev/null || continue
+                _ihwt_ords_out old-layout - - "$(dirname "$f")" - - "$(stat -c %U "$f" 2>/dev/null)" - ;;
+        esac
+    done
 }

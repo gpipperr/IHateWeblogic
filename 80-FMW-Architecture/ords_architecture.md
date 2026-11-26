@@ -466,6 +466,7 @@ OAuth2 would identify the client, not the user. The wiki's pattern:
 | [`12-APEX-Ords/04-install-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/04-install-ords.sh) | software `ords-<ver>`, home `ords_N` (config 700, link), `ords install` (non-interactive, passwords via stdin), `config set` with key check, profile, systemd `ords@.service`, loopback check |
 | [`12-APEX-Ords/05-setup-nginx.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/05-setup-nginx.sh) | `/etc/nginx/oracle-wls.d/ords_N.conf` – `/ords/` proxy (X-Forwarded-For overwritten) + `/i/` images |
 | [`12-APEX-Ords/06-patch-ords.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/12-APEX-Ords/06-patch-ords.sh) | new ORDS release, repository upgrade, rollback, clean-up |
+| [`70-Customer-Projects/tools/bash/collect_ords_apex.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/collect_ords_apex.sh) | customer host, read-only: every ORDS installation (standalone / Tomcat / WebLogic), version, pools, the features of section 6 as installer choice 1–5, APEX images version, routes, listen address, AJP, file users, aggregated logs – input of the ORDS / APEX analysis report |
 
 Variables: `ORDS_N_DB_ALIAS / _PORT / _CONTEXT / _IMAGE_PREFIX`,
 `ORDS_JAVA_HEAP`, `ORDS_PUBLIC_URL`, `ORDS_LOG_BASE`, `ORDS_FEATURE_*`,

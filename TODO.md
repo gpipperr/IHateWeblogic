@@ -272,6 +272,14 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
+- [ ] **ORDS / APEX collector – open points** (`collect_ords_apex.sh`
+  2026-11-26.1, tested on the test host standalone ORDS 26.3.1 + fakes):
+  Windows version `collect_ords_apex.ps1` (Tomcat / service); a live Tomcat
+  and a WebLogic-deployed ORDS at a customer; verify against the ORDS support
+  matrix in which release AJP / Tomcat 9 support ends (the analysis says
+  "newer setups do not offer AJP" until then); client addresses behind the
+  proxy come only from the web server log (ORDS sees the proxy) – maybe
+  aggregate the `/ords/` lines of the Nginx / Apache access log too.
 - [ ] **Forms runtime crashes – Windows host test** (`collect_fmw_env.ps1`
   2026-11-24.1, tested only with pwsh on Linux): does `frmweb.exe` write
   `frmweb_dump_<pid>` with the same name / format on Windows, and is the

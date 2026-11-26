@@ -32,6 +32,7 @@ WAS WO LANDET
       set_script_env.sh                laedt patch_install.ini (SCHRITT 5)
       collect_fmw_env.sh               Analyse einer vorhandenen Umgebung
       export_forms_reports_conf.sh     Konfigurations-Export (12c -> 14c)
+      collect_ords_apex.sh             ORDS / APEX der Umgebung (wenn vorhanden)
       fmw_patch_env.sh                 Variablen fuer die Patch-Kochbuecher
       mos_patch_download.sh            Patch-Download nach der csv
       update_tools_from_git.sh         Tools aktualisieren (SCHRITT 7),
@@ -281,6 +282,16 @@ SCHRITT 4: Gibt es schon eine Umgebung?
   # Datei ihw_export_<host>_<zeit>.zip.enc - wie oben mitnehmen, die
   # Passphrase getrennt uebermitteln. Bei uns entsteht daraus der
   # Forms & Reports Status-Bericht.
+
+  # Laufen auf dem Host auch ORDS / APEX? 00_summary.txt der Sammlung oben
+  # zeigt es in der Zeile "ORDS / APEX". Wenn "found":
+
+  collect_ords_apex.sh -t $ORACLE_BASE/install
+
+  # Erwartet: Abfrage einer Passphrase (zweimal), am Ende der Pfad der
+  # Datei ords_collect_<host>_<zeit>.zip.enc (nur lesend; ruft "ords
+  # --version" / "config list" kurz auf, abschaltbar mit --no-exec).
+  # Wie oben mitnehmen - bei uns entsteht daraus der ORDS / APEX Bericht.
 
   ----------------------------------------------------------------------------
   4b Neue Installation: Werte aus den Kochbuechern eintragen

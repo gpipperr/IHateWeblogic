@@ -51,6 +51,7 @@ runtime, never by a second copy of the script.
 | Script | Purpose |
 |---|---|
 | [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only collection of the **state**: installed products, patch level (Oracle, Java, OS advisories, Nginx), performance (memory, load profile), security / quality of operation (Derby, FADS, certificates) – input of the patch analysis and, with the export, of the environment analysis |
+| [bash/collect_ords_apex.sh](#collect_ords_apexsh) | read-only collection of **ORDS / APEX** on the host (third collector): every ORDS installation (standalone / Tomcat / WebLogic / systemd / stopped), version, Java, pools + features (`ords config list`), APEX images version (`/i/`), web routes, security (listen address, SQL features, fixed auth headers, AJP, file users), logs of the last days aggregated – input of the ORDS / APEX analysis |
 | [bash/mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
 | [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
@@ -76,6 +77,7 @@ the host:
 |---|---|---|
 | `collect_fmw_env.sh` | what is installed where, patch level (Oracle, Java, OS security advisories, Nginx in detail), Java, memory, load profile, Derby, FADS, HTTPS certificates – masked, no configuration files | **patch analysis**: installed products, patch level, Java, OS, number of missing patches / advisories, Nginx, how to patch |
 | `export_forms_reports_conf.sh` | the configuration (raw copies + `ihw_import/` proposals) for the rebuild | **environment analysis** (export + collection): configuration, security, performance, load profile, 14c target – the patch level only as one summary line |
+| `collect_ords_apex.sh` | ORDS / APEX: installations, versions, pools, features, APEX images, web routes, security, aggregated logs – masked, the wallet never | **ORDS / APEX analysis** (third report): architecture, versions + upgrade (ORDS = new installation), pools / features, reachable from outside?, upgrade checklist |
 
 Windows: [`powershell/collect_fmw_env.ps1`](powershell/README.md#collect_fmw_envps1) collects the same
 state (with `powershell/ihw_tools_lib.ps1`; Nginx installed by hand in
@@ -209,6 +211,47 @@ written (`ihwt_mask`, the same rules as the configuration export).
 Host names, IP addresses and paths stay in the output – they are needed for
 the analysis. Check the files before sending; never commit the output to a
 repository.
+
+## collect_ords_apex.sh
+
+Third collector (2026-11-26): ORDS and APEX are not Forms & Reports, but they
+run on many of these hosts. Read-only; runs as the ORDS owner (oracle).
+
+```bash
+./collect_ords_apex.sh -t /tmp                 # encrypted archive (passphrase asked twice)
+./collect_ords_apex.sh --no-exec --no-encrypt   # files only, no ORDS program call
+./collect_ords_apex.sh --ords /opt/ords --log-days 14
+```
+
+| Option | Meaning |
+|---|---|
+| `-t DIR` | base directory of the output (default `/tmp`) |
+| `--no-exec` | do not run the ORDS program; by default `ords --version`, `ords config --db-pool <p> list --include-defaults` and `ords config user list` run read-only (a JVM for a few seconds, timeout 90 s, skipped below 512 MB available memory) |
+| `--log-days N` | days of logs to aggregate (default 7) |
+| `--ords DIR` | more ORDS homes / config directories (repeatable) when the discovery finds nothing |
+| `--no-encrypt` / `--keep` | as `collect_fmw_env.sh` |
+
+**Discovery** (`ihwt_ords_find` in `ihw_tools_lib.sh`): processes (`ords
+serve` / `ords.war`, Tomcat `Bootstrap` with an ORDS web application,
+WebLogic server with an ORDS deployment – config dir from `--config` /
+`-Dconfig.url`), systemd units `*ords*` incl. template instances
+(`ords@ords_1`), a bounded `find` for `global/settings.xml`, `ords*.war` and
+the configuration layout before ORDS 22 (`defaults.xml`). Unpacked ORDS ZIPs
+are listed as `software` / `software-used`.
+
+| File | Content |
+|---|---|
+| `00_summary.txt` | facts: installations + modes, versions, Java, pools, features (installer choice 1–5), file users, web routes, APEX images, listen addresses, AJP / auth headers, requests + SQL endpoint hits of the log |
+| `10_instances.txt` | `ords;id;mode;home;war;config;pid;unit;user;ports` + process arguments and `systemctl cat` / `show` per instance |
+| `20_version.txt` | `version;…;jar|exec;<ver>` (jar names of `ords.war` and `ords --version`), `java;…` of the process / unit |
+| `30_config.txt` | masked copies of `settings.xml` / `pool.xml` (Tomcat `server.xml`), `cfg;id;pool;key;value;source` from `config list` (passwords shown as `******` by ORDS), `user;…` (file-based users, roles only), `credfile;…`, `wallet;…` (file + mode – never copied) |
+| `40_apex_images.txt` | `apex;dir;version;date;served by` – every `/i/` source (web server alias / root, `standalone.static.path`, Tomcat `webapps/i`, `find apex_version.txt`). The APEX version is only read from the images – no DB connect |
+| `50_webtier.txt` | web server routes to ORDS / `/i/` (`IHWT_WT_HEAD` format) |
+| `60_logs.txt` | last N days, aggregated: `access;id;day;requests;2xx;3xx;4xx;5xx;internal;external`, `endpoint;id;database_actions|rest_enabled_sql|database_api|graphql|landing|apex;hits;2xx`, `errors;id;file;day;count` + the last 50 error lines (masked) |
+| `70_security.txt` | `listen;id;addr;loopback|network`, `feature;id;pool;sdw;restsql;dbapi;graphql;choice`, `authhdr;…` (fixed `Authorization` header in a route, value masked), `ajp;…` (Tomcat connector / `ajp://` / `JkMount`), `tomcat;…;version`, `tomcatusers;…`, `firewalld;…` |
+
+`collect_fmw_env.sh` (2026-11-26.2) only shows the fact `ORDS / APEX` and
+points to this collector. Windows (`collect_ords_apex.ps1`): open (TODO).
 
 ## mos_patch_download.sh
 

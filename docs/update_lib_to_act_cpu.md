@@ -138,6 +138,9 @@ One block per area. Old → new values always from `update_plan.md`.
 - APEX / ORDS download URLs or versions, if they are pinned
 - `ORDS_VERSION_MIN` – lowest ORDS release without an open CVE of the cycle
   (risk matrix "Oracle REST Data Services"; read by the customer patch analysis)
+- `APEX_VERSION_MIN` – current APEX release (read by the customer ORDS / APEX
+  analysis, `analyse_ords_apex.sh`); `ORDS_JAVA_MIN` when a new ORDS release
+  raises the Java minimum
 - comment blocks per patch and the **"Superseded"** list (old numbers with
   the cycle that replaced them)
 

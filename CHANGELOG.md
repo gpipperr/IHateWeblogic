@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-26
 
+- **ORDS / APEX: third collector + third analysis:** `collect_ords_apex.sh`
+  (read-only) finds every ORDS installation (standalone / Tomcat / WebLogic,
+  systemd, stopped copies, configuration before ORDS 22), reads version,
+  Java, pools and features (`ords config list`, installer choice 1–5), the
+  APEX version of the images directory (`/i/`), the web routes and the
+  security points (listen address, SQL over HTTP, fixed Authorization
+  headers, AJP, file-based users) and aggregates the logs of the last days;
+  `collect_fmw_env.sh` points to it. New reference keys `APEX_VERSION_MIN`,
+  `ORDS_JAVA_MIN`
+  ([tools/README.md](70-Customer-Projects/tools/README.md#collect_ords_apexsh)).
 - **Configuration export finds every client jar:** `export_forms_reports_conf`
   2026-11-26.1 (bash + PowerShell) reads all jar lists of `formsweb.cfg`
   (`cache_archive_ex`, own `*Archive` keys, `fsal_archive` resources, the
