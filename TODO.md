@@ -272,6 +272,10 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
+- [ ] **`java_check_fmw.ps1` on a real Windows Server** (2026-11-26, tested
+  only with pwsh on Linux): Node Manager service parameters in the
+  registry, junction detection, `jvm.dll` of `rwserver.exe`, `reports.cmd`
+  vs. `reports.bat`.
 - [ ] **ORDS / APEX collector – open points** (`collect_ords_apex.sh`
   2026-11-26.1, tested on the test host standalone ORDS 26.3.1 + fakes):
   Windows version `collect_ords_apex.ps1` (Tomcat / service); a live Tomcat

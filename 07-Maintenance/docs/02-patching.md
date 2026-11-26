@@ -116,6 +116,11 @@ files of step 4 from `ConfigBackup/jdk_path_<ts>/`. The bundled
 
 ## 2. Scripts
 
+Customer hosts without the library: the read-only tool
+[`java_check_fmw.sh`](../../70-Customer-Projects/tools/README.md#java_check_fmwsh)
+(`.ps1` on Windows) shows the same pinned paths plus the bundled
+`oracle_common/jdk` and the Java of Reports.
+
 ### domain_jdk_path.sh
 
 ```bash

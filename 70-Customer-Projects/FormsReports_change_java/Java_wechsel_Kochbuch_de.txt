@@ -8,6 +8,9 @@
   Erstellt   : 2026-11-17, getestet auf dem 14.1.2-Testsystem (JDK 21)
   Grundlage  : IHateWeblogic/07-Maintenance/domain_jdk_path.sh
                  (dieselbe Umstellung automatisch, --apply)
+               IHateWeblogic/70-Customer-Projects/tools/bash/java_check_fmw.sh
+                 (Kunden-Tool, nur lesend: Gesamtbild vorher / nachher,
+                 Windows: tools/powershell/java_check_fmw.ps1)
                IHateWeblogic/09-Install/docs/08-oracle_setup_domain.md 3b
                IHateWeblogic/09-Install/docs/01-root_setup_java.md
                JDK 21 fuer FMW: MOS-Patch 35702194 (Oracle JDK 21)
@@ -75,6 +78,10 @@ STEP 0: Variablen setzen und pruefen  (in JEDEM neuen Terminal, als oracle)
 
   # JDK 8 (12.2.1.4): JDK_LINK=$JAVA_BASE/jdk-8 - sonst alles gleich.
 
+  export TOOLS=/oracle/tools
+  # Verzeichnis der IHateWeblogic-Kunden-Tools (Start_beim_Kunden_kochbuch,
+  # SCHRITT 1). Keine Tools auf dem Host? -> 1.0 und 7.1 auslassen.
+
   echo "ORACLE_HOME=$ORACLE_HOME DOMAIN_HOME=$DOMAIN_HOME"
 
   echo "JAVA_BASE=$JAVA_BASE JDK_LINK=$JDK_LINK WORK=$WORK"
@@ -89,6 +96,18 @@ STEP 0: Variablen setzen und pruefen  (in JEDEM neuen Terminal, als oracle)
 ==============================================================================
 STEP 1: Ist-Stand  (als oracle, System darf laufen)
 ==============================================================================
+
+  ---------------------------------------------------
+  1.0 Gesamtbild mit dem Tool (wenn vorhanden)
+  ---------------------------------------------------
+
+  $TOOLS/java_check_fmw.sh -t $LOGDIR
+  # Zeigt in einem Lauf: JAVA_HOME aller Konfigurationsdateien (Link oder
+  # Versionsverzeichnis), das mitgelieferte JDK oracle_common/jdk, das Java
+  # von Reports, die laufenden Prozesse und jede Datei mit einem JDK-Pfad.
+  # Erwartet vor der Umstellung: WARN "versioned directory, not the link"
+  # fuer die Dateien, die STEP 6 aendert. FAIL bei oracle_common/jdk ->
+  # ZUERST "Bekannte Probleme" (Reports startet nicht mehr) lesen.
 
   ---------------------------------------------------
   1.1 Welches JDK steht in den Dateien?
@@ -395,6 +414,17 @@ STEP 7: Umgebung starten und pruefen  (als oracle)
 
   # Anwendung pruefen: Forms-Anmeldung, ein Report, EM-Anmeldung.
 
+  ---------------------------------------------------
+  7.1 Gegenprobe mit dem Tool (wenn vorhanden)
+  ---------------------------------------------------
+
+  $TOOLS/java_check_fmw.sh -t $LOGDIR
+  # Erwartet: "Result: 0 FAIL, 0 WARN" - alle Dateien auf dem Link, das
+  # mitgelieferte JDK oracle_common/jdk unveraendert (Oracle JDK 17 bei
+  # 14.1.2), Reports-Engines und rwserver auf oracle_common/jdk.
+  # Liste "what to adjust" nicht leer -> die genannte Datei / Zeile wie in
+  # STEP 6 anpassen.
+
 ==============================================================================
 STEP 8: Aufraeumen  (spaeter, NICHT im selben Fenster)
 ==============================================================================
@@ -444,6 +474,18 @@ BEKANNTE PROBLEME
             wieder das alte JDK.
   Ursache : WLST schreibt beim Speichern das aufgeloeste, echte Verzeichnis.
   Loesung : STEP 1.1 und STEP 6 wiederholen (oder domain_jdk_path.sh).
+
+  Problem : Reports startet nach dem Wechsel nicht mehr (rwserver / Engines
+            kommen nicht hoch).
+  Ursache : Das mitgelieferte JDK $ORACLE_HOME/oracle_common/jdk wurde mit
+            umgestellt - durch einen Link auf das neue JDK ersetzt oder
+            ueberschrieben - oder reports.sh wurde von Hand auf das neue
+            JDK geaendert. Reports braucht SEIN JDK (14.1.2: Oracle JDK 17).
+  Loesung : $TOOLS/java_check_fmw.sh, Abschnitt 2 (oracle_common/jdk) und 3
+            (reports.sh, libjvm des rwserver) zeigen es. Das Original-
+            Verzeichnis zurueckholen (Sicherung / VM-Snapshot), reports.sh
+            aus der Sicherung - oracle_common/jdk nie durch einen Link
+            ersetzen.
 
   Problem : Reports-Engines laufen weiter mit oracle_common/jdk.
   Ursache : Produkteigenschaft - reports.sh / rwengine starten die Engines

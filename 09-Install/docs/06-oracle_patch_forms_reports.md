@@ -268,6 +268,12 @@ OPatch failed to restore OH '/u01/app/oracle/fmw'.
 - Runs in the pre-checks, before every Forms patch and after all patches
   (keeps the home ready for the next Forms QPR).
 
+**Customer hosts without the library:**
+[`check_fix_libzrc_glibc.sh`](../../70-Customer-Projects/tools/README.md#check_fix_libzrc_glibcsh)
+checks the same (plus the missing `libzrc.so` link, a static `frmweb`, Forms
+oneoff leftovers, the OPatch log of the failed run), `--show` prints the
+manual repair below for that home, `--apply` runs it.
+
 **Manual fix (same as the script):**
 
 ```bash

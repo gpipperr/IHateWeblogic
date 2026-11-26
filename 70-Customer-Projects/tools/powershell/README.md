@@ -22,6 +22,7 @@ copy the whole folder / the Windows ZIP.
 | [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only collection of the **state** (OS + pending Windows updates, services, Java, OPatch / components / other homes, domain facts, processes and memory, web tier with Nginx in detail, HTTPS certificates, load profile, logs), secrets masked → encrypted ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
 | [export_forms_reports_conf.ps1](#export_forms_reports_confps1) | read-only export of the **configuration** for the 14c rebuild (Forms, Reports, domain, JDBC, Oracle Net, web tier incl. IIS, fonts, source inventory, Oracle registry environment, Windows → Linux path map), same archive layout as bash → encrypted ZIP | [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh) |
 | [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
+| [java_check_fmw.ps1](#java_check_fmwps1) | read-only: which Java do WebLogic / Node Manager (Windows service) / Reports / frmweb really use, is `oracle_common\jdk` intact or replaced by a junction, which files pin a missing or versioned JDK path | [java_check_fmw.sh](../README.md#java_check_fmwsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
 | [update_tools_from_git.ps1](#update_tools_from_gitps1) | update the tools of this directory from the repository: Windows ZIP (certificate check off, `-Zip` offline, `-Proxy`), installed → repository per file, `-Apply` replaces / unpacks with backup | [update_tools_from_git.sh](../README.md#update_tools_from_gitsh) |
@@ -230,6 +231,30 @@ Windows specifics:
 
 The options of the load profile (`-NoLoad`, `-LoadDays`, `-RwAuth`) belong to
 `collect_fmw_env.ps1` - here they are accepted and ignored with a note.
+
+## java_check_fmw.ps1
+
+Windows version of [java_check_fmw.sh](../README.md#java_check_fmwsh)
+(2026-11-26) – same five sections, same rules, read-only:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\java_check_fmw.ps1
+.\java_check_fmw.ps1 -OracleHome D:\Oracle\Middleware\Oracle_Home -DomainHome D:\Oracle\user_projects\domains\fr_domain
+```
+
+- **Windows specifics:** links are junctions / symbolic links
+  (`LinkType`); the files are `setDomainEnv.cmd`, `setNMJavaHome.cmd`,
+  `reports.cmd` / `reports.bat`; the Node Manager / WebLogic **Windows
+  services** are read from the registry
+  (`HKLM:\SYSTEM\CurrentControlSet\Services\<service>\Parameters`, `JavaHome`
+  or the `java.exe` / `jvm.dll` path of the command line); the JVM of the
+  running `rwserver.exe` / `frmweb.exe` comes from its loaded `jvm.dll`
+  (`Get-Process .Modules`).
+- Exit 0 = ok, 1 = warnings, 2 = failures; log in `%TEMP%`
+  (`-OutBase`).
+- **Tested** with pwsh 7 on the Linux test host (same result as the bash
+  tool, also against a broken setup in a scratch copy); on Windows Server:
+  open (TODO).
 
 ## fmw_patch_env.ps1
 

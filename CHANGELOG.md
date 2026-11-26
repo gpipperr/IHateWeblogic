@@ -16,6 +16,9 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
   `libzrc.so.0` / the `libzrc.so` link (Forms relink after a Reports QPR on
   OL9, KB873815)
   ([tools/README.md](70-Customer-Projects/tools/README.md#java_check_fmwsh)).
+  Windows version `java_check_fmw.ps1` (same sections, Node Manager service
+  from the registry, junctions); the manual JDK switch cookbook runs the
+  check before / after and names "Reports does not start after the switch".
 - **ORDS / APEX: third collector + third analysis:** `collect_ords_apex.sh`
   (read-only) finds every ORDS installation (standalone / Tomcat / WebLogic,
   systemd, stopped copies, configuration before ORDS 22), reads version,

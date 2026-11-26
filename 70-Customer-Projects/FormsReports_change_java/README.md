@@ -20,6 +20,11 @@ scripts:
   new JDK, carry over `java.security` (SecureRandom) and own CAs in
   `cacerts`, create or move the link, find all files with the old path, back
   them up and change them to the link with vi, check, way back.
+  Steps 1.0 / 7.1 run the read-only customer tool
+  [`java_check_fmw.sh`](../tools/README.md#java_check_fmwsh) (Windows:
+  `java_check_fmw.ps1`) before and after the switch; the known problem
+  "Reports does not start after the switch" (bundled `oracle_common/jdk`
+  replaced by a link / `reports.sh` edited) is described there.
 
 ## What is changed
 

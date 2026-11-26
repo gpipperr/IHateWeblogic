@@ -41,7 +41,7 @@ Not in the ZIPs: the local cookbook formatter.
 | Folder | Platform |
 |---|---|
 | `bash/` | Linux – plain bash + coreutils (this README) |
-| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`export_forms_reports_conf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/export_forms_reports_conf.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
+| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`export_forms_reports_conf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/export_forms_reports_conf.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`java_check_fmw.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/java_check_fmw.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
 
 The bash scripts (`bash/`): one script for all releases – it works for FMW / Forms &
 Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
@@ -274,7 +274,11 @@ still uses the old directory? Read-only, no library.
 | 4 running processes | Node Manager, WebLogic servers, Reports engines, `frmweb` – JDK, version, vendor; `LD_PRELOAD` / `LD_LIBRARY_PATH` of a running `frmweb` |
 | 5 files with a JDK path | domain `bin/*.sh`, `nodemanager.properties`, `reports.sh`, Forms env files, `rwserver.conf`, Forms instance scripts, `startup.properties`, `oui/`, systemd units – variables resolved, missing JDK = FAIL, versioned directory = WARN, with file and line |
 
-Summary "what to adjust"; exit 0 / 1 (warnings) / 2 (failures).
+Summary "what to adjust"; exit 0 / 1 (warnings) / 2 (failures). Windows:
+[`powershell/java_check_fmw.ps1`](powershell/README.md#java_check_fmwps1).
+Used in the manual JDK switch:
+[Java_wechsel_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/FormsReports_change_java/Java_wechsel_Kochbuch_de.txt)
+steps 1.0 / 7.1.
 
 ## check_fix_libzrc_glibc.sh
 

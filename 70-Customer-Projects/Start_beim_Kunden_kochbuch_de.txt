@@ -35,6 +35,8 @@ WAS WO LANDET
       collect_ords_apex.sh             ORDS / APEX der Umgebung (wenn vorhanden)
       fmw_patch_env.sh                 Variablen fuer die Patch-Kochbuecher
       mos_patch_download.sh            Patch-Download nach der csv
+      java_check_fmw.sh                welches Java nutzt was, harte JDK-Pfade
+      check_fix_libzrc_glibc.sh        libzrc / Forms-Relink nach Reports QPR
       update_tools_from_git.sh         Tools aktualisieren (SCHRITT 7),
                                        installiert setdb (SCHRITT 2)
       ihw_shell_env.sh                 setdb-Vorlage - SCHRITT 2 kopiert sie
