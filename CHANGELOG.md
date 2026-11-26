@@ -10,6 +10,12 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-26
 
+- **Customer tools `java_check_fmw.sh` and `check_fix_libzrc_glibc.sh`:** which
+  Java WebLogic / Reports / frmweb really use, a bent `oracle_common/jdk` and
+  every missing or versioned JDK path after a JDK switch; check and repair of
+  `libzrc.so.0` / the `libzrc.so` link (Forms relink after a Reports QPR on
+  OL9, KB873815)
+  ([tools/README.md](70-Customer-Projects/tools/README.md#java_check_fmwsh)).
 - **ORDS / APEX: third collector + third analysis:** `collect_ords_apex.sh`
   (read-only) finds every ORDS installation (standalone / Tomcat / WebLogic,
   systemd, stopped copies, configuration before ORDS 22), reads version,

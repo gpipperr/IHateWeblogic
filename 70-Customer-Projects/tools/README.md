@@ -52,6 +52,8 @@ runtime, never by a second copy of the script.
 |---|---|
 | [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only collection of the **state**: installed products, patch level (Oracle, Java, OS advisories, Nginx), performance (memory, load profile), security / quality of operation (Derby, FADS, certificates) – input of the patch analysis and, with the export, of the environment analysis |
 | [bash/collect_ords_apex.sh](#collect_ords_apexsh) | read-only collection of **ORDS / APEX** on the host (third collector): every ORDS installation (standalone / Tomcat / WebLogic / systemd / stopped), version, Java, pools + features (`ords config list`), APEX images version (`/i/`), web routes, security (listen address, SQL features, fixed auth headers, AJP, file users), logs of the last days aggregated – input of the ORDS / APEX analysis |
+| [bash/java_check_fmw.sh](#java_check_fmwsh) | read-only: which Java does WebLogic / Node Manager / Reports / frmweb really use, is the FMW-bundled JDK (`oracle_common/jdk`) intact or bent, which files pin a missing or versioned JDK path – what to adjust after a JDK switch |
+| [bash/check_fix_libzrc_glibc.sh](#check_fix_libzrc_glibcsh) | check (and with `--apply` repair) `lib/libzrc.so.0` / the link `libzrc.so` – the Forms relink after a Reports QPR on OL9 (MOS KB873815), leftovers of a failed Forms patch |
 | [bash/mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
 | [bash/clone_check_fmw.sh](#clone_check_fmwsh) | read-only: is the installation clone-capable (golden image) – sockets, WebLogic, Reports ORB, host name / IP in the domain, RCU repository, web tier |
 | [bash/fmw_patch_env.sh](#fmw_patch_envsh) | detect and set the variables of the manual patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) |
@@ -252,6 +254,58 @@ are listed as `software` / `software-used`.
 
 `collect_fmw_env.sh` (2026-11-26.2) only shows the fact `ORDS / APEX` and
 points to this collector. Windows (`collect_ords_apex.ps1`): open (TODO).
+
+## java_check_fmw.sh
+
+Standalone version of `02-Checks/java_check.sh` + `07-Maintenance/domain_jdk_path.sh`
+for customer hosts (2026-11-26) – after a JDK switch to a link, which part
+still uses the old directory? Read-only, no library.
+
+```bash
+./java_check_fmw.sh                      # ORACLE_HOME / DOMAIN_HOME detected
+./java_check_fmw.sh -o /app/oracle/mw -d /app/oracle/mw/user_projects/domains/fr_domain
+```
+
+| Section | Checks |
+|---|---|
+| 1 JDK of the configuration | `JAVA_HOME` of the shell, `oui/.globalEnv.properties` (WLST / OPatch), `setDomainEnv.sh`, `setNMJavaHome.sh`, `nodemanager.properties`, systemd units – missing (FAIL), link (OK) or versioned directory (WARN), version, Oracle JDK / OpenJDK |
+| 2 bundled JDK `oracle_common/jdk` | real directory or replaced by a link / another JDK ("bent"), version (14.1.2: Oracle JDK 17), `bin/java` + `lib/server/libjvm.so` present, links inside (outside `legal/`), files changed after its `release` file, copies next to it |
+| 3 Reports | `reports.sh` uses only `oracle_common/jdk` (another JDK path = edited by hand), engine `jvmOptions`, the `libjvm.so` loaded by the running `rwserver`, rwserver down |
+| 4 running processes | Node Manager, WebLogic servers, Reports engines, `frmweb` – JDK, version, vendor; `LD_PRELOAD` / `LD_LIBRARY_PATH` of a running `frmweb` |
+| 5 files with a JDK path | domain `bin/*.sh`, `nodemanager.properties`, `reports.sh`, Forms env files, `rwserver.conf`, Forms instance scripts, `startup.properties`, `oui/`, systemd units – variables resolved, missing JDK = FAIL, versioned directory = WARN, with file and line |
+
+Summary "what to adjust"; exit 0 / 1 (warnings) / 2 (failures).
+
+## check_fix_libzrc_glibc.sh
+
+The Reports QPR rebuilds `lib/libzrc.so.0` against the system glibc; on OL9
+every later Forms relink (`frmweb`, `dejvm`, Forms QPR) fails with
+`libzrc.so: undefined reference to dlsym@GLIBC_2.34` (MOS KB873815, Bug
+38892485; background: [06-oracle_patch_forms_reports.md](../../09-Install/docs/06-oracle_patch_forms_reports.md)).
+Standalone version of `_fix_libzrc_glibc` of `06-`.
+
+```bash
+./check_fix_libzrc_glibc.sh               # read-only check
+./check_fix_libzrc_glibc.sh --show        # check + print the manual repair commands for this home (changes nothing)
+./check_fix_libzrc_glibc.sh --apply       # repair (Forms / Reports of this home stopped)
+```
+
+- **Checks:** `lib/libzrc*` (the link `libzrc.so` -> `libzrc.so.0` – missing
+  breaks the Forms XML tools; `libzrc.so_back` = Oracle's KB873815 workaround
+  started), the GLIBC versions `libzrc.so.0` needs against `lib/stubs`, `ldd`
+  of `frmweb` / `libfrmjapi.so.0` / `rwserver` / `dejvm` (static `frmweb` after
+  the workaround, `dejvm` missing), Forms patches in `inventory/oneoffs` not in
+  `opatch lspatches`, OPatch logs with the relink error (history: when).
+- **`--apply`:** backup `libzrc.so.0.glibc_<ts>`, rebuild from `lib/libzrc.a`
+  against `lib/stubs` (`dlsym@GLIBC_2.2.5`, restored on failure), create the
+  missing link; refuses while a `frmweb` / `rwserver` of this home runs. The
+  relink of `dejvm` / `frmweb` is printed, not run.
+- **`--show`:** for a customer who repairs by hand – the same steps as
+  commands for this home, one per line with `# Expected:`: stop check,
+  backup, rebuild + `nm` check, link, (leftover oneoffs moved away), relink
+  `dejvm` / `frmweb`, `ldd` check, the check run again, the way back.
+- Needs `nm` / `readelf` (binutils), for `--apply` `ar` + `gcc`. Tested on the
+  test host (check) and in an isolated copy of the home (repair).
 
 ## mos_patch_download.sh
 
