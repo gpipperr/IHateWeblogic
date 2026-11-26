@@ -372,6 +372,13 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## APEX / ORDS beside Forms
 
+- [ ] **ORDS / APEX cookbook CSPU Nov 2026 – first customer run**
+  ([OrdsApex_Patch_cspu_202611](70-Customer-Projects/OrdsApex_Patch_cspu_202611/README.md),
+  2026-11-26; only the read-only steps tested on the test host): does
+  `ords install --db-only --admin-user "SYS AS SYSDBA"` without
+  `--password-stdin` ask only for the SYS password; the unit name and the path
+  place (unit / drop-in or `/etc/ords.conf` of Oracle's `ords.sh`); the real
+  `catpatch.sql` output for the `# Erwartet:` lines.
 - [ ] APEX / ORDS follow-ups: `12-APEX-Ords/07-check-ords-apex-security.sh`
   (what applications bring in: open REST catalogs `auto_rest_auth`, workspace
   schema profile / tablespace, public REST modules, feature drift – see the
@@ -514,6 +521,8 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
 - [ ] **Watch MOS KB873815 / Bug 38892485** (Forms relink fails after a
   Reports QPR on OL9, `libzrc.so` vs. glibc 2.34): workaround in
   `06-oracle_patch_forms_reports.sh` stays until Oracle ships a fix.
+  Customer tool `check_fix_libzrc_glibc.sh` (2026-11-26, check / `--show` /
+  `--apply`): first `--apply` on a real broken customer home still open.
 - [ ] **Watch Bug 39868225 / MOS KB924687** (REP-50125 NullPointerException
   in `Utility.getOrbProperties` after Reports QPR 39600348): our
   `-DORBWaitForResponseTimeout` in `REPORTS_JVM_OPTIONS` (`13-`, since

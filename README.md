@@ -595,6 +595,10 @@ IHateWeblogic/
     │   ├── README.md                     – 14.1.2 patch set CPU Oct 2026: test-host inventory,
     │   │                                     facts of every patch README
     │   └── install_14c_patch_set_october_2026_manual.md – manual step-by-step guide of that cycle
+    ├── OrdsApex_Patch_cspu_202611/   – ORDS 26.3.1 + APEX 26.2.1 (patch 40040466) from the application
+    │   │                                   server, standalone ORDS (German cookbook)
+    │   ├── README.md
+    │   └── ORDS_APEX_Patch_Kochbuch_CSPU_Nov2026_de.txt
     ├── customer-analyse/             – not in this repository: analysis scripts / templates (private
     │                                     repository) + local customer data (never committed)
     ├── tools/
@@ -615,11 +619,22 @@ IHateWeblogic/
     │   │   ├── status.sh, show_log.sh,       – operation: status in three stages, logs, error lines
     │   │   │   show_errors.sh, show_all_logs.sh
     │   │   ├── clean_domain_tmp.sh           – delete servers/*/tmp + cache of the stopped domain (rebuilt at the next start)
+    │   │   ├── collect_ords_apex.sh          – third read-only collector: ORDS / APEX instances, versions,
+    │   │   │                                     config (masked), /i/, web tier, logs, security
+    │   │   ├── java_check_fmw.sh             – which Java WebLogic / Reports / frmweb use, bent bundled JDK,
+    │   │   │                                     versioned JDK paths left after a switch
+    │   │   ├── check_fix_libzrc_glibc.sh     – libzrc.so vs. glibc 2.34 (Forms relink after Reports QPR):
+    │   │   │                                     check, --show (manual commands), --apply (rebuild)
+    │   │   ├── create_server_cert_from_pfx.sh – server certificate from a customer PFX
+    │   │   ├── update_tools_from_git.sh      – self-update of $ORACLE_BASE/tools (show / --apply / --zip)
     │   │   └── ihw_tools_lib.sh              – shared functions of the tools (parsers, unpack, lights)
     │   └── powershell/                   – MS Windows Server hosts (PowerShell 5.1 / 7), same output as bash
     │       ├── README.md
     │       ├── collect_fmw_env.ps1           – read-only collector (services, registry, CIM), secrets masked
     │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
+    │       ├── export_forms_reports_conf.ps1 – export of the Forms/Reports configuration (Windows)
+    │       ├── java_check_fmw.ps1            – Java / link check (services, junctions, jvm.dll)
+    │       ├── update_tools_from_git.ps1     – self-update of the tools directory
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check
     └── Reports14_linux_manual_install/
