@@ -68,6 +68,7 @@ _files_windows() {
         case "$f" in *.md) printf '%s;tools/doc/%s;644\n' "$f" "$(basename "$f")" ;;
                      *)    printf '%s;tools/%s;644\n' "$f" "$(basename "$f")" ;; esac
     done
+    printf '%s;tools/doc/Start_beim_Kunden_Windows_Kochbuch_de.txt;644\n' "$PROJ/Start_beim_Kunden_Windows_Kochbuch_de.txt"
 }
 
 # --sources: one repository-relative path per line (all files of both ZIPs)

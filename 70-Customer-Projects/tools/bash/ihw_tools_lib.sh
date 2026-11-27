@@ -16,7 +16,7 @@
 # License  : Apache 2.0
 # =============================================================================
 
-IHWT_LIB_VERSION="2026-11-26.1"
+IHWT_LIB_VERSION="2026-11-27.1"
 ihwt_lib_version() { printf '%s' "$IHWT_LIB_VERSION"; }
 
 # -----------------------------------------------------------------------------
@@ -1462,6 +1462,8 @@ ihwt_ords_find() {
     # 1. processes
     for p in $(pgrep -f 'ords\.war|oracle\.dbtools\.launcher|bin/ords|catalina\.startup\.Bootstrap|weblogic\.Server' 2>/dev/null); do
         a="$(cat "/proc/$p/cmdline" 2>/dev/null | tr '\0' '\n')"; [ -n "$a" ] || continue
+        # only the JVM - not a shell / editor whose command line mentions ords.war
+        case "$(basename "${a%%$'\n'*}")" in java*) ;; *) continue ;; esac
         usr="$(ps -o user= -p "$p" 2>/dev/null | tr -d ' ')"
         unit="$(sed -n 's#.*/\([^/]*\.service\)$#\1#p' "/proc/$p/cgroup" 2>/dev/null | head -1)"
         ports="$(ss -Hltnp 2>/dev/null | awk -v p="pid=$p," 'index($0, p) {n=split($4, x, ":"); print x[n]}' | sort -un | paste -sd, -)"

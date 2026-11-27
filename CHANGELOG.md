@@ -8,6 +8,25 @@ description: "Changelog of the IHateWeblogic library for Oracle Forms & Reports 
 What was finished when, newest first. Moved out of the README on 2026-11-04;
 details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpipperr/IHateWeblogic/blob/main/TODO.md).
 
+## 2026-11-27
+
+- **Windows part of the customer tools reviewed and completed**
+  ([tools/powershell/README.md](70-Customer-Projects/tools/powershell/README.md#tested--and-what-is-not)):
+  - new `collect_ords_apex.ps1`, the Windows twin of the third collector: NSSM / WinSW /
+    Procrun services, quoted Windows command lines, Windows Firewall rules; same files and
+    lines as bash, so the ORDS analysis reads it unchanged;
+  - `collect_fmw_env.ps1` shows the `ORDS / APEX` fact;
+  - all eight scripts run with pwsh 7.7 on the test host against the bash results, plus a
+    static PS 5.1 check with the PowerShell parser;
+  - fixed: the home search without `ORACLE_HOME` (`Join-Path ""` threw), slow key derivation
+    on .NET before 4.7.2 (now C# through `Add-Type`), `@REM` lines and junction targets in
+    `java_check_fmw.ps1`, version of `fmw_patch_env.ps1` in the ZIP;
+  - bash `collect_ords_apex.sh` 2026-11-27.1: only the JVM counts as an ORDS process, secret
+    keys masked in `cfg;` lines, commented-out AJP connectors ignored and `secret=` masked;
+  - German cookbook for the first Windows customer:
+    [Start_beim_Kunden_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_Windows_Kochbuch_de.txt)
+    (also in the Windows ZIP).
+
 ## 2026-11-26
 
 - **ORDS / APEX cookbook CSPU Nov 2026**

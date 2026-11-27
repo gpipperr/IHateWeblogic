@@ -286,23 +286,34 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   cover it (TCP listen ports + Derby only) - only point to the new tool
   there. Optional `--set-port N --apply`: change the port in every
   `rwnetwork.conf` (backup) like cookbook step D.5.
-- [ ] **`java_check_fmw.ps1` on a real Windows Server** (2026-11-26, tested
-  only with pwsh on Linux): Node Manager service parameters in the
-  registry, junction detection, `jvm.dll` of `rwserver.exe`, `reports.cmd`
-  vs. `reports.bat`.
-- [ ] **ORDS / APEX collector – open points** (`collect_ords_apex.sh`
-  2026-11-26.1, tested on the test host standalone ORDS 26.3.1 + fakes):
-  Windows version `collect_ords_apex.ps1` (Tomcat / service); a live Tomcat
-  and a WebLogic-deployed ORDS at a customer; verify against the ORDS support
-  matrix in which release AJP / Tomcat 9 support ends (the analysis says
-  "newer setups do not offer AJP" until then); client addresses behind the
-  proxy come only from the web server log (ORDS sees the proxy) – maybe
-  aggregate the `/ords/` lines of the Nginx / Apache access log too.
-- [ ] **Forms runtime crashes – Windows host test** (`collect_fmw_env.ps1`
-  2026-11-24.1, tested only with pwsh on Linux): does `frmweb.exe` write
-  `frmweb_dump_<pid>` with the same name / format on Windows, and is the
-  `PATH` check (jvm.dll) right there? Also open: MOS search pattern for the
-  top frames (`ifz*` / `kgh*` + call stack signature) in the analysis text.
+- [ ] **First Windows customer run of the PowerShell tools** (review
+  2026-11-27: all eight scripts with pwsh 7.7 on Linux, static PS 5.1 check,
+  results equal to bash; procedure + test points in
+  [Start_beim_Kunden_Windows_Kochbuch_de.txt](70-Customer-Projects/Start_beim_Kunden_Windows_Kochbuch_de.txt)).
+  Only a real Windows Server shows:
+  - Windows PowerShell 5.1 itself, `Read-Host -AsSecureString`, the
+    `Add-Type` PBKDF2 path on .NET 4.6.2 (Server 2016);
+  - `java_check_fmw.ps1`: Node Manager service parameters in the registry,
+    junction detection, `jvm.dll` of `rwserver.exe`, `reports.cmd` vs.
+    `reports.bat`;
+  - Forms crashes: does `frmweb.exe` write `frmweb_dump_<pid>` on Windows, and
+    which text does `formsapp-diagnostic*.log` show for a crashed runtime (no
+    signals on Windows - the collector counts "is terminating due to signal")?
+    Then extend the pattern; also the `PATH` check (jvm.dll);
+  - `collect_ords_apex.ps1`: ORDS as NSSM / WinSW service (parent chain
+    java -> cmd -> nssm), Tomcat Procrun service + registry options,
+    Windows Firewall rules;
+  - CIM / registry / event log / IIS / ACL parts of collector and export.
+  Also open: MOS search pattern for the top frames (`ifz*` / `kgh*` + call
+  stack signature) in the analysis text.
+- [ ] **ORDS / APEX collector – open points** (`collect_ords_apex.sh` /
+  `.ps1` 2026-11-27.1, tested on the test host standalone ORDS 26.3.1 +
+  fakes): a live Tomcat and a WebLogic-deployed ORDS at a customer; verify
+  against the ORDS support matrix in which release AJP / Tomcat 9 support
+  ends (the analysis says "newer setups do not offer AJP" until then);
+  client addresses behind the proxy come only from the web server log (ORDS
+  sees the proxy) – maybe aggregate the `/ords/` lines of the Nginx / Apache
+  access log too.
 - [ ] **Java4Shell (CVE-2026-114938) on the bundled JDK 17.0.12** – the
   mitigation `-XX:-UseBASE64Intrinsics` is in `13-` / `engine_perf_settings.sh`
   and checked by `java_check.sh` (2026-11-18, every bundled JDK 11+, no CPU

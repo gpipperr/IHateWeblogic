@@ -20,7 +20,7 @@
 # License  : Apache 2.0
 #==============================================================================
 
-$IHWT_PS_LIB_VERSION = "2026-11-24.1"
+$IHWT_PS_LIB_VERSION = "2026-11-27.1"
 $IHWT_ON_WINDOWS = ([Environment]::OSVersion.Platform -eq 'Win32NT')
 $IHWT_ENC_OPTS = "-aes-256-cbc -pbkdf2 -iter 200000 -md sha256"
 $IHWT_WT_HEAD = "type;conf;listen;server_name;tls;protocols;path;target;access;cert"
@@ -58,7 +58,8 @@ function ihwt-fact   { param([string] $Key, [string] $Value) ihwt-append-file $I
 function ihwt-say    { param([string] $Text) Write-Host "  $Text" }
 function ihwt-isdir  { param([string] $p) return ($p -and (Test-Path -LiteralPath $p -PathType Container)) }
 function ihwt-prop   { param([string] $v) return ($v -replace '\\:', ':' -replace '\\\\', '\') }
-function ihwt-jp     { param([string[]] $Parts) $p = $Parts[0]; for ($i = 1; $i -lt $Parts.Count; $i++) { $p = Join-Path $p $Parts[$i] }; return $p }
+# (an empty first part gives "" - Join-Path throws on an empty path, e.g. no DOMAIN_HOME)
+function ihwt-jp     { param([string[]] $Parts) if (-not $Parts -or -not $Parts[0]) { return "" }; $p = $Parts[0]; for ($i = 1; $i -lt $Parts.Count; $i++) { $p = Join-Path $p $Parts[$i] }; return $p }
 
 # ihwt-runps FILE TITLE { scriptblock } - PowerShell output, masked
 function ihwt-runps {
@@ -176,7 +177,32 @@ function _ihwt-pbkdf2 {
     try {
         $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Pass, $Salt, $Iter, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
         $r = $kdf.GetBytes($Len); $kdf.Dispose(); return ,$r
+    } catch { }
+    # .NET Framework before 4.7.2 (Windows Server 2016: 4.6.2) has no SHA-256
+    # PBKDF2: the same algorithm compiled once with Add-Type (seconds), the
+    # pure PowerShell loop only when Add-Type is blocked (constrained language)
+    try {
+        if (-not ('IhwtPbkdf2' -as [type])) {
+            Add-Type -ErrorAction Stop -TypeDefinition @"
+public static class IhwtPbkdf2 {
+    public static byte[] Derive(byte[] pass, byte[] salt, int iter, int len) {
+        var h = new System.Security.Cryptography.HMACSHA256(pass);
+        byte[] outp = new byte[len]; int pos = 0;
+        for (int i = 1; pos < len; i++) {
+            byte[] ib = System.BitConverter.GetBytes(i); System.Array.Reverse(ib);
+            byte[] s = new byte[salt.Length + 4]; System.Array.Copy(salt, s, salt.Length); System.Array.Copy(ib, 0, s, salt.Length, 4);
+            byte[] u = h.ComputeHash(s); byte[] t = (byte[])u.Clone();
+            for (int j = 1; j < iter; j++) { u = h.ComputeHash(u); for (int k = 0; k < t.Length; k++) t[k] ^= u[k]; }
+            int n = System.Math.Min(t.Length, len - pos); System.Array.Copy(t, 0, outp, pos, n); pos += n;
+        }
+        h.Dispose(); return outp;
+    }
+}
+"@
+        }
+        return ,([IhwtPbkdf2]::Derive($Pass, $Salt, $Iter, $Len))
     } catch {
+        Write-Host "  key derivation in PowerShell (old .NET, Add-Type blocked) - about 1 minute ..." -ForegroundColor Yellow
         $h = New-Object System.Security.Cryptography.HMACSHA256(,$Pass)
         $out = New-Object byte[] $Len; $blocks = [math]::Ceiling($Len / 32); $pos = 0
         for ($i = 1; $i -le $blocks; $i++) {
@@ -826,12 +852,12 @@ function ihwt-os-advisories {
 function ihwt-find-homes {
     param([string] $OracleHome, [string] $DomainHome, $Procs = $null)
     if ($null -eq $Procs) { $Procs = ihwt-procs }
-    if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) {
+    if (-not (ihwt-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" })))) {
         $OracleHome = ""
         foreach ($p in $Procs) {
             if ("$($p.CommandLine)" -match '-Dweblogic\.home="?([^"\s]+?)[\\/]wlserver[\\/]server') { $OracleHome = $Matches[1]; break }
         }
-        if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch")) -and $IHWT_ON_WINDOWS) {
+        if (-not (ihwt-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" }))) -and $IHWT_ON_WINDOWS) {
             $OracleHome = ""
             foreach ($k in @(Get-ChildItem -LiteralPath "HKLM:\SOFTWARE\Oracle" -ErrorAction SilentlyContinue)) {
                 $v = (Get-ItemProperty -LiteralPath $k.PSPath -Name ORACLE_HOME -ErrorAction SilentlyContinue).ORACLE_HOME
@@ -852,7 +878,7 @@ function ihwt-find-homes {
             }
         }
     }
-    if (-not (ihwt-isdir (Join-Path "$OracleHome" "OPatch"))) { $OracleHome = "" }
+    if (-not (ihwt-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" })))) { $OracleHome = "" }
     if (-not $DomainHome -and $OracleHome -and (Test-Path -LiteralPath (Join-Path $OracleHome "domain-registry.xml"))) {
         $m = Select-String -LiteralPath (Join-Path $OracleHome "domain-registry.xml") -Pattern 'location="([^"]*)"' | Select-Object -First 1
         if ($m) { $DomainHome = $m.Matches[0].Groups[1].Value }
@@ -1749,4 +1775,255 @@ function ihwt-frmweb-dump {
     $c = { param($v) if ($v) { $v -replace ';', ',' } else { "-" } }
     return ("frmweb_dump;{0};{1};{2};{3};{4};{5};{6};{7}" -f $f, $it.LastWriteTime.ToString('yyyy-MM-dd HH:mm'), $it.Length,
             (& $c $fbf), (& $c $lt), $(if ($fr.Count) { $kind } else { "-" }), (& $c ($top -join '>')), (& $c $sig))
+}
+
+#------------------------------------------------------------------------------
+# ORDS / APEX discovery (collect_ords_apex.ps1, fact in collect_fmw_env.ps1) -
+# the twin of the bash functions ihwt_ords_war_version / ihwt_apex_version /
+# _ihwt_ords_cfgval / ihwt_ords_find, same line format
+#------------------------------------------------------------------------------
+# ihwt-ords-war-version WAR - ORDS version from the jar names in WEB-INF/lib
+# (ords.war file or an exploded directory)
+function ihwt-ords-war-version {
+    param([string] $War)
+    $names = @()
+    if (ihwt-isdir $War) {
+        $names = @(Get-ChildItem -LiteralPath (ihwt-jp @($War, "WEB-INF", "lib")) -File -ErrorAction SilentlyContinue | ForEach-Object { "WEB-INF/lib/$($_.Name)" })
+    } elseif ($War -and (Test-Path -LiteralPath $War -PathType Leaf)) {
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+            $z = [System.IO.Compression.ZipFile]::OpenRead($War)
+            try { $names = @($z.Entries | ForEach-Object { $_.FullName }) } finally { $z.Dispose() }
+        } catch { return "" }
+    }
+    $c = @{}
+    foreach ($n in $names) {
+        $m = [regex]::Match($n, '^WEB-INF/lib/ords-[a-z-]+-(\d+\.\d+\.\d+\.\d+\.\d+)\.jar$')
+        if ($m.Success) { $v = $m.Groups[1].Value; if ($c.ContainsKey($v)) { $c[$v]++ } else { $c[$v] = 1 } }
+    }
+    if (-not $c.Count) { return "" }
+    return "$(($c.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 1).Key)"
+}
+# ihwt-apex-version DIR - APEX version of an images directory (apex_version.txt)
+function ihwt-apex-version {
+    param([string] $Dir)
+    foreach ($l in (_ihwt-lines (Join-Path $Dir "apex_version.txt"))) { if ($l -match 'Version:\s*([0-9][0-9.]*)') { return $Matches[1] } }
+    return ""
+}
+# ihwt-ords-cfgval CONFIGDIR KEY [FILE] - value of an entry of global\settings.xml
+function ihwt-ords-cfgval {
+    param([string] $Cfg, [string] $Key, [string] $File = "")
+    if (-not $Cfg -or $Cfg -eq '-') { return "" }
+    if (-not $File) { $File = ihwt-jp @($Cfg, "global", "settings.xml") }
+    foreach ($l in (_ihwt-lines $File)) { $m = [regex]::Match($l, '<entry key="' + [regex]::Escape($Key) + '">([^<]*)</entry>'); if ($m.Success) { return $m.Groups[1].Value } }
+    return ""
+}
+# ihwt-ords-entries FILE - all "key;value" entries of an ORDS xml file
+function ihwt-ords-entries {
+    param([string] $File)
+    return @(_ihwt-lines $File | ForEach-Object { $m = [regex]::Match($_, '<entry key="([^"]*)">([^<]*)</entry>'); if ($m.Success) { "$($m.Groups[1].Value);$($m.Groups[2].Value)" } })
+}
+# _ihwt-argv TEXT - tokens of a command line, quotes removed ("C:\a b\x.war")
+function _ihwt-argv {
+    param([string] $Text)
+    return @([regex]::Matches("$Text", '(?:[^\s"]+|"[^"]*")+') | ForEach-Object { $_.Value -replace '"', '' })
+}
+function _ihwt-argval { param([string[]] $A, [string] $Prefix) foreach ($t in $A) { if ($t.StartsWith($Prefix)) { return $t.Substring($Prefix.Length) } }; return "" }
+function _ihwt-argnext { param([string[]] $A, [string] $Key) for ($i = 0; $i -lt $A.Count - 1; $i++) { if ($A[$i] -eq $Key) { return $A[$i + 1] } }; return "" }
+# _ihwt-owner PATH - owner of a file (Windows ACL owner / stat on Linux)
+function _ihwt-owner {
+    param([string] $P)
+    try {
+        if ($IHWT_ON_WINDOWS) { return "$((Get-Acl -LiteralPath $P -ErrorAction Stop).Owner)" }
+        return "$(& stat -c %U $P 2>$null)".Trim()
+    } catch { return "-" }
+}
+# ihwt-ords-svc-text SERVICE - everything that tells how a Windows service
+# starts ORDS / Tomcat: PathName, NSSM parameters (Application, AppParameters,
+# AppDirectory, AppEnvironmentExtra, AppStdout / AppStderr), Procrun (Tomcat
+# service: Java options, Jvm, StartPath, LogPath), WinSW (<exe>.xml)
+function ihwt-ords-svc-text {
+    param($Svc)
+    if (-not $Svc) { return "" }
+    $t = New-Object System.Collections.Generic.List[string]
+    $t.Add("PathName=$($Svc.PathName)"); $t.Add("StartName=$($Svc.StartName)"); $t.Add("StartMode=$($Svc.StartMode)"); $t.Add("State=$($Svc.State)")
+    if (-not $IHWT_ON_WINDOWS) { return ($t -join "`n") }
+    $np = "HKLM:\SYSTEM\CurrentControlSet\Services\$($Svc.Name)\Parameters"
+    $n = Get-ItemProperty -LiteralPath $np -ErrorAction SilentlyContinue
+    if ($n) { foreach ($k in @('Application', 'AppParameters', 'AppDirectory', 'AppEnvironmentExtra', 'AppEnvironment', 'AppStdout', 'AppStderr')) { if ($n.PSObject.Properties[$k]) { $t.Add("nssm.$k=$((@($n.$k)) -join ' ')") } } }
+    foreach ($b in @("HKLM:\SOFTWARE\WOW6432Node\Apache Software Foundation\Procrun 2.0\$($Svc.Name)\Parameters", "HKLM:\SOFTWARE\Apache Software Foundation\Procrun 2.0\$($Svc.Name)\Parameters")) {
+        foreach ($s in @('Java', 'Start', 'Log')) {
+            $r = Get-ItemProperty -LiteralPath "$b\$s" -ErrorAction SilentlyContinue
+            if (-not $r) { continue }
+            foreach ($pp in @($r.PSObject.Properties | Where-Object { $_.Name -notmatch '^PS' })) { $t.Add("procrun.$s.$($pp.Name)=$((@($pp.Value)) -join ' ')") }
+        }
+    }
+    $exe = ""; $m = [regex]::Match("$($Svc.PathName)", '^\s*"?([^"]+?\.exe)'); if ($m.Success) { $exe = $m.Groups[1].Value }
+    if ($exe) { $x = [IO.Path]::ChangeExtension($exe, ".xml"); if (Test-Path -LiteralPath $x) { $t.Add("winsw.xml=$x"); foreach ($l in (_ihwt-lines $x)) { $t.Add("winsw: $($l.Trim())") } } }
+    return ($t -join "`n")
+}
+# _ihwt-ords-parse TEXT - home / war / config / catalina.base / weblogic root of a
+# command line or service text
+function _ihwt-ords-parse {
+    param([string] $Text)
+    $a = _ihwt-argv $Text
+    $cfg = _ihwt-argnext $a "--config"; if (-not $cfg) { $cfg = _ihwt-argval $a "-Dconfig.url=" }
+    $hm = _ihwt-argval $a "-Doracle.dbtools.cmdline.home="
+    $war = _ihwt-argnext $a "-jar"; if ($war -notmatch '\.war$') { $war = "" }
+    if (-not $war) { $w = @($a | Where-Object { $_ -match '(?i)ords[^\\/]*\.war$' }); if ($w.Count) { $war = $w[0] } }
+    if (-not $hm) { $b = @($a | Where-Object { $_ -match '(?i)[\\/]bin[\\/]ords(\.cmd|\.bat)?$' }); if ($b.Count) { $hm = Split-Path -Parent (Split-Path -Parent $b[0]) } }
+    if (-not $war -and $hm) { $war = [IO.Path]::Combine($hm, "ords.war") }   # no Join-Path: a drive that does not exist (service of a removed disk) throws
+    return @{ Cfg = $cfg; Home = $hm; War = $war; Base = (_ihwt-argval $a "-Dcatalina.base="); Root = (_ihwt-argval $a "-Dweblogic.RootDirectory="); DomHome = (_ihwt-argval $a "-Ddomain.home=") }
+}
+# _ihwt-tomcat-ords BASE TEXT - ords web application + config dir of a Tomcat
+function _ihwt-tomcat-ords {
+    param([string] $Base, [string] $Text)
+    $war = ""
+    foreach ($w in @(Get-ChildItem -LiteralPath (Join-Path $Base "webapps") -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^ords.*\.war$' -or ($_.PSIsContainer -and $_.Name -eq 'ords') })) { $war = $w.FullName; break }
+    $cfg = (_ihwt-ords-parse $Text).Cfg
+    if (-not $cfg) {
+        foreach ($f in @((ihwt-jp @($Base, "bin", "setenv.bat")), (ihwt-jp @($Base, "bin", "setenv.sh")))) {
+            foreach ($l in (_ihwt-lines $f)) { $m = [regex]::Match($l, 'config\.url=([^\s"]+)'); if ($m.Success) { $cfg = $m.Groups[1].Value; break } }
+            if ($cfg) { break }
+        }
+    }
+    if (-not $cfg) {
+        foreach ($f in @(Get-ChildItem -Path (ihwt-jp @($Base, "conf", "Catalina", "*", "ords*.xml")) -File -ErrorAction SilentlyContinue)) {
+            $m = [regex]::Match([IO.File]::ReadAllText($f.FullName), 'name="config\.url"[^>]*value="([^"]+)"'); if ($m.Success) { $cfg = $m.Groups[1].Value; break }
+        }
+    }
+    return @{ War = $war; Cfg = $cfg }
+}
+# ihwt-ords-find [PROCS] [EXTRA] - every ORDS installation of the host, one line each:
+#   ords;<id>;<mode>;<home>;<war>;<config>;<pid>;<unit>;<user>;<ports>
+#   modes as bash: standalone | tomcat | weblogic | standalone-stopped |
+#   tomcat-stopped | not-running | old-layout | software | software-used
+#   Windows: processes (Win32_Process command line: java -jar ords.war serve,
+#   ords.cmd, Tomcat Bootstrap or Procrun TomcatN.exe //RS//, weblogic.Server),
+#   the Windows service of the process or one of its parents (NSSM / WinSW /
+#   cmd wrapper), services not running (name / path *ords* or a Tomcat with an
+#   ords web application), a bounded search below Oracle / ORDS / Tomcat
+#   directories of every fixed drive. Linux (test run): processes + cgroup unit
+#   + the bounded find. "unit" = Windows service name (or systemd unit).
+function ihwt-ords-find {
+    param($Procs = $null, [string[]] $Extra = @())
+    if ($null -eq $Procs) { $Procs = ihwt-procs }
+    $out = New-Object System.Collections.Generic.List[string]
+    $seen = @{}; $wars = @{}
+    $byPid = @{}; foreach ($p in $Procs) { $byPid[[int]$p.ProcessId] = $p }
+    $svcs = @(); if ($IHWT_ON_WINDOWS) { $svcs = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue) }
+    $svcByPid = @{}; foreach ($s in $svcs) { if ($s.ProcessId) { $svcByPid[[int]$s.ProcessId] = $s } }
+    $lports = @(ihwt-listen-ports)
+    $rp = { param($x) if (-not $x -or $x -eq '-') { return "" }; return (ihwt-realpath $x).ToLower() }
+    $emit = {
+        param($mode, $hm, $war, $cfg, $pidv, $unit, $user, $ports)
+        $k = & $rp $(if ($cfg) { $cfg } else { $war })
+        if ($mode -like 'software*') { $k = (& $rp $war) + "#sw" }
+        if ($seen.ContainsKey($k)) { return }
+        $seen[$k] = 1
+        if ($war -and $mode -notlike 'software*') { $wars[(& $rp $war)] = 1 }
+        $id = "$unit" -replace '\.service$', ''; if ($id -match '@(.+)$') { $id = $Matches[1] }
+        if (-not $id -or $id -eq '-') { $id = $(if ($cfg) { Split-Path -Leaf (Split-Path -Parent $cfg) } elseif ($hm) { Split-Path -Leaf $hm } else { "x" }) }
+        $f = @($id, $mode, $hm, $war, $cfg, $pidv, $unit, $user, $ports) | ForEach-Object { if ("$_") { "$_" -replace ';', ',' } else { "-" } }
+        $out.Add("ords;" + ($f -join ';'))
+    }
+    # 1. processes
+    foreach ($p in @($Procs | Where-Object { "$($_.CommandLine)" -match '(?i)ords\.war|oracle\.dbtools\.launcher|[\\/]bin[\\/]ords|catalina\.startup\.Bootstrap|//RS//|weblogic\.Server' })) {
+        $cl = "$($p.CommandLine)"; $pidv = [int]$p.ProcessId
+        # only the JVM (or the Procrun service exe of a Tomcat) - not a shell / editor
+        # whose command line just mentions ords.war
+        $a0 = (@(_ihwt-argv $cl) + @("-"))[0] -replace '^.*[\\/]', ''
+        if ($a0 -notmatch '(?i)^(java|javaw)(\.exe)?$|^tomcat\d*w?\.exe$|^prunsrv') { continue }
+        $ps = _ihwt-ords-parse $cl
+        $unit = "-"; $user = "-"; $svc = $null
+        if ($IHWT_ON_WINDOWS) {
+            $q = $pidv
+            for ($i = 0; $i -lt 4 -and $q; $i++) { if ($svcByPid.ContainsKey($q)) { $svc = $svcByPid[$q]; break }; if ($byPid.ContainsKey($q)) { $q = [int]$byPid[$q].ParentProcessId } else { $q = 0 } }
+            if ($svc) { $unit = $svc.Name }
+            try { $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner -ErrorAction Stop; if ($o.User) { $user = "$($o.Domain)\$($o.User)" } } catch { }
+        } else {
+            try { $cg = [IO.File]::ReadAllText("/proc/$pidv/cgroup"); $m = [regex]::Match($cg, '/([^/\s]+\.service)\s*$', 'Multiline'); if ($m.Success) { $unit = $m.Groups[1].Value } } catch { }
+            $user = "$(& ps -o user= -p $pidv 2>$null)".Trim()
+        }
+        $ports = (@($lports | Where-Object { ($_ -split ';')[4] -eq "$pidv" } | ForEach-Object { ($_ -split ';')[2] }) | Sort-Object -Unique) -join ','
+        $svctext = $(if ($svc) { ihwt-ords-svc-text $svc } else { "" })
+        if ($cl -match 'catalina\.startup\.Bootstrap|//RS//') {
+            $base = $ps.Base
+            if (-not $base -and $svctext) { $base = (_ihwt-ords-parse $svctext).Base }
+            if (-not $base -and $p.ExecutablePath -and $cl -match '//RS//') { $base = Split-Path -Parent (Split-Path -Parent "$($p.ExecutablePath)") }
+            if (-not $base) { continue }
+            $t = _ihwt-tomcat-ords $base "$cl`n$svctext"
+            if (-not $t.War) { continue }
+            & $emit "tomcat" $base $t.War $t.Cfg $pidv $unit $user $ports
+        } elseif ($cl -match 'weblogic\.Server') {
+            $base = $ps.Root; if (-not $base) { $base = $ps.DomHome }
+            if (-not $base -and -not $IHWT_ON_WINDOWS) { try { $base = "$((Get-Item -LiteralPath "/proc/$pidv/cwd" -ErrorAction Stop).Target)" } catch { } }
+            if (-not $base) { continue }
+            $cx = ""; try { $cx = [IO.File]::ReadAllText((ihwt-jp @($base, "config", "config.xml"))) } catch { }
+            $m = [regex]::Match($cx, '<source-path>([^<]*ords[^<]*\.war)</source-path>'); if (-not $m.Success) { continue }
+            $cfg = $ps.Cfg
+            if (-not $cfg) { foreach ($f in @("setUserOverrides.cmd", "setUserOverrides.sh", "setDomainEnv.cmd", "setDomainEnv.sh")) { foreach ($l in (_ihwt-lines (ihwt-jp @($base, "bin", $f)))) { $mm = [regex]::Match($l, 'config\.url=([^\s"]+)'); if ($mm.Success) { $cfg = $mm.Groups[1].Value; break } }; if ($cfg) { break } } }
+            & $emit "weblogic" $base $m.Groups[1].Value $cfg $pidv $unit $user $ports
+        } else {
+            if (-not ($ps.War + $ps.Cfg)) { continue }
+            & $emit "standalone" $ps.Home $ps.War $ps.Cfg $pidv $unit $user $ports
+        }
+    }
+    # 2. Windows services that do not run (ORDS standalone wrapper or Tomcat with ORDS)
+    foreach ($s in @($svcs | Where-Object { $_.State -ne 'Running' -and "$($_.Name) $($_.DisplayName) $($_.PathName)" -match '(?i)ords|tomcat' })) {
+        $tx = ihwt-ords-svc-text $s; $ps = _ihwt-ords-parse $tx
+        if ("$($s.Name) $($s.PathName)" -match '(?i)tomcat') {
+            $base = $ps.Base; if (-not $base) { $m = [regex]::Match("$($s.PathName)", '^\s*"?([^"]+?)[\\/]bin[\\/][^\\/"]+\.exe'); if ($m.Success) { $base = $m.Groups[1].Value } }
+            if (-not $base) { continue }
+            $t = _ihwt-tomcat-ords $base $tx; if (-not $t.War) { continue }
+            & $emit "tomcat-stopped" $base $t.War $t.Cfg "-" $s.Name "$($s.StartName)" ""
+        } else {
+            if (-not ($ps.War + $ps.Cfg)) { continue }
+            & $emit "standalone-stopped" $ps.Home $ps.War $ps.Cfg "-" $s.Name "$($s.StartName)" (ihwt-ords-cfgval $ps.Cfg "standalone.http.port")
+        }
+    }
+    # 3. bounded search: installations that do not run (+ old configuration layout)
+    $roots = New-Object System.Collections.Generic.List[string]
+    if ($IHWT_ON_WINDOWS) {
+        foreach ($d in @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue)) {
+            $dr = "$($d.DeviceID)\"
+            foreach ($c in @(Get-ChildItem -LiteralPath $dr -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)oracle|ords|apex|^app|tomcat|apache|middleware|product|^u0\d|^srv$|^opt$' })) { $roots.Add($c.FullName) }
+            foreach ($pf in @("Program Files\Apache Software Foundation", "Program Files\Oracle", "Program Files (x86)\Apache Software Foundation")) { $x = Join-Path $dr $pf; if (ihwt-isdir $x) { $roots.Add($x) } }
+        }
+    } else {
+        foreach ($f in @("/u01", "/u02", "/opt", "/app", "/srv", "/oracle", "/etc/ords")) { if (ihwt-isdir $f) { $roots.Add($f) } }
+    }
+    foreach ($x in $Extra) { if (ihwt-isdir $x) { $roots.Add($x) } }
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $hits = New-Object System.Collections.Generic.List[string]
+    foreach ($r in $roots) {
+        if ($sw.Elapsed.TotalSeconds -gt 90) { break }
+        foreach ($f in @(Get-ChildItem -LiteralPath $r -Recurse -Depth 7 -File -Force -Include 'settings.xml', 'ords*.war', 'defaults.xml' -ErrorAction SilentlyContinue)) {
+            $fn = $f.FullName
+            if ($fn -match '(?i)[\\/](\.patch_storage|backup[^\\/]*|ConfigBackup)[\\/]') { continue }
+            if ($f.Name -eq 'settings.xml' -and $fn -notmatch '[\\/]global[\\/]settings\.xml$') { continue }
+            $hits.Add($fn)
+        }
+    }
+    foreach ($f in @($hits | Sort-Object -Unique)) {
+        $nm = Split-Path -Leaf $f
+        if ($nm -eq 'settings.xml') {
+            $cfg = Split-Path -Parent (Split-Path -Parent $f)
+            & $emit "not-running" "" "" $cfg "-" "-" (_ihwt-owner $f) (ihwt-ords-cfgval $cfg "standalone.http.port")
+        } elseif ($f -match '[\\/]webapps[\\/]ords[^\\/]*\.war$') {
+            $hm = Split-Path -Parent (Split-Path -Parent $f)
+            if ($wars.ContainsKey((& $rp $f))) { continue }
+            $port = ""; $sx = ""; try { $sx = [IO.File]::ReadAllText((ihwt-jp @($hm, "conf", "server.xml"))) } catch { }
+            foreach ($cm in [regex]::Matches($sx, '<Connector[^>]*>')) { if ($cm.Value -notmatch 'AJP') { $pm = [regex]::Match($cm.Value, 'port="(\d+)"'); if ($pm.Success) { $port = $pm.Groups[1].Value; break } } }
+            & $emit "tomcat-stopped" $hm $f "" "-" "-" (_ihwt-owner $f) $port
+        } elseif ($nm -eq 'ords.war') {
+            $mode = $(if ($wars.ContainsKey((& $rp $f))) { "software-used" } else { "software" })
+            $rf = ihwt-realpath $f   # a link dir (ords_1\ords -> ..\ords-<ver>): the real software dir
+            & $emit $mode (Split-Path -Parent $rf) $rf "" "-" "-" (_ihwt-owner $f) ""
+        } elseif ($nm -eq 'defaults.xml') {
+            $tx = ""; try { $tx = [IO.File]::ReadAllText($f) } catch { }
+            if ($tx -notmatch 'db\.|apex\.') { continue }
+            & $emit "old-layout" "" "" (Split-Path -Parent $f) "-" "-" (_ihwt-owner $f) ""
+        }
+    }
+    return $out.ToArray()
 }

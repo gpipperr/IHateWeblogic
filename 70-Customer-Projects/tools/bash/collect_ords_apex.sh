@@ -43,7 +43,7 @@
 
 set -u
 umask 077
-VERSION="2026-11-26.1"   # bump on every change – shown in 00_summary.txt
+VERSION="2026-11-27.1"   # bump on every change – shown in 00_summary.txt
 
 _IHWT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ihw_tools_lib.sh
@@ -82,6 +82,9 @@ SUM="$OUT/00_summary.txt"
 
 # --- helpers (as collect_fmw_env.sh) -------------------------------------------
 mask() { ihwt_mask; }
+# key;value[;source] lines: masked + every key that names a secret (old pool.xml
+# with db.password in clear text, before the wallet)
+mask_kv() { ihwt_mask | awk -F";" -v OFS=";" 'tolower($1) ~ /pass|secret|pwd|credential/ && $2 != "" {$2="***MASKED***"} {print}'; }
 runsh() {
     local f="$OUT/$1" t="$2" c="$3"
     { printf '### %s\n### $ %s\n' "$t" "$c"
@@ -194,7 +197,7 @@ for l in "${RUNI[@]}"; do
     if [ "$mode" = old-layout ]; then
         copy 30_config.txt "$cfg/defaults.xml"
         for f in "$cfg"/conf/*.xml; do copy 30_config.txt "$f"; done
-        sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/defaults.xml" 2>/dev/null | mask \
+        sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/defaults.xml" 2>/dev/null | mask_kv \
             | while IFS=';' read -r k v; do line 30_config.txt "cfg;$id;global;$k;$(nosemi "$v");file"; done
         continue
     fi
@@ -216,7 +219,7 @@ for l in "${RUNI[@]}"; do
             printf '%s\n' "$out" | awk '
                 /^-----/ { n=0; for (i=1; i<=length($0); i++) if (substr($0,i,1)=="-" && (i==1 || substr($0,i-1,1)==" ")) st[++n]=i; on=1; next }
                 on && NF >= 1 { k=substr($0, st[1], st[2]-st[1]); v=substr($0, st[2], st[3]-st[2]); s=substr($0, st[3])
-                    gsub(/^ +| +$/, "", k); gsub(/^ +| +$/, "", v); gsub(/^ +| +$/, "", s); if (k != "") print k ";" v ";" s }' | mask \
+                    gsub(/^ +| +$/, "", k); gsub(/^ +| +$/, "", v); gsub(/^ +| +$/, "", s); if (k != "") print k ";" v ";" s }' | mask_kv \
                 | while IFS=';' read -r k v s; do line 30_config.txt "cfg;$id;$pl;$k;$(nosemi "$v");$s"; done
         done
         uo="$(_ords_run "$j" "$home" "$war" "$cfg" config user list)"
@@ -224,10 +227,10 @@ for l in "${RUNI[@]}"; do
             | while IFS=';' read -r u r; do line 30_config.txt "user;$id;$u;$(nosemi "$r")"; done
     fi
     if ! $got; then   # files only: global + every pool, source = file
-        sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/global/settings.xml" 2>/dev/null | mask \
+        sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/global/settings.xml" 2>/dev/null | mask_kv \
             | while IFS=';' read -r k v; do line 30_config.txt "cfg;$id;global;$k;$(nosemi "$v");file"; done
         for pl in $pools; do
-            sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/databases/$pl/pool.xml" 2>/dev/null | mask \
+            sed -n 's#.*<entry key="\([^"]*\)">\([^<]*\)</entry>.*#\1;\2#p' "$cfg/databases/$pl/pool.xml" 2>/dev/null | mask_kv \
                 | while IFS=';' read -r k v; do line 30_config.txt "cfg;$id;$pl;$k;$(nosemi "$v");file"; done
         done
     fi
@@ -284,7 +287,7 @@ for _e in "${WT_FOUND[@]}"; do
 done
 rm -f "$OUT/.wt_flat"
 printf '### rc=0\n\n' >> "$WTR"
-fact "Web tier routes to ORDS" "$(grep -vc '^#' "$WTR" 2>/dev/null) (web servers: $(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort -u | paste -sd' ' -))"
+fact "Web tier routes to ORDS" "$(grep -c '^[^#]' "$WTR" 2>/dev/null) (web servers: $(printf '%s\n' "${WT_FOUND[@]}" | cut -d';' -f1 | sort -u | paste -sd' ' -))"
 
 # =============================================================================
 # 5. APEX images (/i/): web server static dirs, ORDS static path, Tomcat i/
@@ -326,8 +329,10 @@ for l in "${RUNI[@]}"; do
         tv="$(unzip -p "$home/lib/catalina.jar" org/apache/catalina/util/ServerInfo.properties 2>/dev/null | sed -n 's/^server\.number=//p')"
         [ -z "$tv" ] && tv="$(unzip -p "${CATALINA_HOME:-$home}/lib/catalina.jar" org/apache/catalina/util/ServerInfo.properties 2>/dev/null | sed -n 's/^server\.number=//p')"
         line 70_security.txt "tomcat;$id;version;${tv:-?}"
-        awk 'BEGIN{RS="<"} /^Connector/ && /AJP/ {gsub(/[\n\t]+/, " "); print "<" $0}' "$home/conf/server.xml" 2>/dev/null | grep -v '^<!--' \
-            | mask | while IFS= read -r x; do line 70_security.txt "ajp;tomcat;$id;$(nosemi "$x")"; done
+        # comments removed first (a commented-out AJP connector is no finding)
+        awk 'BEGIN{RS="^$"} { t=$0; o=""; while ((i=index(t, "<!--")) > 0) { o=o substr(t, 1, i-1); t=substr(t, i+4); j=index(t, "-->"); if (!j) {t=""; break}; t=substr(t, j+3) }; printf "%s", o t }' "$home/conf/server.xml" 2>/dev/null \
+            | awk 'BEGIN{RS="<"} /^Connector/ && /AJP/ {gsub(/[\n\t]+/, " "); sub(/>[^>]*$/, ">"); print "<" $0}' \
+            | sed -E 's/([Ss]ecret=")[^"]*/\1***MASKED***/' | mask | while IFS= read -r x; do line 70_security.txt "ajp;tomcat;$id;$(nosemi "$x")"; done
         n="$(grep -c '<user[^>]*password=' "$home/conf/tomcat-users.xml" 2>/dev/null)"
         line 70_security.txt "tomcatusers;$id;${n:-0}"
         copy 30_config.txt "$home/conf/server.xml"

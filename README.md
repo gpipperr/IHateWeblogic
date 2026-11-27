@@ -571,6 +571,7 @@ IHateWeblogic/
     ├── README.md
     ├── cookbook-Skill.md             – how a customer cookbook is written (style rules)
     ├── Start_beim_Kunden_kochbuch_de.txt – first steps at a customer (tools ZIP, setdb, ini)
+    ├── Start_beim_Kunden_Windows_Kochbuch_de.txt – the same on Windows Server (PowerShell tools)
     ├── FormsReports14_linux_localhost/ – knowledge base (English, anonymised): harden an existing
     │   │                                 domain to localhost
     │   ├── README.md                     – every place touched, symptom -> cause table
@@ -633,6 +634,7 @@ IHateWeblogic/
     │       ├── collect_fmw_env.ps1           – read-only collector (services, registry, CIM), secrets masked
     │       ├── fmw_patch_env.ps1             – cookbook variables (dot-source), running services
     │       ├── export_forms_reports_conf.ps1 – export of the Forms/Reports configuration (Windows)
+    │       ├── collect_ords_apex.ps1         – ORDS / APEX collector (NSSM / WinSW / Procrun services)
     │       ├── java_check_fmw.ps1            – Java / link check (services, junctions, jvm.dll)
     │       ├── update_tools_from_git.ps1     – self-update of the tools directory
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)

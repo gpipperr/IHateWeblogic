@@ -16,6 +16,10 @@ output.
 
 → [Start_beim_Kunden_kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt) (German, step by step)
 
+→ Windows Server: [Start_beim_Kunden_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_Windows_Kochbuch_de.txt)
+(German: Windows ZIP, Java check, collector, export, ORDS collector, test
+points of the first Windows run)
+
 Every customer engagement on Linux starts the same way, whatever the folder:
 
 1. **Tools:** one link – [`tools/ihw_customer_tools_linux.zip`](tools/ihw_customer_tools_linux.zip) (Windows:

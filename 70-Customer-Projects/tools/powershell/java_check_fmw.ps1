@@ -49,7 +49,7 @@ param(
     [switch] $Version
 )
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-26.1"   # bump on every change
+$SCRIPT_VERSION = "2026-11-27.1"   # bump on every change
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
 if (-not (Test-Path -LiteralPath $lib)) { Write-Host "ihw_tools_lib.ps1 missing next to $PSCommandPath" -ForegroundColor Red; exit 2 }
@@ -91,7 +91,7 @@ function _real {
     param([string] $p)
     try {
         $i = Get-Item -LiteralPath $p -Force -ErrorAction Stop
-        if ($i.LinkType) { $t = @($i.Target)[0]; if (-not [IO.Path]::IsPathRooted($t)) { $t = Join-Path (Split-Path -Parent $p) $t }; return (_real $t) }
+        if ($i.LinkType) { $t = @($i.Target)[0] -replace '^\\\?\?\\', ''; if (-not [IO.Path]::IsPathRooted($t)) { $t = Join-Path (Split-Path -Parent $p) $t }; return (_real $t) }
         $par = Split-Path -Parent $p
         if ($par -and $par -ne $p) { return (Join-Path (_real $par) (Split-Path -Leaf $p)) }
         return $p
@@ -224,7 +224,7 @@ if ($rsh) {
     $other = @(); $ln = 0
     foreach ($l in @(_ihwt-lines $rsh)) {
         $ln++
-        if ($l -match '^\s*(#|rem\s|::)') { continue }
+        if ($l -match '^\s*(#|@?rem(\s|$)|::)') { continue }   # also @REM of .cmd files
         if ($l -match '(?i)(jdk|jre|java)[^\\/\s]*[\\/]' -and $l -notmatch '(?i)oracle_common[\\/]jdk') { $other += "${ln}: $($l.Trim())" }
     }
     if ($other.Count) { warn "the reports script names another JDK than oracle_common\jdk (edited by hand?):"; $other | Select-Object -First 5 | ForEach-Object { info "  $_" }; fixit "$(Split-Path -Leaf $rsh): JDK path changed by hand ($(($other[0] -split ':')[0]))" }
@@ -298,7 +298,7 @@ foreach ($f in $files) {
     $ln = 0
     foreach ($l in @(_ihwt-lines $f)) {
         $ln++
-        if ($l -match '^\s*(#|rem\s|::)') { continue }
+        if ($l -match '^\s*(#|@?rem(\s|$)|::)') { continue }   # also @REM of .cmd files
         $x = $l -replace '%ORACLE_HOME%|\$\{ORACLE_HOME\}|\$ORACLE_HOME|\$\{MW_HOME\}', $ohf -replace '%DOMAIN_HOME%|\$\{DOMAIN_HOME\}|\$DOMAIN_HOME', $dhf
         $x = ihwt-fwd $x
         foreach ($m in [regex]::Matches($x, '(?:[A-Za-z]:)?(?:/[A-Za-z0-9._@ -]*[A-Za-z0-9._@-])+')) {

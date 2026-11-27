@@ -62,7 +62,7 @@ param(
 # No Set-StrictMode / exit at top level: the script is meant to be dot-sourced
 # (both would act on the caller's session).
 
-$fpe_version = "2026-11-03.2"   # bump on every change
+$FPE_VERSION = "2026-11-27.1"   # bump on every change
 $fpe_sourced = ($MyInvocation.InvocationName -eq '.')
 $fpe_rc = 0
 
@@ -94,12 +94,12 @@ function local-fpe-main {
 
     #--- ORACLE_HOME ----------------------------------------------------------
     $src_oh = "option / environment"
-    if (-not (local-isdir (Join-Path "$OracleHome" "OPatch"))) {
+    if (-not (local-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" })))) {
         $OracleHome = ""
         foreach ($c in $cmdlines) {
             if ($c -match '-Dweblogic\.home="?([^"\s]+?)[\\/]wlserver[\\/]server') { $OracleHome = $Matches[1]; $src_oh = "running WebLogic (-Dweblogic.home)"; break }
         }
-        if (-not (local-isdir (Join-Path "$OracleHome" "OPatch"))) {
+        if (-not (local-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" })))) {
             $OracleHome = ""
             foreach ($d in @("C:", "D:", "E:")) {
                 foreach ($s in @("\Oracle\Middleware\Oracle_Home", "\Oracle\Oracle_Home", "\Oracle\fmw", "\app\oracle\fmw", "\oracle\product\mw")) {
@@ -109,7 +109,7 @@ function local-fpe-main {
             }
         }
     }
-    if (-not (local-isdir (Join-Path "$OracleHome" "OPatch"))) { local-fail "ORACLE_HOME not found - use -OracleHome"; $OracleHome = "" }
+    if (-not (local-isdir ($(if ("$OracleHome") { Join-Path "$OracleHome" "OPatch" } else { "" })))) { local-fail "ORACLE_HOME not found - use -OracleHome"; $OracleHome = "" }
 
     #--- DOMAIN_HOME ----------------------------------------------------------
     $src_dh = "option / environment"
@@ -142,14 +142,14 @@ function local-fpe-main {
         }
     }
     if (-not $inv) {
-        foreach ($c in @((Join-Path "$OracleHome" "oraInst.loc"), "/etc/oraInst.loc")) {
+        foreach ($c in @(($(if ("$OracleHome") { Join-Path "$OracleHome" "oraInst.loc" } else { "" })), "/etc/oraInst.loc")) {
             if ($c -and (Test-Path -LiteralPath $c)) {
                 $l = Select-String -LiteralPath $c -Pattern '^inventory_loc=(.*)$' | Select-Object -First 1
                 if ($l) { $invptr = $c; $inv = $l.Matches[0].Groups[1].Value.Trim(); break }
             }
         }
     }
-    if (-not (local-isdir (Join-Path "$inv" "ContentsXML"))) { local-fail "central inventory not found (pointer: $(if ($invptr) { $invptr } else { 'none' }))" }
+    if (-not (local-isdir ($(if ("$inv") { Join-Path "$inv" "ContentsXML" } else { "" })))) { local-fail "central inventory not found (pointer: $(if ($invptr) { $invptr } else { 'none' }))" }
 
     #--- JDK of OPatch / the servers (.globalEnv.properties) -------------------
     $jdk = ""; $jdkv = ""; $jtype = ""
@@ -160,7 +160,7 @@ function local-fpe-main {
         if ($l) { $jdk = local-prop $l.Matches[0].Groups[1].Value.Trim() }
     }
     $java = ""
-    foreach ($j in @((Join-Path "$jdk" "bin\java.exe"), (Join-Path "$jdk" "bin/java"))) { if ($jdk -and (Test-Path -LiteralPath $j -PathType Leaf)) { $java = $j; break } }
+    foreach ($j in @(($(if ("$jdk") { Join-Path "$jdk" "bin\java.exe" } else { "" })), ($(if ("$jdk") { Join-Path "$jdk" "bin/java" } else { "" })))) { if ($jdk -and (Test-Path -LiteralPath $j -PathType Leaf)) { $java = $j; break } }
     if ($java) {
         $vout = (& $java -version 2>&1 | Out-String)
         if ($vout -match 'build ([^)]+)\)') { $jdkv = $Matches[1] }
@@ -209,7 +209,7 @@ function local-fpe-main {
     #--- facts the cookbook decides on ------------------------------------------
     Write-Host ""; Write-Host "Facts:"
     if ($java) { local-var "JDK" "$jdkv - $jtype" }
-    foreach ($bj in @((Join-Path "$OracleHome" "oracle_common\jdk\bin\java.exe"), (Join-Path "$OracleHome" "oracle_common/jdk/bin/java"))) {
+    foreach ($bj in @(($(if ("$OracleHome") { Join-Path "$OracleHome" "oracle_common\jdk\bin\java.exe" } else { "" })), ($(if ("$OracleHome") { Join-Path "$OracleHome" "oracle_common/jdk/bin/java" } else { "" })))) {
         if ($OracleHome -and (Test-Path -LiteralPath $bj -PathType Leaf)) {
             $bv = (& $bj -version 2>&1 | Out-String); if ($bv -match 'build ([^)]+)\)') { local-var "bundled JDK" "$($Matches[1])  (cookbook 4.7)" }
             break

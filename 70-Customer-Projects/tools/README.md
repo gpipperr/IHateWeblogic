@@ -253,7 +253,15 @@ are listed as `software` / `software-used`.
 | `70_security.txt` | `listen;id;addr;loopback|network`, `feature;id;pool;sdw;restsql;dbapi;graphql;choice`, `authhdr;…` (fixed `Authorization` header in a route, value masked), `ajp;…` (Tomcat connector / `ajp://` / `JkMount`), `tomcat;…;version`, `tomcatusers;…`, `firewalld;…` |
 
 `collect_fmw_env.sh` (2026-11-26.2) only shows the fact `ORDS / APEX` and
-points to this collector. Windows (`collect_ords_apex.ps1`): open (TODO).
+points to this collector. Windows: [`collect_ords_apex.ps1`](powershell/README.md#collect_ords_apexps1)
+(2026-11-27, same files and line formats).
+
+Fixes 2026-11-27 (2026-11-27.1, found while building the Windows twin): only
+the JVM counts as an ORDS process (a shell whose command line mentions
+`ords.war` no longer becomes an instance); `cfg;…` lines mask every key that
+names a secret (`db.password` of an old `pool.xml` before the wallet); a
+commented-out AJP connector is no finding and the AJP `secret=` is masked;
+the route count no longer counts the empty end line.
 
 ## java_check_fmw.sh
 

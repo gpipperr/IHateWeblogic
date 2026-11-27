@@ -22,6 +22,7 @@ copy the whole folder / the Windows ZIP.
 | [collect_fmw_env.ps1](#collect_fmw_envps1) | read-only collection of the **state** (OS + pending Windows updates, services, Java, OPatch / components / other homes, domain facts, processes and memory, web tier with Nginx in detail, HTTPS certificates, load profile, logs), secrets masked → encrypted ZIP | [collect_fmw_env.sh](../README.md#collect_fmw_envsh) |
 | [export_forms_reports_conf.ps1](#export_forms_reports_confps1) | read-only export of the **configuration** for the 14c rebuild (Forms, Reports, domain, JDBC, Oracle Net, web tier incl. IIS, fonts, source inventory, Oracle registry environment, Windows → Linux path map), same archive layout as bash → encrypted ZIP | [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh) |
 | [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
+| [collect_ords_apex.ps1](#collect_ords_apexps1) | read-only collection of **ORDS / APEX** (third collector): every ORDS installation (standalone `java -jar ords.war` / `ords.cmd`, Windows service through NSSM / WinSW, Tomcat Procrun service, WebLogic deployment, stopped / unpacked), version, Java, pools + features, APEX images (`/i/`), web routes, security (listen address, Windows Firewall rules, SQL features, fixed auth headers, AJP), aggregated logs → encrypted ZIP | [collect_ords_apex.sh](../README.md#collect_ords_apexsh) |
 | [java_check_fmw.ps1](#java_check_fmwps1) | read-only: which Java do WebLogic / Node Manager (Windows service) / Reports / frmweb really use, is `oracle_common\jdk` intact or replaced by a junction, which files pin a missing or versioned JDK path | [java_check_fmw.sh](../README.md#java_check_fmwsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
@@ -256,6 +257,57 @@ powershell.exe -ExecutionPolicy Bypass -File .\java_check_fmw.ps1
   tool, also against a broken setup in a scratch copy); on Windows Server:
   open (TODO).
 
+## collect_ords_apex.ps1
+
+Windows version of [collect_ords_apex.sh](../README.md#collect_ords_apexsh)
+(2026-11-27) – the same eight files and line formats, so
+`customer-analyse/analyse_ords_apex.sh` reads Linux and Windows collections
+alike. Read-only; runs as the ORDS owner or an administrator (the service
+parameters are in `HKLM`).
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\collect_ords_apex.ps1
+.\collect_ords_apex.ps1 -NoExec -NoEncrypt -Keep           # files only, no ORDS program call
+.\collect_ords_apex.ps1 -Ords D:\ords\config -LogDays 14
+```
+
+| Parameter | Meaning |
+|---|---|
+| `-OutBase DIR` | base directory of the output (default `%TEMP%`) |
+| `-NoExec` | do not run the ORDS program (`ords.cmd` / `java -jar ords.war`: `--version`, `config list --include-defaults`, `config user list`, timeout 90 s, skipped below 512 MB free memory) |
+| `-LogDays N` | days of logs to aggregate (default 7) |
+| `-Ords DIR` | more ORDS homes / config directories (repeatable) |
+| `-NoEncrypt` / `-Keep` | as `collect_fmw_env.ps1` |
+
+**Windows discovery** (`ihwt-ords-find` in `ihw_tools_lib.ps1`):
+- processes from `Win32_Process`: only a JVM (`java.exe`) or a Tomcat Procrun
+  exe (`Tomcat9.exe //RS//…`); `--config`, `-Dconfig.url`,
+  `-Doracle.dbtools.cmdline.home`, `-jar …ords.war`, quoted paths with blanks;
+- the **Windows service** of the process or of one of its parents (NSSM →
+  `cmd` → `java`): its text = `PathName` + NSSM parameters (`Application`,
+  `AppParameters`, `AppEnvironmentExtra`, `AppStdout` / `AppStderr` below
+  `HKLM:\SYSTEM\CurrentControlSet\Services\<svc>\Parameters`) + Procrun
+  (`HKLM:\SOFTWARE\[WOW6432Node\]Apache Software Foundation\Procrun 2.0\<svc>\Parameters\Java|Start|Log`)
+  + WinSW (`<exe>.xml`);
+- services that do not run (name / path `*ords*`, or a Tomcat service with
+  an ORDS web application);
+- a bounded search (90 s) for `global\settings.xml`, `ords*.war`,
+  `defaults.xml` below the Oracle / ORDS / APEX / Tomcat / Apache
+  directories of every fixed drive and `Program Files\Apache Software
+  Foundation`;
+- Windows Firewall: profiles + enabled inbound allow rules for the ORDS
+  ports (`firewalld;…` lines, the key name of the Linux version).
+
+`collect_fmw_env.ps1` (2026-11-27.1) shows the fact `ORDS / APEX` and points
+to this collector.
+
+**Tested** 2026-11-27 with pwsh 7.7 on the Linux test host: the same facts
+and lines as the bash collector on the same host (standalone ORDS 26.3.1
+behind Nginx, plus a fake Tomcat with an AJP connector and an old
+`pool.xml` with a clear-text password); the ORDS analysis reads the PS
+collection. On Windows Server: open (services, Procrun / NSSM registry,
+firewall rules).
+
 ## fmw_patch_env.ps1
 
 ```powershell
@@ -398,4 +450,29 @@ Windows):
 - Windows PowerShell 5.1 itself.
 
 The first run at the customer is the real test. Look at `00_summary.txt`
-and the console for red error lines.
+and the console for red error lines. The German cookbook
+[Start_beim_Kunden_Windows_Kochbuch_de.txt](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/Start_beim_Kunden_Windows_Kochbuch_de.txt)
+(also in `doc\` of the Windows ZIP) is the procedure for that first run,
+with the test points to write down (services, junctions, how Windows logs a
+`frmweb` crash, ORDS service).
+
+Review 2026-11-27 of the whole Windows part (all eight scripts with pwsh 7.7
+on the Linux test host, each against the result of the bash tool):
+- static check of every `.ps1` with the PowerShell parser (AST): no PS 7-only
+  syntax (`??`, `?.`, ternary, `&&`), no `Join-Path` with more than two parts,
+  no `-AsByteStream` / `utf8NoBOM`, no `$IsWindows`, no assignment to an
+  automatic variable (`$home`, `$pid` …), ASCII only;
+- **fixed:** without `ORACLE_HOME` in the environment (the normal case on a
+  customer host) `Join-Path ""` threw and skipped the whole home search -
+  `java_check_fmw.ps1` stopped with "ORACLE_HOME not found"; every
+  `Join-Path` on a possibly empty value is guarded now, `ihwt-jp` returns ""
+  for an empty first part;
+- **fixed:** the key derivation of the encryption on .NET before 4.7.2
+  (Windows Server 2016 ships 4.6.2) ran 200 000 rounds in PowerShell (about
+  a minute, twice per run) - now a small C# routine through `Add-Type`
+  (0.4 s, equal to the .NET result), the PowerShell loop only when
+  `Add-Type` is blocked;
+- **fixed:** `java_check_fmw.ps1` reads `@REM` lines of `.cmd` files as
+  comments and strips the `\??\` prefix of a junction target (PS 5.1);
+- encryption both ways against openssl again; the Windows ZIP holds every
+  script with its version (`fmw_patch_env.ps1` version now readable).

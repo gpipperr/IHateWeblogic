@@ -1,0 +1,318 @@
+==========================================================================
+  Start beim Kunden - Windows Server
+  Forms & Reports 12.2.1.x / 14.1.2: Umgebung pruefen mit den
+  Windows-Kundentools (PowerShell)
+==========================================================================
+
+  Zielgruppe : Administrator des Windows-Servers (lokaler Administrator)
+  Umgebung   : Windows Server 2016 / 2019 / 2022 / 2025, Windows PowerShell
+               5.1 (eingebaut) oder PowerShell 7, Forms & Reports mit
+               WebLogic, optional ORDS / APEX, Nginx / IIS / OHS davor
+  Erstellt   : 2026-11-27
+  Grundlage  : - IHateWeblogic/70-Customer-Projects/tools/powershell/README.md
+               - IHateWeblogic/70-Customer-Projects/Start_beim_Kunden_kochbuch_de.txt
+                 (Linux-Fassung, gleiche Reihenfolge)
+               - Testlauf aller Tools mit pwsh 7.7 auf dem Linux-Testhost
+                 2026-11-27 (gleiche Ergebnisse wie die bash-Tools)
+  Wichtig    : - Alle Tools sind NUR LESEND. Sie aendern nichts am Server,
+                 nichts an Diensten, nichts an der Registry.
+               - Die Archive sind verschluesselt (Passphrase). Sie enthalten
+                 Hostnamen, IPs und Pfade. Collector und ORDS-Collector
+                 maskieren Passwoerter; der Konfigurations-Export nimmt sie
+                 mit (fuer den Neuaufbau), ausser mit -Masked (SCHRITT 5).
+               - Erster Einsatz auf einem echten Windows-Server: die
+                 Testpunkte in SCHRITT 7 bitte mitschreiben.
+
+==========================================================================
+
+ZIEL
+----
+
+  Ergebnis                          Tool                         Schritt
+  --------------------------------  ---------------------------  -------
+  Java-Pruefung (Bildschirm + Log)  java_check_fmw.ps1           3
+  Zustand der Umgebung (Archiv)     collect_fmw_env.ps1          4
+  Konfiguration (Archiv)            export_forms_reports_conf.ps1 5
+  ORDS / APEX (Archiv, falls da)    collect_ords_apex.ps1        6
+
+VORAUSSETZUNGEN
+---------------
+
+  - PowerShell-Fenster "Als Administrator ausfuehren". Ohne
+    Administratorrechte fehlen die Dienst-Parameter aus der Registry, die
+    geladenen Module fremder Prozesse und die Firewall-Regeln.
+  - Eine echte Konsole (powershell.exe oder Windows Terminal), NICHT die
+    PowerShell ISE und keine Remoting-Sitzung ohne Konsole: die Passphrase
+    wird versteckt abgefragt.
+  - Ca. 200 MB frei fuer Tools und Archive.
+  - Das Tools-ZIP: ihw_customer_tools_windows.zip (+ .sha256) aus
+    https://github.com/gpipperr/IHateWeblogic/tree/main/70-Customer-Projects/tools
+    (am PC laden, wenn der Server kein Internet hat).
+
+Was wo landet:
+
+  D:\oracle\tools\                  $TOOLS  <- SCHRITT 1
+    collect_fmw_env.ps1               aus dem Tools-ZIP
+    collect_ords_apex.ps1             aus dem Tools-ZIP
+    export_forms_reports_conf.ps1     aus dem Tools-ZIP
+    java_check_fmw.ps1                aus dem Tools-ZIP
+    ihw_tools_lib.ps1                 gemeinsame Funktionen, MUSS daneben
+                                      liegen
+    update_tools_from_git.ps1         Aktualisierung der Tools (spaeter)
+    doc\                              README + dieses Kochbuch
+    out\                              $OUT  <- SCHRITT 2 (alle Archive
+                                      und Logs dieses Besuchs)
+
+  Laufwerk D: ist ein Beispiel - liegt Oracle auf C: oder E:, den Pfad
+  in SCHRITT 1 und 2 entsprechend aendern.
+
+Regeln fuer den ganzen Lauf:
+
+  - Jeder Befehl wird einzeln eingegeben (Kopieren + Einfuegen geht).
+  - Rote Zeilen in der Konsole NICHT wegklicken: Bildschirmfoto oder
+    markieren + kopieren und mitschicken (SCHRITT 7).
+  - Neues Fenster -> zuerst SCHRITT 2 (Variablen).
+
+
+=====================================================
+SCHRITT 0: Umgebung des Fensters pruefen  (als Administrator)
+=====================================================
+
+  $PSVersionTable.PSVersion
+  # Erwartet: Major 5, Minor 1 (Windows PowerShell) oder 7.x
+
+  ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  # Erwartet: True
+  # False -> Fenster schliessen, "Als Administrator ausfuehren".
+
+  (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full").Release
+  # Nur zur Info (.NET-Stand). 461808 oder hoeher = .NET 4.7.2+.
+  # Kleiner (Server 2016: 394802) ist in Ordnung - die Verschluesselung
+  # nimmt dann einen Ersatzweg (siehe Bekannte Probleme).
+
+
+=====================================================
+SCHRITT 1: Tools auspacken  (als Administrator)
+=====================================================
+
+  ---------------------------------------------------
+  1.1 ZIP pruefen
+  ---------------------------------------------------
+
+  New-Item -ItemType Directory -Path D:\oracle\tools -Force
+
+  # ZIP und .sha256 nach D:\oracle\tools kopieren, dann:
+
+  cd D:\oracle\tools
+
+  (Get-FileHash .\ihw_customer_tools_windows.zip -Algorithm SHA256).Hash.ToLower()
+
+  Get-Content .\ihw_customer_tools_windows.zip.sha256
+  # Erwartet: derselbe Wert vorne in der Zeile.
+  # Anders -> ZIP neu laden, NICHT auspacken.
+
+  ---------------------------------------------------
+  1.2 Auspacken und freigeben
+  ---------------------------------------------------
+
+  Expand-Archive .\ihw_customer_tools_windows.zip -DestinationPath D:\oracle -Force
+  # Das ZIP enthaelt den Ordner tools\ -> landet in D:\oracle\tools.
+
+  Get-ChildItem D:\oracle\tools\*.ps1, D:\oracle\tools\*.java | Unblock-File
+  # Entfernt die Markierung "aus dem Internet" - sonst blockiert die
+  # ExecutionPolicy die Skripte.
+
+  Get-Content D:\oracle\tools\VERSIONS.txt
+  # Erwartet z.B.:
+  #   collect_fmw_env.ps1;2026-11-27.1;...
+  #   collect_ords_apex.ps1;2026-11-27.1;...
+  #   ihw_tools_lib.ps1;2026-11-27.1;...
+  #   java_check_fmw.ps1;2026-11-27.1;...
+
+  ---------------------------------------------------
+  1.3 Tools schon da (spaeterer Besuch)? Dann nur aktualisieren
+  ---------------------------------------------------
+
+  # Zeigt nur, was neu ist (aendert nichts):
+  # powershell.exe -ExecutionPolicy Bypass -File D:\oracle\tools\update_tools_from_git.ps1 -Zip D:\oracle\tools\ihw_customer_tools_windows.zip
+  # Mit -Apply wird ersetzt (alte Dateien landen in backup\).
+
+
+=====================================================
+SCHRITT 2: Variablen  (in JEDEM neuen Fenster)
+=====================================================
+
+  $TOOLS = "D:\oracle\tools"
+
+  $OUT = "D:\oracle\tools\out"
+
+  New-Item -ItemType Directory -Path $OUT -Force
+
+  cd $TOOLS
+
+  "TOOLS=$TOOLS OUT=$OUT"
+  # Erwartet: beide Pfade. Leer -> SCHRITT 2 noch einmal.
+
+
+=====================================================
+SCHRITT 3: Java pruefen  (als Administrator, System laeuft)
+=====================================================
+
+  powershell.exe -ExecutionPolicy Bypass -File .\java_check_fmw.ps1 -OutBase $OUT
+  # Dauert 10-60 s. Ausgabe in fuenf Abschnitten, am Ende:
+  #   Result: 0 FAIL, 0 WARN - log: D:\oracle\tools\out\java_check_<host>_<zeit>.log
+  # "ORACLE_HOME not found" -> mit Pfad aufrufen:
+  #   ... -File .\java_check_fmw.ps1 -OutBase $OUT -OracleHome D:\Oracle\Middleware\Oracle_Home -DomainHome D:\Oracle\user_projects\domains\<domain>
+  # FAIL / WARN -> Abschnitt "Summary - what to adjust" mitschicken.
+
+  $LASTEXITCODE
+  # 0 = in Ordnung, 1 = Warnungen, 2 = Fehler (etwas startet nicht).
+
+
+=====================================================
+SCHRITT 4: Zustand sammeln  (als Administrator, System laeuft)
+=====================================================
+
+  powershell.exe -ExecutionPolicy Bypass -File .\collect_fmw_env.ps1 -OutBase $OUT -Logs
+  # Fragt zweimal nach einer Passphrase (versteckt) - dieselbe fuer alle
+  # Archive dieses Besuchs nehmen und GETRENNT mitteilen (Telefon).
+  # Dauert 1-5 Minuten (OPatch liest das Inventar, Lastprofil 90 Tage).
+  # Erwartet am Ende:
+  #   Archive : D:\oracle\tools\out\fmw_collect_<host>_<zeit>.zip.enc (... KB)
+  #   SHA-256 : ...zip.enc.sha256
+  # Rote Zeilen in der Konsole notieren (SCHRITT 7).
+
+
+=====================================================
+SCHRITT 5: Konfiguration exportieren  (als Administrator)
+=====================================================
+
+  powershell.exe -ExecutionPolicy Bypass -File .\export_forms_reports_conf.ps1 -OutBase $OUT
+  # Gleiche Passphrase wie in SCHRITT 4. Dauert ca. 1 Minute.
+  # Kopiert Forms-/Reports-/Domain-Konfiguration, eigene JARs der
+  # formsweb.cfg, Schriften. Passwoerter der Konfiguration sind im
+  # verschluesselten Archiv ENTHALTEN (fuer den Neuaufbau).
+  # Soll nichts davon das Haus verlassen: zusaetzlich  -Masked
+  # Erwartet am Ende:
+  #   Archive : D:\oracle\tools\out\ihw_export_<host>_<zeit>.zip.enc
+
+
+=====================================================
+SCHRITT 6: ORDS / APEX  (nur wenn vorhanden, als Administrator)
+=====================================================
+
+  Select-String -Path $OUT\fmw_collect_*\00_summary.txt -Pattern "ORDS / APEX" -ErrorAction SilentlyContinue
+  # Nur vorhanden, wenn in SCHRITT 4 -Keep benutzt wurde. Sonst einfach
+  # den naechsten Befehl starten - er meldet "ORDS installations none",
+  # wenn es kein ORDS gibt.
+
+  powershell.exe -ExecutionPolicy Bypass -File .\collect_ords_apex.ps1 -OutBase $OUT
+  # Gleiche Passphrase. Startet ORDS selbst kurz lesend ("--version",
+  # "config list") - mit -NoExec nur Dateien.
+  # Erwartet:
+  #   1/7 Discovery ... 7/7 Logs (last 7 days)
+  #   Archive : D:\oracle\tools\out\ords_collect_<host>_<zeit>.zip.enc
+
+
+=====================================================
+SCHRITT 7: Testpunkte des ersten Windows-Laufs  (als Administrator)
+=====================================================
+
+  Die Tools sind auf Windows Server noch nicht gelaufen. Diese Punkte
+  zeigen uns, ob die Windows-Teile richtig lesen. Ausgabe jeweils
+  mitschicken (Text kopieren reicht).
+
+  ---------------------------------------------------
+  7.1 Dienste: wie startet die Domain?
+  ---------------------------------------------------
+
+  Get-CimInstance Win32_Service | Where-Object { $_.Name -match "(?i)nodemanager|weblogic|wls|ords|tomcat|nginx" } | Format-Table -AutoSize Name, State, StartMode, PathName
+
+  # Abgleich: java_check_fmw.ps1 Abschnitt 1 muss jeden dieser Dienste
+  # mit seinem JavaHome zeigen ("service <name>").
+
+  ---------------------------------------------------
+  7.2 Ist das gebuendelte JDK ein echter Ordner?
+  ---------------------------------------------------
+
+  Get-Item D:\Oracle\Middleware\Oracle_Home\oracle_common\jdk | Format-List FullName, LinkType, Target
+  # Pfad auf das Oracle Home anpassen.
+  # Erwartet: LinkType leer. "Junction" -> java_check muss FAIL zeigen.
+
+  ---------------------------------------------------
+  7.3 Forms-Abstuerze: wie sehen sie unter Windows aus?
+  ---------------------------------------------------
+
+  $DOMAIN = "D:\Oracle\user_projects\domains\<domain>"
+
+  Get-ChildItem -Path $DOMAIN -Recurse -Filter "frmweb_dump*" -ErrorAction SilentlyContinue | Select-Object -First 5 FullName, Length, LastWriteTime
+  # Gibt es solche Dateien? (Unter Linux: Text-Stack je Absturz.)
+  # Treffer -> eine Datei mitschicken (Text, wenige KB).
+
+  Get-ChildItem -Path $DOMAIN\servers\*\logs -Filter "formsapp-diagnostic*.log" | Select-String -Pattern "terminat|abort|signal|crash" | Select-Object -Last 10
+  # Zeigt, mit welchem Text Windows einen Absturz der frmweb-Prozesse
+  # protokolliert (unter Linux: "is terminating due to signal").
+
+  ---------------------------------------------------
+  7.4 ORDS: Dienst und Pfade
+  ---------------------------------------------------
+
+  Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "ords" } | Format-List ProcessId, ParentProcessId, CommandLine
+  # Abgleich mit collect_ords_apex.ps1: richtiger Dienst ("unit"),
+  # richtiges --config-Verzeichnis?
+
+  ---------------------------------------------------
+  7.5 Ergebnis uebergeben
+  ---------------------------------------------------
+
+  Get-ChildItem $OUT -File | Format-Table -AutoSize Name, Length, LastWriteTime
+  # Erwartet: je Tool ein *.zip.enc und ein *.zip.enc.sha256, dazu das
+  # java_check-Log. Alle Dateien uebergeben (sicherer Upload). Die
+  # Passphrase getrennt.
+
+
+==========================================================================
+RUECKWEG / AUFRAEUMEN
+==========================================================================
+
+  Was                    Wie
+  ---------------------  -------------------------------------------------
+  Tools                  bleiben fuer den naechsten Besuch liegen, oder:
+                         Remove-Item D:\oracle\tools -Recurse
+                         (vorher den Pfad pruefen: Get-Item D:\oracle\tools)
+  Archive / Logs         nach der Uebergabe: Remove-Item $OUT\* -Recurse
+  Server                 nichts zu tun - die Tools aendern nichts.
+
+
+==========================================================================
+BEKANNTE PROBLEME
+==========================================================================
+
+  Problem : "... cannot be loaded because running scripts is disabled"
+  Ursache : ExecutionPolicy.
+  Loesung : immer ueber  powershell.exe -ExecutionPolicy Bypass -File ...
+            starten (aendert die Maschinen-Richtlinie nicht), oder
+            SCHRITT 1.2 Unblock-File.
+
+  Problem : "Encryption needs a passphrase from a console"
+  Ursache : PowerShell ISE, geplante Aufgabe oder Remoting ohne Konsole.
+  Loesung : normales PowerShell-Fenster nehmen. Notfalls -NoEncrypt
+            (Collector) - dann das ZIP selbst sicher uebertragen.
+
+  Problem : "key derivation in PowerShell ... about 1 minute"
+  Ursache : altes .NET (vor 4.7.2) UND Add-Type gesperrt (Constrained
+            Language / AppLocker).
+  Loesung : warten - die Verschluesselung ist trotzdem korrekt.
+
+  Problem : "ORACLE_HOME not found - use -OracleHome"
+  Ursache : kein laufender WebLogic, kein Registry-Eintrag, unueblicher
+            Pfad.
+  Loesung : -OracleHome <Pfad> und -DomainHome <Pfad> mitgeben.
+
+  Problem : Rote Zeilen "Access is denied" (Registry, Prozesse)
+  Ursache : Fenster ohne Administratorrechte.
+  Loesung : SCHRITT 0 - Fenster als Administrator, Tool noch einmal.
+
+  Problem : collect_fmw_env.ps1 haengt bei "Updates not installed"
+  Ursache : Windows-Update-Suche (nur Cache, max. 180 s).
+  Loesung : warten; danach geht es weiter ("timed out" ist kein Fehler).

@@ -101,7 +101,7 @@ param(
 )
 
 Set-StrictMode -Version 2
-$SCRIPT_VERSION = "2026-11-24.1"   # bump on every change - shown in 00_summary.txt
+$SCRIPT_VERSION = "2026-11-27.1"   # bump on every change - shown in 00_summary.txt
 if ($Version) { Write-Output $SCRIPT_VERSION; exit 0 }
 
 $lib = Join-Path $PSScriptRoot "ihw_tools_lib.ps1"
@@ -336,7 +336,7 @@ if ($OH) {
     }
     ihwt-fact "Other Oracle homes (inventory)" ($others -join ' ')
     # OPatch prerequisites: inventory locks, rollback storage, free space, last runs
-    $lk = @(Get-ChildItem -LiteralPath (Join-Path "$inv" "locks") -Force -ErrorAction SilentlyContinue)
+    $lk = @(Get-ChildItem -LiteralPath ($(if ("$inv") { Join-Path "$inv" "locks" } else { "" })) -Force -ErrorAction SilentlyContinue)
     # "ls -la"-like lines (9 fields, name last) - the analysis reads the names
     ihwt-block 35_opatch_prereq.txt "Inventory locks" (((@($lk | ForEach-Object { "f 1 - - {0} {1} - {2}" -f $_.Length, $_.LastWriteTime.ToString("yyyy-MM-dd HH:mm"), $_.Name })) -join "`n"))
     ihwt-fact "Inventory locks" "$($lk.Count) file(s)"
@@ -648,6 +648,10 @@ $dbe = @($lh | Where-Object { $_ -like 'host;oracle_db_edition;*' } | ForEach-Ob
 ihwt-fact "Oracle DB on this host" ("{0}{1}" -f (& $lv oracle_db_instances), $(if ($dbe.Count) { " - edition (installation): " + ($dbe -join ', ') } else { "" }))
 $od = @($lic | Where-Object { $_ -like 'deployment;*' } | ForEach-Object { ($_ -split ';')[1] } | Where-Object { $_ -match '(?i)ords|apex' })
 ihwt-fact "ORDS on this host" ("process: {0}; in the domain: {1}" -f (& $lv ords_process), $(if ($od.Count) { $od -join ',' } else { "no" }))
+# ORDS / APEX: details in the third collector collect_ords_apex.ps1 (2026-11-27)
+$oi = @(ihwt-ords-find $procs | Where-Object { ($_ -split ';')[2] -notlike 'software*' })
+$om = @{}; foreach ($l in $oi) { $m = ($l -split ';')[2]; if ($om.ContainsKey($m)) { $om[$m]++ } else { $om[$m] = 1 } }
+ihwt-fact "ORDS / APEX" $(if ($oi.Count) { "found: {0} ({1}) - run collect_ords_apex.ps1 for the ORDS / APEX analysis" -f $oi.Count, (($om.GetEnumerator() | ForEach-Object { "$($_.Value) $($_.Key)" }) -join ', ') } else { "none found" })
 
 #==============================================================================
 # 8. Load profile - AGGREGATED counts only (ihw_tools_lib.ps1 ihwt-load-profile)

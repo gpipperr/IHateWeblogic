@@ -3,6 +3,7 @@
   Tools-ZIP -> setdb -> patch_install.ini -> Analyse oder Installation
   Update der Tools: SCHRITT 7 (update_tools_from_git.sh)
   (Manuelle Schritt-fuer-Schritt-Anleitung, ohne IHateWeblogic-Lib)
+  Windows Server: Start_beim_Kunden_Windows_Kochbuch_de.txt (PowerShell)
 ================================================================================
   Zielgruppe : wer beim Kunden die Umgebung uebernimmt, patcht oder neu
                aufbaut (DBA / Middleware-Admin)
