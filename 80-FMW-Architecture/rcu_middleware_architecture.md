@@ -859,7 +859,10 @@ German version (customer documents):
   schemas exists only for Oracle Internet Application Server SE / EE
   ([FMWLC, Application Server Products](https://docs.oracle.com/en/middleware/fusion-middleware/fmwlc/application-server-products-new-structure.html)).
   Quote the section / revision of the manual valid for the customer in an
-  audit. Licensing overview of Forms & Reports (developers, metric, WebLogic
+  audit. Which licences do bring a database for the RCU schemas (iAS SE /
+  EE and WebLogic Suite: RCU schemas only; iDS: development and test only):
+  table in [fmw_forms_reports_licence.md §5](fmw_forms_reports_licence.md#5-rcu-database-and-the-same-machine)
+  (FMWLC E56762-97, 2026-11-27). Licensing overview of Forms & Reports (developers, metric, WebLogic
   Basic, Reports deprecation, disclaimer):
   [fmw_forms_reports_licence.md](fmw_forms_reports_licence.md).
 - Consistent with the licence notice in `60-RCU-DB-19c/README.md` (no

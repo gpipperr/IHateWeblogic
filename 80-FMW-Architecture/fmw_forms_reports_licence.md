@@ -12,7 +12,7 @@ description: "How Oracle Forms & Reports 14.1.2 is licensed: runtime vs. Builder
 > customer's **ordering document** (contract) and the version of the *Oracle
 > Fusion Middleware Licensing Information User Manual* that was valid when the
 > licence was bought. Oracle changes rules, product names and prices; this
-> page reflects the research of **2026-11-16**. Ask
+> page reflects the research of **2026-11-16** (database entitlements in section 5: **2026-11-27**). Ask
 > [Oracle License Management Services](https://www.oracle.com/corporate/license-management-services/),
 > your Oracle account manager or a licence partner before you decide.
 >
@@ -22,7 +22,7 @@ description: "How Oracle Forms & Reports 14.1.2 is licensed: runtime vs. Builder
 > Vollständigkeit oder Aktualität. Verbindlich sind allein das **Ordering
 > Document** (Vertrag) des Kunden und die zum Kaufzeitpunkt gültige Fassung des
 > *Oracle Fusion Middleware Licensing Information User Manual*. Oracle ändert
-> Regeln, Produktnamen und Preise; Stand der Recherche ist der **16.11.2026**.
+> Regeln, Produktnamen und Preise; Stand der Recherche ist der **16.11.2026** (Datenbank-Rechte in Abschnitt 5: **27.11.2026**).
 > Vor einer Entscheidung Oracle License Management Services, den Oracle Account
 > Manager oder einen Lizenzpartner fragen.
 
@@ -63,8 +63,9 @@ Every statement is marked by how it is backed:
 | Analytics Publisher | Oracle Analytics Publisher (formerly BI Publisher) | Oracle's report server for pixel-perfect documents | included in OFR **only for production**; development / test need another licence |
 | OWSM | Oracle Web Services Manager | policy / security layer for web services | included in OFR **only together with FADS** |
 | FADS | Forms Application Deployment Services | deployment service for Forms applications ([forms_fads_app_dep_service.md](forms_fads_app_dep_service.md)) | the only allowed use of OWSM under OFR |
-| iDS | Oracle Internet Developer Suite | developer licence (Form Builder, Reports Builder …) | needed by developers – OFR does not cover the Builder |
-| iAS SE / EE | Oracle Internet Application Server Standard / Enterprise Edition | the old application server product family | has a restricted-use database for RCU – OFR has not |
+| iDS | Oracle Internet Developer Suite | developer licence (Form Builder, Reports Builder …) | needed by developers – OFR does not cover the Builder; its restricted-use database is for installing / testing / debugging only (section 5) |
+| iAS SE / EE | Oracle Internet Application Server Standard / Enterprise Edition | the old application server product family | has a restricted-use database for the RCU schemas – OFR has not |
+| WLS Suite | Oracle WebLogic Server Suite | the top WebLogic licence | includes iAS EE (with Forms, Reports and the RCU restricted-use database) |
 | RCU | Repository Creation Utility | creates the metadata schemas of FMW in a database | needs a licensed database ([rcu_middleware_architecture.md §9.4](rcu_middleware_architecture.md)) |
 | EE / SE2 | Oracle Database Enterprise Edition / Standard Edition 2 | database editions | SE2 needs a patch for RCU (ORA-00439, VPD) |
 | VPD | Virtual Private Database | fine-grained access control of the database | used by RCU; not part of SE2 |
@@ -142,11 +143,13 @@ by the OFR licence of the servers – even though the installer contains them.
 - **Developer licence:** the current
   [Oracle Technology Global Price List](https://www.oracle.com/assets/technology-price-list-070617.pdf)
   (September 15, 2026) still lists **Internet Developer Suite** (iDS) with
-  USD 5,800 per Named User Plus, support USD 1,276 (documented). That iDS
-  covers Form Builder / Reports Builder 14.1.2 is the usual reading
-  (secondary, e.g.
-  [Redress Compliance, iDS](https://redresscompliance.com/oracle-ids-licensing-and-costs-breakdown));
-  confirm it for your contract.
+  USD 5,800 per Named User Plus, support USD 1,276 (documented). The current
+  FMWLC (E56762-97, November 2026, section Oracle Internet Developer Suite,
+  documented) lists in iDS "Oracle Forms Developer" (Forms Builder, Forms
+  Compiler, JDAPI, C API, XML Converter, WebUtil) and "Oracle Reports
+  Developer" (Reports Builder, Converter, Client, Runtime) plus SQL*Plus – so
+  iDS is the developer licence for the Builders. Its restricted-use database
+  is for development only (section 5).
 - **OTN licences** – three different texts, often mixed up:
   - [OTN Developer License Terms](https://www.oracle.com/downloads/licenses/standard-license.html)
     (documented): use "only for the purpose of developing, testing,
@@ -374,6 +377,36 @@ What the example shows:
   database machine that runs no other FMW installation needs no iAS licence;
   the RCU schemas may raise the number of database users. This applies to
   iAS customers, **not** to OFR-only customers.
+- **Which licence brings a database for the RCU schemas?** Current FMWLC
+  (E56762-97, November 2026, chapter Application Server Products, read
+  2026-11-27, documented):
+
+  | Licence | Database included? | Restricted to | Quote |
+  |---|---|---|---|
+  | Oracle Forms and Reports (OFR) | **no** | – | the restricted-use list of OFR names no database |
+  | iAS Standard / Enterprise Edition | yes, Database EE | the RCU schemas only | "The Oracle Database (Enterprise Edition) is provided only for use with the Oracle Repository Creation Utility database schema for storing product metadata." |
+  | WebLogic Server Suite | yes, through iAS EE | the RCU schemas only | "WebLogic Suite includes Oracle Internet Application Server Enterprise Edition, which includes a restricted-use license of the Oracle Database." |
+  | Internet Developer Suite (iDS) | yes, Database EE | development: installing, testing, debugging | "Use of Oracle Database Enterprise Edition is restricted to installing, testing, and debugging applications developed with iDS." |
+
+  - For iAS and WebLogic Suite: "Storing any data other than the Oracle
+    Repository Creation Utility database schema … requires a full use
+    license of the Oracle Database (Standard Edition 2 or Enterprise
+    Edition)" – the restricted database holds the RCU schemas and nothing
+    else (no application data, no Reports job repository of the
+    application, no APEX).
+  - The iDS database covers the developers' environment, **not** the RCU
+    database of a production or test server licensed with OFR. An internal
+    Oracle statement of 2018 (then Forms product management) rated iDS as
+    "full db use" – the current manual does not say that; it restricts the
+    use to installing, testing and debugging.
+  - WebLogic Suite and iAS EE contain Forms and Reports (FMWLC tables of the
+    WebLogic Suite and iAS editions). Licensing Forms & Reports through
+    WebLogic Suite / iAS EE instead of OFR therefore saves the separate RCU
+    database – compare the prices (price list) before deciding. The same
+    2018 statement recommended exactly this: "consider using the iAS-EE (or
+    WLS Suite) license to avoid the extra charge for the repo db".
+  - Rule for reading the manual (same statement): it lists entitlements, it
+    does not list what is needed – what is not listed is not included.
 - **Forms and database on the same machine:** each product is licensed for
   the processors where it is installed / running, so the machine needs
   licences for **both** (derivation from the processor definition – no
@@ -608,8 +641,10 @@ included.
 1. ~~Licence text of the eDelivery download~~ – answered 2026-11-16: Oracle
    Standard Terms and Restrictions with the 30-day Oracle Trial License for
    users without a licence (section 3).
-2. Does iDS cover Form Builder / Reports Builder 14.1.2, or is there a
-   successor? The price list of September 2026 still lists iDS.
+2. ~~Does iDS cover Form Builder / Reports Builder 14.1.2?~~ – answered
+   2026-11-27: the current FMWLC (E56762-97) lists iDS with Forms Builder,
+   Reports Builder and a development-only restricted-use database (sections
+   3 and 5); the price list of September 2026 still lists iDS.
 3. Secured production mode / administration port: our library domains run
    without secured mode (confirmed (live)); a domain created with the Oracle
    defaults still has to be checked.
@@ -627,7 +662,8 @@ included.
 
 Oracle (primary):
 - Oracle Fusion Middleware Licensing Information User Manual, Application
-  Server Products (OFR, iAS restricted use):
+  Server Products (OFR, iAS / WebLogic Suite / iDS restricted use; edition
+  E56762-97, November 2026, read 2026-11-27):
   <https://docs.oracle.com/en/middleware/fusion-middleware/fmwlc/application-server-products-new-structure.html>
 - FMWLC, appendix WebLogic Server Basic:
   <https://docs.oracle.com/en/middleware/fusion-middleware/fmwlc/weblogic-server-basic.html>

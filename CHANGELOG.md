@@ -10,6 +10,18 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-27
 
+- **Licence: which licence brings a database for the RCU schemas**
+  ([fmw_forms_reports_licence.md §5](80-FMW-Architecture/fmw_forms_reports_licence.md#5-rcu-database-and-the-same-machine)):
+  - table from the current FMWLC (E56762-97, November 2026), with quotes:
+    - OFR none;
+    - iAS SE / EE and WebLogic Suite: RCU schemas only, other data needs a full licence;
+    - iDS: Database EE for installing / testing / debugging only;
+  - an internal Oracle statement of 2018 rated iDS as "full db use" – the manual restricts it;
+  - commercial hint: Forms & Reports through WebLogic Suite / iAS EE saves the RCU database;
+  - glossary entry WebLogic Server Suite;
+  - open point 2 (iDS covers the Builders) answered;
+  - pointer in [rcu_middleware_architecture.md §9.4](80-FMW-Architecture/rcu_middleware_architecture.md).
+
 - **Reports multicast discovery – own port per environment** (the REP-56040 loop of a customer:
   production and QS on the same port with the same server names):
   - `02-Checks/reports_network_scan.sh`:
