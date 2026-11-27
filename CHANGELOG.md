@@ -10,6 +10,16 @@ details of every fix: `git log`. Open items: [TODO.md](https://github.com/gpippe
 
 ## 2026-11-27
 
+- **Reports multicast discovery – own port per environment** (the REP-56040 loop of a customer:
+  production and QS on the same port with the same server names):
+  - `02-Checks/reports_network_scan.sh`:
+    - every `rwnetwork.conf` of the domain found with `find` (12c + 14c, every server instance – before from `environment.conf` + a fixed 14c path);
+    - new step 5 REP-56040 / REP-50600 / stream header errors in `rwserver_diagnostic*.log`;
+    - new `--set-port N [--apply]` (backup + change of every file, refused when another host answers on N, `--force`);
+  - customer tools `reports_network_scan_fmw.sh` (Linux) and `reports_network_scan_fmw.ps1` (Windows, environment of `reports.cmd`, Windows Firewall, UdpClient self-test) – the same six steps without the library;
+  - `port_check.sh` points to it (TCP only);
+  - case described in [reports_server_discovery_multicast.md](80-FMW-Architecture/reports_server_discovery_multicast.md) §6a, Windows cookbook Anhang A.
+
 - **Windows part of the customer tools reviewed and completed**
   ([tools/powershell/README.md](70-Customer-Projects/tools/powershell/README.md#tested--and-what-is-not)):
   - new `collect_ords_apex.ps1`, the Windows twin of the third collector: NSSM / WinSW /

@@ -23,6 +23,7 @@ copy the whole folder / the Windows ZIP.
 | [export_forms_reports_conf.ps1](#export_forms_reports_confps1) | read-only export of the **configuration** for the 14c rebuild (Forms, Reports, domain, JDBC, Oracle Net, web tier incl. IIS, fonts, source inventory, Oracle registry environment, Windows → Linux path map), same archive layout as bash → encrypted ZIP | [export_forms_reports_conf.sh](../README.md#export_forms_reports_confsh) |
 | [ihw_tools_lib.ps1](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/ihw_tools_lib.ps1) | shared helpers, dot-sourced (must lie next to the tools) | [ihw_tools_lib.sh](../README.md#ihw_tools_libsh) |
 | [collect_ords_apex.ps1](#collect_ords_apexps1) | read-only collection of **ORDS / APEX** (third collector): every ORDS installation (standalone `java -jar ords.war` / `ords.cmd`, Windows service through NSSM / WinSW, Tomcat Procrun service, WebLogic deployment, stopped / unpacked), version, Java, pools + features, APEX images (`/i/`), web routes, security (listen address, Windows Firewall rules, SQL features, fixed auth headers, AJP), aggregated logs → encrypted ZIP | [collect_ords_apex.sh](../README.md#collect_ords_apexsh) |
+| [reports_network_scan_fmw.ps1](#reports_network_scan_fmwps1) | Reports server discovery (UDP multicast): every `rwnetwork.conf`, Windows Firewall rule for the UDP port, self-test (UdpClient), scan of the Reports servers per port (`DiagServerLocator` with the environment of `reports.cmd`), REP-56040 in the logs; `-SetPort N -Apply` = own port per environment with backup | [reports_network_scan_fmw.sh](../README.md#reports_network_scan_fmwsh) |
 | [java_check_fmw.ps1](#java_check_fmwps1) | read-only: which Java do WebLogic / Node Manager (Windows service) / Reports / frmweb really use, is `oracle_common\jdk` intact or replaced by a junction, which files pin a missing or versioned JDK path | [java_check_fmw.sh](../README.md#java_check_fmwsh) |
 | [fmw_patch_env.ps1](#fmw_patch_envps1) | detect and set the variables of the patch cookbooks (`ORACLE_HOME`, `DOMAIN_HOME`, `INV_PTR`, `JDK_LINK`, `PATCH_DIR`, `STAGE`, `BACKUP` …) | [fmw_patch_env.sh](../README.md#fmw_patch_envsh) |
 | [mos_patch_download.ps1](#mos_patch_downloadps1) + [GetMOSPatchRunner.java](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java) | CSV-driven download from My Oracle Support with getMOSPatch, ZIP check (CRC) and SHA-256 | [mos_patch_download.sh](../README.md#mos_patch_downloadsh) |
@@ -307,6 +308,28 @@ behind Nginx, plus a fake Tomcat with an AJP connector and an old
 `pool.xml` with a clear-text password); the ORDS analysis reads the PS
 collection. On Windows Server: open (services, Procrun / NSSM registry,
 firewall rules).
+
+## reports_network_scan_fmw.ps1
+
+Windows version of [reports_network_scan_fmw.sh](../README.md#reports_network_scan_fmwsh)
+(2026-11-27) – the same six steps; read-only unless `-SetPort N -Apply`.
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\reports_network_scan_fmw.ps1
+.\reports_network_scan_fmw.ps1 -Ports 14021-14040 -Timeout 5
+.\reports_network_scan_fmw.ps1 -SetPort 14028            # show the change
+.\reports_network_scan_fmw.ps1 -SetPort 14028 -Apply     # .bak_<ts> + change, then restart Reports
+```
+
+- **Windows specifics:**
+  - route `224.0.0.0/4` (`Get-NetRoute`);
+  - Windows Firewall: enabled inbound allow rule for the UDP port (a program rule for `rwserver.exe` / `java.exe` may allow it too - WARN only);
+  - self-test with `System.Net.Sockets.UdpClient` (skipped while `rwserver.exe` runs);
+  - scan: the environment of `DOMAIN_HOME\reports\bin\reports.cmd` (or `.bat`), read once through a small temporary `.cmd` (`call reports.cmd` + `set`), then `oracle_common\jdk\bin\java.exe … DiagServerLocator -findAll` per port with `COMPONENT_CONFIG_PATH` = temp dir;
+  - `-Apply` keeps the line ends of every file.
+- Parameters: `-OracleHome`, `-DomainHome`, `-OutBase`, `-Ports`, `-Port`, `-Timeout`, `-Listen`, `-NoScan`, `-LogDays`, `-SetPort`, `-Apply`, `-Force`.
+- Exit 0 / 1 / 2, log in `%TEMP%`.
+- **Tested** 2026-11-27 with pwsh 7.7 on the Linux test host (`reports.sh` instead of `reports.cmd`): the same file list, scan and log result as the bash tool; `-Apply` in a scratch copy (CRLF kept). On Windows Server: open (`reports.cmd` environment, firewall rules, UdpClient).
 
 ## fmw_patch_env.ps1
 

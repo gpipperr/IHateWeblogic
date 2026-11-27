@@ -38,6 +38,8 @@ WAS WO LANDET
       mos_patch_download.sh            Patch-Download nach der csv
       java_check_fmw.sh                welches Java nutzt was, harte JDK-Pfade
       check_fix_libzrc_glibc.sh        libzrc / Forms-Relink nach Reports QPR
+      reports_network_scan_fmw.sh      Reports startet nicht / REP-56040: Multicast-
+                                       Port, Scan anderer Umgebungen, Port aendern
       update_tools_from_git.sh         Tools aktualisieren (SCHRITT 7),
                                        installiert setdb (SCHRITT 2)
       ihw_shell_env.sh                 setdb-Vorlage - SCHRITT 2 kopiert sie

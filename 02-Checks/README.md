@@ -397,6 +397,8 @@ as "not set". Restart the servers afterwards.
 ./02-Checks/reports_network_scan.sh --ports 14021-14040 --timeout 5
 ./02-Checks/reports_network_scan.sh --listen 20             # longer passive listen (default 10 s)
 ./02-Checks/reports_network_scan.sh --port 14027 --no-scan  # used by 13-oracle_setup_reports.sh
+./02-Checks/reports_network_scan.sh --set-port 14028         # own port per environment: show the change
+./02-Checks/reports_network_scan.sh --set-port 14028 --apply # back up + change every rwnetwork.conf
 ```
 
 **Why:** the standalone Reports server must find itself (and is found) via
@@ -406,14 +408,20 @@ multicast, otherwise it stops with `REP-50600` –
 
 | Step | What |
 |---|---|
-| 1 | channel / port of all `rwnetwork.conf` (ReportsTools instance, every Reports server, `WLS_REPORTS` application) – must be equal |
+| 1 | channel / port of every `rwnetwork.conf` below `config/fmwconfig` (ReportsTools instance, every Reports server instance, the `reports_*` application of every managed server – 12c and 14c; since 2026-11-27 found with `find`, before from `environment.conf` + a fixed 14c path) – must be equal |
 | 2 | route to the multicast group (not `lo`), `MULTICAST` flag, IPv6 on that interface, firewall `<port>/udp` (via `sudo -n` when firewalld is active) |
 | 3 | self-test: one UDP datagram to `channel:port`, must be received again on this host – what the Reports server needs at start (else `REP-50600`). Skipped while a Reports server runs (it would log `REP-50125 StreamCorruptedException`). Passive listen for foreign senders (`--listen`) |
 | 4 | active scan: Oracle's `DiagServerLocator -findAll` (behind `rwdiag.sh`) per port of the range, with a temporary `COMPONENT_CONFIG_PATH` – nothing is written to the domain. WARN if a foreign host uses the own port, FAIL if an own server name runs on another host (`REP-56040`) |
 
+| 5 | the Reports server logs (`rwserver_diagnostic*.log`) of the last `--log-days` (7): `REP-56040` (server name already in the network = another environment with the same name on the same port → FAIL), `REP-50600`, `REP-50125` with an invalid stream header |
+| 6 | `--set-port N`: own multicast port for this environment. Without `--apply` the list old → new; with `--apply` `backup_file` + change of every `rwnetwork.conf`. Refused when the scan saw another host on N (`--force` overrides). The Reports servers / `WLS_REPORTS` need a restart; every other environment on the old port needs its own port too |
+
 - Runs in a subshell that sources `$DOMAIN_HOME/reports/bin/reports.sh`
   (`DiagServerLocator` needs that environment).
 - About 4 s per port; only **running** servers answer.
+- Customer hosts without the library: [`reports_network_scan_fmw.sh`](../70-Customer-Projects/tools/README.md#reports_network_scan_fmwsh)
+  (Linux) / `reports_network_scan_fmw.ps1` (Windows) – the same steps.
+- `port_check.sh` checks TCP listen ports only and points here.
 
 ### egress_check.sh
 

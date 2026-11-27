@@ -205,6 +205,23 @@ tcpdump -ni <if> udp port <port>
 #   nothing      -> route / interface
 ```
 
+### 6a. Case from practice: REP-56040 loop – two environments on one port
+
+Seen at a customer in November 2026 (Forms & Reports 14.1.2):
+- **Symptom:**
+  - the production Reports server came up and stopped again;
+  - the log shows `REP-56040` (server name "already exists in the network") in a loop.
+- **Cause:**
+  - the test / QS environment on another host used the same default multicast `228.5.6.7:14027`;
+  - its servers were named like the production servers;
+  - `rwdiag` / `DiagServerLocator -findAll` on that port showed the QS servers on the other host.
+- **Fix:** an own port per environment (Oracle range 14021–14030, Doc ID 437228.1):
+  1. find a free port with the scan;
+  2. change it in **every** `rwnetwork.conf` of the domain – there were four: tools instance, two Reports server instances, the `WLS_REPORTS` application;
+  3. restart the Reports servers and `WLS_REPORTS`;
+  4. give the other environment its own port too.
+- `02-Checks/reports_network_scan.sh --set-port N --apply` (customer hosts: `reports_network_scan_fmw.sh` / `.ps1`) does steps 1–2 with a backup.
+
 Restart the Reports server with `stopComponent.sh` + `startComponent.sh` –
 `restartComponent.sh` is refused by the Node Manager for Reports servers
 ("Server softRestart command is not supported on ReportsServerComponent
@@ -217,7 +234,8 @@ server"). **confirmed (live)**
 | [`09-Install/00-root_os_network.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/00-root_os_network.sh) | reports IPv6 per interface + NetworkManager `ipv6.method` |
 | [`09-Install/01-root_os_baseline.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/01-root_os_baseline.sh) | opens `REPORTS_BROADCAST_PORT`/udp; disables IPv6 per interface (runtime + `nmcli`) |
 | [`09-Install/13-oracle_setup_reports.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/09-Install/13-oracle_setup_reports.sh) | sets the port in all three `rwnetwork.conf` (`<multicast>` or `<cluster>`); calls `reports_network_scan.sh --no-scan` for the prerequisites and the self-test |
-| [`02-Checks/reports_network_scan.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/reports_network_scan.sh) | rwnetwork.conf consistency, route/`MULTICAST`/IPv6/firewall, send+receive self-test (skipped while a server runs), active scan for Reports servers per port (`DiagServerLocator`) |
+| [`02-Checks/reports_network_scan.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/02-Checks/reports_network_scan.sh) | consistency of every rwnetwork.conf, route/`MULTICAST`/IPv6/firewall, send+receive self-test (skipped while a server runs), active scan for Reports servers per port (`DiagServerLocator`), REP-56040 / REP-50600 in the server logs, `--set-port N --apply` (own port per environment, with backup) |
+| [`70-Customer-Projects/tools/bash/reports_network_scan_fmw.sh`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/bash/reports_network_scan_fmw.sh) / [`.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/reports_network_scan_fmw.ps1) | the same for customer hosts without the library (Linux / Windows) |
 
 Docs: [`09-Install/docs/13-reports-detail-settings.md`](../09-Install/docs/13-reports-detail-settings.md) (REP-50600 section),
 [`09-Install/docs/00-root_set_os_parameter.md`](../09-Install/docs/00-root_set_os_parameter.md) (firewall, IPv6 per interface).

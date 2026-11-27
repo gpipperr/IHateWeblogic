@@ -272,20 +272,15 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
 
 ## Scripts
 
-- [ ] **Customer tool `reports_network_scan_fmw.sh` (+ `.ps1`)** – standalone
-  version of `02-Checks/reports_network_scan.sh` for hosts without the
-  library, under `70-Customer-Projects/tools/bash/` (seen at a customer
-  2026-11-26: Reports server loop `REP-56040`, production and QS on the same
-  multicast `228.5.6.7:14027`). Content: the port loop of the customer
-  cookbook (copy of `rwnetwork.conf` with another port in a temp dir,
-  `DiagServerLocator -findAll -timeout 3` in a subshell that sources
-  `reports.sh` - `rwdiag.sh` always reads the tools instance), plus from the
-  library script: all `rwnetwork.conf` equal, multicast route / firewall,
-  self-test (skipped while a Reports server runs), own server name on a
-  foreign host = FAIL, free ports listed. `02-Checks/port_check.sh` does NOT
-  cover it (TCP listen ports + Derby only) - only point to the new tool
-  there. Optional `--set-port N --apply`: change the port in every
-  `rwnetwork.conf` (backup) like cookbook step D.5.
+- [ ] **Reports multicast scan – open points** (done 2026-11-27:
+  `02-Checks/reports_network_scan.sh` extended – every `rwnetwork.conf` via
+  `find`, REP-56040 / REP-50600 in the server logs, `--set-port N --apply`;
+  customer tools `reports_network_scan_fmw.sh` / `.ps1`): the
+  "port used by another host" refusal (`--force`) only checked by reading the
+  code - first real test in a network with two environments (the customer case
+  of 2026-11-26: QS / production on one port); the Windows `.ps1` on a real Windows Server
+  (`reports.cmd` environment, firewall rule, UdpClient self-test); the
+  UdpClient receive path not yet run (test host firewall opens 14027 only).
 - [ ] **First Windows customer run of the PowerShell tools** (review
   2026-11-27: all eight scripts with pwsh 7.7 on Linux, static PS 5.1 check,
   results equal to bash; procedure + test points in

@@ -34,6 +34,7 @@ ZIEL
   Zustand der Umgebung (Archiv)     collect_fmw_env.ps1          4
   Konfiguration (Archiv)            export_forms_reports_conf.ps1 5
   ORDS / APEX (Archiv, falls da)    collect_ords_apex.ps1        6
+  Reports-Netz (nur bei Problemen)  reports_network_scan_fmw.ps1 Anhang A
 
 VORAUSSETZUNGEN
 ---------------
@@ -269,6 +270,31 @@ SCHRITT 7: Testpunkte des ersten Windows-Laufs  (als Administrator)
   # Erwartet: je Tool ein *.zip.enc und ein *.zip.enc.sha256, dazu das
   # java_check-Log. Alle Dateien uebergeben (sicherer Upload). Die
   # Passphrase getrennt.
+
+
+==========================================================================
+ANHANG A: Reports-Server startet und beendet sich wieder (REP-56040)
+          (als Administrator)
+==========================================================================
+
+  Typischer Fall: eine Test-/QS-Umgebung auf einem anderen Server nutzt
+  denselben Multicast-Port und dieselben Servernamen.
+
+  powershell.exe -ExecutionPolicy Bypass -File .\reports_network_scan_fmw.ps1 -OutBase $OUT
+  # Abschnitt 4 zeigt je Port, welche Reports-Server antworten:
+  #   14027   repserver_test   server   <anderer Server>
+  # Abschnitt 5: "REP-56040 ...x" -> dieser Fall.
+  # Freie Ports stehen unter "ports without an answer".
+
+  powershell.exe -ExecutionPolicy Bypass -File .\reports_network_scan_fmw.ps1 -OutBase $OUT -SetPort 14028
+  # Zeigt nur, welche rwnetwork.conf von welchem auf welchen Port geaendert
+  # wuerden (14028 = Beispiel, einen freien Port aus dem Scan nehmen).
+
+  powershell.exe -ExecutionPolicy Bypass -File .\reports_network_scan_fmw.ps1 -OutBase $OUT -SetPort 14028 -Apply
+  # Sichert jede Datei als <datei>.bak_<zeit> und aendert den Port.
+  # Danach: Reports-Server und WLS_REPORTS neu starten. Die ANDERE
+  # Umgebung bekommt ebenfalls einen eigenen Port (dort dasselbe Tool).
+  # Rueckweg: Copy-Item <datei>.bak_<zeit> <datei>, dann neu starten.
 
 
 ==========================================================================

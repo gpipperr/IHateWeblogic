@@ -41,7 +41,7 @@ Not in the ZIPs: the local cookbook formatter.
 | Folder | Platform |
 |---|---|
 | `bash/` | Linux – plain bash + coreutils (this README) |
-| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`export_forms_reports_conf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/export_forms_reports_conf.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`java_check_fmw.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/java_check_fmw.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
+| [powershell/](powershell/README.md) | MS Windows Server – Windows PowerShell 5.1 / PowerShell 7: [`collect_fmw_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_fmw_env.ps1), [`export_forms_reports_conf.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/export_forms_reports_conf.ps1), [`fmw_patch_env.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/fmw_patch_env.ps1), [`java_check_fmw.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/java_check_fmw.ps1), [`collect_ords_apex.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/collect_ords_apex.ps1), [`reports_network_scan_fmw.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/reports_network_scan_fmw.ps1), [`mos_patch_download.ps1`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/mos_patch_download.ps1) (+ [`GetMOSPatchRunner.java`](https://github.com/gpipperr/IHateWeblogic/blob/main/70-Customer-Projects/tools/powershell/GetMOSPatchRunner.java)), same output / CSV format as the bash versions |
 
 The bash scripts (`bash/`): one script for all releases – it works for FMW / Forms &
 Reports **12.2.1.x** (12.2.1.19 on WLS 12.2.1.4, JDK 8) and **14.1.2** (JDK
@@ -52,6 +52,7 @@ runtime, never by a second copy of the script.
 |---|---|
 | [bash/collect_fmw_env.sh](#collect_fmw_envsh) | read-only collection of the **state**: installed products, patch level (Oracle, Java, OS advisories, Nginx), performance (memory, load profile), security / quality of operation (Derby, FADS, certificates) – input of the patch analysis and, with the export, of the environment analysis |
 | [bash/collect_ords_apex.sh](#collect_ords_apexsh) | read-only collection of **ORDS / APEX** on the host (third collector): every ORDS installation (standalone / Tomcat / WebLogic / systemd / stopped), version, Java, pools + features (`ords config list`), APEX images version (`/i/`), web routes, security (listen address, SQL features, fixed auth headers, AJP, file users), logs of the last days aggregated – input of the ORDS / APEX analysis |
+| [bash/reports_network_scan_fmw.sh](#reports_network_scan_fmwsh) | Reports server discovery (UDP multicast): every `rwnetwork.conf` equal, route / firewall, self-test, scan of the Reports servers per port (`DiagServerLocator`), REP-56040 / REP-50600 in the server logs; `--set-port N --apply` = own port per environment with backup (Windows: `reports_network_scan_fmw.ps1`) |
 | [bash/java_check_fmw.sh](#java_check_fmwsh) | read-only: which Java does WebLogic / Node Manager / Reports / frmweb really use, is the FMW-bundled JDK (`oracle_common/jdk`) intact or bent, which files pin a missing or versioned JDK path – what to adjust after a JDK switch |
 | [bash/check_fix_libzrc_glibc.sh](#check_fix_libzrc_glibcsh) | check (and with `--apply` repair) `lib/libzrc.so.0` / the link `libzrc.so` – the Forms relink after a Reports QPR on OL9 (MOS KB873815), leftovers of a failed Forms patch |
 | [bash/mos_patch_download.sh](#mos_patch_downloadsh) | download a patch list (CSV) from My Oracle Support with getMOSPatch in one run |
@@ -262,6 +263,36 @@ the JVM counts as an ORDS process (a shell whose command line mentions
 names a secret (`db.password` of an old `pool.xml` before the wallet); a
 commented-out AJP connector is no finding and the AJP `secret=` is masked;
 the route count no longer counts the empty end line.
+
+## reports_network_scan_fmw.sh
+
+Standalone version of `02-Checks/reports_network_scan.sh` for customer hosts
+(2026-11-27) – the case "the Reports server starts and stops again with
+`REP-56040`": another environment (test / QS) uses the same multicast port
+and the same server names. Read-only unless `--set-port N --apply`; no
+library.
+
+```bash
+./reports_network_scan_fmw.sh                        # check + scan 14021-14030
+./reports_network_scan_fmw.sh --ports 14021-14040 --timeout 5
+./reports_network_scan_fmw.sh --set-port 14028       # show the change of every rwnetwork.conf
+./reports_network_scan_fmw.sh --set-port 14028 --apply   # .bak_<ts> + change, then restart Reports
+```
+
+| Step | What |
+|---|---|
+| 1 | every `rwnetwork.conf` below `$DOMAIN_HOME/config/fmwconfig` (tools instance, each Reports server instance, the `reports_*` application of each managed server; 12c + 14c): channel / port equal? |
+| 2 | multicast route (not `lo`), `MULTICAST` flag, firewalld `<port>/udp` (without root: the command to run) |
+| 3 | self-test with python3: one datagram to `channel:port`, received again? (skipped while `rwserver` runs) |
+| 4 | scan: `DiagServerLocator -findAll` per port with a temp copy of `rwnetwork.conf` as `COMPONENT_CONFIG_PATH`, in a subshell that sources `reports.sh` (`rwdiag.sh` always reads the tools instance); own server name on another host = FAIL (REP-56040), free ports listed |
+| 5 | `rwserver_diagnostic*.log` of the last `--log-days` (7): REP-56040, REP-50600, REP-50125 with an invalid stream header |
+| 6 | `--set-port N` (1024–65535, Oracle range 14021–14030): list old → new; `--apply` backs up and changes every file; refused when the scan saw another host on N (`--force`) |
+
+- Options `-o` / `-d` / `-t` as `java_check_fmw.sh`; `--port N` self-test port, `--listen N`, `--no-scan`.
+- Exit 0 / 1 / 2.
+- After `--apply`: restart the Reports servers and `WLS_REPORTS`, and give the other environment its own port too.
+- `02-Checks/port_check.sh` (library) checks TCP listen ports only.
+- Tested 2026-11-27 on the test host: the same result as the library script; `--apply` in a scratch copy of the domain files (CRLF kept, second run "already"); REP-56040 detection with a fake log.
 
 ## java_check_fmw.sh
 

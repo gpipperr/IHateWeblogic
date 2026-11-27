@@ -300,7 +300,8 @@ IHateWeblogic/
 │   │                                   Coherence, Reports ORB, host refs, RCU location, secrets; --apply:
 │   │                                   SSL/Coherence (WLST) + AdminURL, ADMIN_URL, emoms, engine jvmOptions
 │   ├── reports_network_scan.sh      – Reports multicast discovery check + active scan for Reports
-│   │                                   servers per port (DiagServerLocator), read-only
+│   │                                   servers per port (DiagServerLocator), REP-56040 in the logs;
+│   │                                   --set-port N --apply = own port per environment
 │   └── weblogic_performance.sh      – SecureRandom startup fix (java.security) + JVM heap per server
 │
 ├── 03-Logs/
@@ -622,6 +623,7 @@ IHateWeblogic/
     │   │   ├── clean_domain_tmp.sh           – delete servers/*/tmp + cache of the stopped domain (rebuilt at the next start)
     │   │   ├── collect_ords_apex.sh          – third read-only collector: ORDS / APEX instances, versions,
     │   │   │                                     config (masked), /i/, web tier, logs, security
+    │   │   ├── reports_network_scan_fmw.sh   – Reports multicast: rwnetwork.conf, scan per port, REP-56040, --set-port --apply
     │   │   ├── java_check_fmw.sh             – which Java WebLogic / Reports / frmweb use, bent bundled JDK,
     │   │   │                                     versioned JDK paths left after a switch
     │   │   ├── check_fix_libzrc_glibc.sh     – libzrc.so vs. glibc 2.34 (Forms relink after Reports QPR):
@@ -636,6 +638,7 @@ IHateWeblogic/
     │       ├── export_forms_reports_conf.ps1 – export of the Forms/Reports configuration (Windows)
     │       ├── collect_ords_apex.ps1         – ORDS / APEX collector (NSSM / WinSW / Procrun services)
     │       ├── java_check_fmw.ps1            – Java / link check (services, junctions, jvm.dll)
+    │       ├── reports_network_scan_fmw.ps1  – Reports multicast scan + own port per environment
     │       ├── update_tools_from_git.ps1     – self-update of the tools directory
     │       ├── mos_patch_download.ps1        – MOS download of a patch CSV (Windows platform 233P)
     │       └── GetMOSPatchRunner.java        – MOS password via stdin (never on a command line) + ZIP CRC check

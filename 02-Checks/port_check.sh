@@ -491,6 +491,9 @@ if $HTTP_CHECK; then
     fi
 fi
 
+# Reports discovery is UDP multicast - not a TCP listen port, not covered here
+info "Reports server discovery (UDP multicast, REP-56040 / REP-50600): 02-Checks/reports_network_scan.sh"
+
 # =============================================================================
 # Summary
 # =============================================================================
