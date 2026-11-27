@@ -1,6 +1,6 @@
 # IHateWeblogic – Open Items / TODO
 
-Only what is still open (state 2026-11-10). Everything finished is described
+Only what is still open (state 2026-11-27). Everything finished is described
 in the folder READMEs, in [CHANGELOG.md](CHANGELOG.md) and in `git log`; the
 review of 2026-10-19/20 is summarised in each README ("Review 2026-10-19").
 Overview and status: [docs/project_status.md](docs/project_status.md#project-status).
@@ -9,55 +9,18 @@ Overview and status: [docs/project_status.md](docs/project_status.md#project-sta
 
 Assessment: idea very good, implementation and quality good (three customer
 environments live), visuals good since the SVG diagrams, completion good for a
-1.0 – **publication hygiene not yet** (items 0, 2, 3, 7). Worked off step by
-step beside the customer work (state 2026-11-10). Order:
+1.0 – publication hygiene done 2026-11-11.
 
-- [x] **0. Demo-data naming convention** – done 2026-11-11: test host = demo
-  data, no masking – server `orafusion01` (`pipperr.local`), IP `10.10.10.124`,
-  RCU DB `fmwpdb`, Reports domain `reportGPI`, everything with `gpi`; section
-  [Demo Data](README.md#demo-data) in the README (CONTRIBUTING reuses it, item 7);
-  examples in docs / cookbooks switched to these names.
-- [x] **1. Git history** – decided 2026-11-10: stays as it is. Historic
-  customer traces (domain name) are accepted by the customer; the only other trace is a host
-  name in 2 old commit messages, and that server no longer exists. No secrets
-  were ever committed. New files keep the customer-data rule.
-- [x] **2. Disclaimer & Acknowledgements** – done 2026-11-11, at the end of the root README: not
-  affiliated with / endorsed by Oracle, trademarks, use at own risk, personal
-  logo; thanks to **Jürgen Menge** and **Mark Eichhorst** (IT-Macher,
-  https://www.der-it-macher.de/) – also kept in `09-Install/README.md`.
-- [x] **3. Compact root README – move, do not shorten** – done 2026-11-11:
-  "Start here" block (what, for whom, 3 entry paths, list of the moved
-  files); nine sections moved 1:1 into six files in [`docs/`](https://github.com/gpipperr/IHateWeblogic/tree/main/docs) (migration,
-  project status, security & patch status, sizing + new memory / process
-  table, installation steps, general security), one summary + link each,
-  headings kept as stubs; line check: 0 lines lost (35 link lines adjusted
-  to `../`); incoming anchors repointed; `## Troubleshooting` dissolved into
-  02-Checks / 04 §11 / 05 / 06. README 1018 → ~640 lines.
-- [x] **4. Release `v1.0.0`** with the tools ZIPs as assets, notes from
-  CHANGELOG – done 2026-11-11: tag `v1.0.0` on `d1a1251`, GitHub release
-  "Latest" with the two ZIPs of that tag + `.sha256` (checked with `gh`).
-- [x] **5. `shellcheck` + `bash -n`** as a GitHub Actions gate – done 2026-11-11:
-  `tools/ci_lint.sh` (bash -n on all 132 `*.sh` / `*.sh.template` + shellcheck
-  `-S error` as the gate, `-S warning` report only) run by
-  `.github/workflows/lint.yml` on push / PR; badge in the README. Local run
-  (ShellCheck 0.10.0 from `ol9_developer_EPEL`, ~8 s): 0 errors after the fixes,
-  79 warnings left (43 × SC2034 unused variable – many are read by sourced
-  scripts, check one by one). Open: confirm the first CI run (runner has 0.9.0).
+Done 2026-11-10 / 11 (details in [CHANGELOG.md](CHANGELOG.md)): 0 demo-data
+naming, 1 git history (stays), 2 disclaimer, 3 compact README, 4 release
+`v1.0.0`, 5 lint gate (CI runs green on every push), 7 `CONTRIBUTING.md` +
+pre-commit hook, 9 `render_ascii` + SVG cache-busting. Open:
+
 - [ ] **6. Showcase** (`status.sh`, `clone_check`, analysis PDF page, smoke
   test) + blog article on pipperr.de linked both ways.
-- [x] **7. `CONTRIBUTING.md`** (conventions, customer-data rule, how to report
-  a finding); customer-data scan as a pre-commit hook – done 2026-11-11:
-  `CONTRIBUTING.md` (issues welcome, PRs after agreement in an issue),
-  issue template "Finding", `tools/hooks/pre-commit` + `install.sh`
-  (customer names from the local `~/.config/ihw/customer_patterns`, forbidden
-  files, secrets, private IPs, `bash -n`, stale customer ZIPs; 19 test cases).
-- [ ] **8. Reviewer-visible test gaps:** fresh domain with the current `08-`
-  template, `clone_check.sh --apply` file places on a real domain,
-  `REPORTS_ONLY` domain creation.
-- [x] 9. Optional: `render_ascii` checked in, `?v=` cache-busting for SVGs –
-  done 2026-11-11: [`tools/render_ascii/`](https://github.com/gpipperr/IHateWeblogic/blob/main/tools/render_ascii/README.md) in git (README in English),
-  all 32 image links carry `?v=<SVG hash>`, "Source:" / "ASCII version"; diagram texts
-  checked – `builder-windows` translated to English, Target Picture ORDS 26.3.
+- [ ] **8. Reviewer-visible test gaps:** the entries "Fresh domain with the
+  new `08-` template", "`clone_check.sh --apply` file places" and "Full
+  Reports-only domain creation" in the section below.
 
 ## Cookbooks – still to check on a fresh run / at the customer
 
@@ -93,27 +56,18 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   Pump bundle of the next RU (January 2027); if it still fails: SR or
   document as "Linux only" –
   [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §3.
-- [ ] **Unique Patch ID (ARU) – rest:** column `aru` in
-  `09-Install/download/patches_*.csv`, read and checked by
-  `mos_patch_download.sh` / `.ps1` and before the apply by `05-` / `06-`
-  (lib `patch_zip_sha_check`) – **done 2026-11-17** (October values verified
-  against `opatch lsinventory`); the customer patch analysis compares it with
-  the "Unique Patch ID" of `opatch lsinventory` in the collection (WARN
-  "other build", done 2026-11-17). Open: the same in `cve_inventory.sh`; ARU of the ZIPs without OPatch inventory (SPB, JDK, OPatch)
-  only from the MOS download link (`…?aru=<ARU>&patch_file=…`) – getMOSPatch
-  does not print it. Background:
-  [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
+- [ ] **Unique Patch ID (ARU) – rest** (column `aru` in the patch CSVs and
+  the check in the download / apply scripts and the customer patch analysis
+  done 2026-11-17): the same in `cve_inventory.sh`; the ARU of ZIPs without an
+  OPatch inventory (SPB, JDK, OPatch) only from the MOS download link
+  (`…?aru=<ARU>&patch_file=…`) – getMOSPatch does not print it.
+  Background: [oracle_patch_basics.md](80-FMW-Architecture/oracle_patch_basics.md) §4.
 - [ ] **Client JREs** (Java Web Start / FSAL) of the Forms users: CSPU Nov
   2026 JRE 8u513-b04 (Patch 40239650; the October target 40186686 /
   8u511-b26 is affected by the November Java CVEs) via the customer's
   software distribution, same bitness as the WebUtil DLLs, test the
   code-signing trust after the update – JSSE runs on the client, see
   [forms_runtime_architecture.md §1.2](80-FMW-Architecture/forms_runtime_architecture.md#12-threat-model-of-a-client-side-tls-jsse-flaw).
-- [ ] Confirm the remaining CVE coverage (CPU Oct 2026: CVE-2026-83399 /
-  91323 / 47065, 9.8; September 83021 / 83099). Confirmed from the READMEs:
-  4176 (PERL), OHS 87347 / 87346, ADF, FMW Control 91467, OPSS 83020, Jackson
-  54512–54515 (Third-Party BP), WebGate CVE-2025-0725.
-
 ## Tests that need a client or a fresh install
 
 - [ ] **Forms client distribution via URL** – rest of the Windows test plan
@@ -190,10 +144,8 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   ([reports_monitoring_getserverinfo.md §7.3.1 / §8](80-FMW-Architecture/reports_monitoring_getserverinfo.md)):
   live test – URL-encoding of `%restpassword` in the POST body, sensor state
   when an XPath finds no value, mapping of the `count()` result.
-- [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02**: audit trail
-  growth in the PDB checked 2026-11-10: `AUDITLOG` 85 of 100 MB (autoextend
-  4 GB), 4–32 rows per normal day, peaks only on admin days (patch 6390, RCU
-  work 262), archive timestamp job + 3 purge jobs working (180 days) – OK; `06-` / `09-Install/07-` on a
+- [ ] **RCU DB (`60-RCU-DB-19c`) after the review of 2026-11-02** (audit
+  trail growth checked 2026-11-10 – OK): `06-` / `09-Install/07-` on a
   PDB **before** RCU (registry missing – checked read-only in `CDB$ROOT`
   only); first customer run of the new `01-` "patch first, then install"
   route (live on the test host with `--target-home`); research why
@@ -262,7 +214,6 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
     Reports users) not in `Administrators` / `Deployers` (STIG V-235956–60).
   - [ ] `umask` 027 for the files of our scripts without breaking files
     Nginx must read (Forms client bundle `/formsWeb`).
-  - [ ] Test host admin password – see the entry above.
 - [ ] **Check `opatch util deleteinactivepatches`** for FMW 14.1.2 / OPatch
   13.9.4.2.25: removes the rollback copies of superseded patches in
   `$ORACLE_HOME/.patch_storage` (scanners report old jars there) – supported
@@ -315,9 +266,8 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   check; live on the test host 2026-11-18: engines start, smoke test OK).
   Open: test on an **AVX-512 VBMI host** (engines start, report OK,
   `UseBASE64Intrinsics=false` at runtime); roll out at the 14c customers
-  (`13- --apply` + Reports server restart); first run of the Windows
-  collector (`collect_fmw_env.ps1` 2026-11-18.1, tested only with pwsh on
-  Linux) on a Windows Reports host: CPU source `jvm`, `reports.bat`.
+  (`13- --apply` + Reports server restart); on Windows see "First Windows
+  customer run" (CPU source `jvm`, `reports.bat`).
 - [ ] **Java4Shell: remove `-XX:-UseBASE64Intrinsics` again** as soon as
   Oracle ships a patch for the bundled JDK (`oracle_common/jdk` ≥ 17.0.21.1 –
   watch KA1182 every cycle, see "FMW-bundled JDK" below). Then: patch the
@@ -435,11 +385,6 @@ Next cycle: CSPU December 2026 (2026-12-15) – `patch_cycle_analysis.sh prepare
   - [ ] P3: the three scripts in the customer tools ZIP; notes for PRTG /
     Nagios reading `now.json`
 
-- [x] **CSPU November 2026** = first real run of
-  `10-Monitoring/patch_cycle_analysis.sh` – done 2026-11-17 / 18 (prepare →
-  analyse --mode maintainer → live run → library switch with
-  `docs/update_lib_to_act_cpu.md`, release `v1.0.202611`); skill registry
-  and rules updated.
 - [ ] **Claude sandbox rollout on the test host:** `IHW_ENV_TYPE=test`,
   `claude_setup_check.sh --profile maintainer --apply` → root: bubblewrap +
   socat, `/etc/claude-code/`; verify `/status`, guard ask/deny, `.des3`
@@ -482,11 +427,9 @@ feedback) are kept locally in `70-Customer-Projects/customer-analyse/TODO.md`
     `lspatches` = manifest, way back; first real domain start after
     `clean_domain_tmp.sh --apply`
   - [ ] read KB694158 (WLS PSU post-install)
-  - [x] applications directory outside the home for new installs (2026-11-24):
-    key `APPLICATIONS_HOME` (default `$ORACLE_BASE/applications/<domain>`),
-    interview, `setOption('AppDir')` in `08-` / template, `03-`, `99-`;
-    architecture §1a "the five homes" – first real `writeDomain` with the full
-    template still open (offline WLST mini domain tested)
+  - [ ] first real `writeDomain` with the full template and the applications
+    directory outside the home (`APPLICATIONS_HOME`, done 2026-11-24 – only
+    an offline WLST mini domain tested so far)
   - [ ] migration of existing domains (test host, customers): move the
     applications directory + `source-path` in `config.xml`, domain stopped
   - [ ] **`em.ear` is never patched** (finding 2026-11-24, architecture §1a):
