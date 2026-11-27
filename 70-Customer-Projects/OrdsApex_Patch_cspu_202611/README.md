@@ -35,7 +35,7 @@ installation. It does not use the IHateWeblogic scripts:
    MOS login).
 3. Back up the ORDS config, the unit file and the `/i/` directory.
 4. Unpack the new ORDS next to the old one (`ords-<version>`).
-5. Stop the service and change the path in the unit (or `/etc/ords.conf`).
+5. Stop the service and change the path in the unit (or `/etc/ords.conf`), or - if the old ORDS home is a symlink - only repoint the link (case C).
 6. `ords --config <existing> install --db-only --admin-user "SYS AS SYSDBA"`:
    this upgrades `ORDS_METADATA` with the existing pool connection.
 7. Start the service and test APEX.

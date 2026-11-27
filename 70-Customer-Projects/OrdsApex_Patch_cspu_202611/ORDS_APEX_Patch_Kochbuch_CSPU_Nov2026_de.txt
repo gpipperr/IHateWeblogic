@@ -81,6 +81,9 @@ Was wo landet:
   /oracle/product/ords/ords/                 $OLD_HOME bleibt liegen
                                              (Rueckweg, Aufraeumen erst
                                              nach der Abnahme)
+  Ist /oracle/product/ords/ords ein LINK (z.B. -> ords-26.3.0), wird
+  nur der Link auf $NEW_HOME umgesetzt (SCHRITT 5 Fall C); die alte
+  Software liegt dann unter $OLD_REAL.
 
 Quelldateien:
 
@@ -207,7 +210,17 @@ SCHRITT 1: Ist-Stand festhalten  (als oracle, System laeuft)
   "$ORDS_JAVA" -version
   # Erwartet: 17 oder 21 (ORDS 26.x braucht Java 17 oder 21).
 
+  ls -ld $OLD_HOME
+  # Erwartet: Zeile beginnt mit "d" (Verzeichnis) -> normaler Fall.
+  # Beginnt sie mit "l" und zeigt "-> ...", ist OLD_HOME ein LINK, z.B.
+  #   lrwxrwxrwx ... /oracle/product/ords/ords -> /oracle/product/ords-26.3.0
+  # Dann gilt in SCHRITT 5 IMMER Fall C (nur den Link umsetzen).
+
   echo "export OLD_HOME=$OLD_HOME" >> $WORK/ords_apex_env.sh
+
+  echo "export OLD_REAL=$(readlink -f $OLD_HOME)" >> $WORK/ords_apex_env.sh
+  # OLD_REAL = echtes Verzeichnis der alten Software. Ohne Link gleich
+  # OLD_HOME. Wird fuer Rueckweg und Aufraeumen (SCHRITT 11) gebraucht.
 
   echo "export ORDS_BASE=$(dirname $OLD_HOME)" >> $WORK/ords_apex_env.sh
 
@@ -240,6 +253,8 @@ SCHRITT 1: Ist-Stand festhalten  (als oracle, System laeuft)
   # Notieren: in welcher Datei steht der Pfad $OLD_HOME?
 
   grep -n "$OLD_HOME" $LOGDIR/01_ords_unit.txt
+  # OLD_HOME ist ein Link (1.2)         -> SCHRITT 5 Fall C, Unit und
+  #   /etc/ords.conf bleiben unveraendert. Rest von 1.3 nur zur Info.
   # Treffer in ExecStart / Environment  -> SCHRITT 5 Fall A (Unit-Datei)
   # kein Treffer, ExecStart ruft ords.sh -> Pfad steht in /etc/ords.conf
   #   (ORDS_BASE=...), SCHRITT 5 Fall B:
@@ -501,6 +516,8 @@ SCHRITT 5: ORDS stoppen und Pfad im Service umstellen  (als root)
   5.3 Fall A: Pfad steht in der Unit-Datei / im Drop-in
   ---------------------------------------------------
 
+  # OLD_HOME ist ein Link (1.2)? -> 5.3 und 5.4 auslassen, weiter mit 5.5.
+
   UNIT_FILE=$(grep -l "$OLD_HOME" /etc/systemd/system/$ORDS_UNIT.service /etc/systemd/system/$ORDS_UNIT.service.d/*.conf 2>/dev/null)
 
   echo "UNIT_FILE=$UNIT_FILE"
@@ -539,6 +556,33 @@ SCHRITT 5: ORDS stoppen und Pfad im Service umstellen  (als root)
 
   grep -n "ORDS_BASE" /etc/ords.conf
   # Erwartet: ORDS_BASE=/oracle/product/ords/ords-26.3.1.303.1615
+
+  ---------------------------------------------------
+  5.5 Fall C: OLD_HOME ist ein Link (1.2)
+  ---------------------------------------------------
+
+  # Unit-Datei und /etc/ords.conf bleiben, wie sie sind - sie zeigen auf
+  # den Link. Nur der Link bekommt ein neues Ziel.
+
+  ls -l $OLD_HOME
+  # Erwartet z.B.:
+  #   lrwxrwxrwx ... /oracle/product/ords/ords -> /oracle/product/ords-26.3.0
+  # Zeile beginnt NICHT mit "l" -> kein Link, zurueck zu 5.3.
+
+  echo "OLD_REAL=$OLD_REAL"
+  # Erwartet: das alte Ziel aus der Zeile darueber. Leer -> SCHRITT 1.2.
+
+  ln -sfn $NEW_HOME $OLD_HOME
+
+  chown -h --reference=$NEW_HOME $OLD_HOME
+  # Link gehoert wieder oracle (wie die Software), nicht root.
+
+  ls -l $OLD_HOME
+  # Erwartet: ... /oracle/product/ords/ords -> /oracle/product/ords/ords-26.3.1.303.1615
+
+  ls $OLD_HOME/ords.war
+  # Erwartet: der Pfad wird angezeigt. "No such file" -> STOP,
+  # Rueckweg ORDS (Link zurueck).
 
   exit
   # zurueck zu oracle
@@ -579,10 +623,12 @@ SCHRITT 7: ORDS starten und APEX testen  (als root, dann Browser)
 
   pgrep -u oracle -f "java.*ords.war.*serve" | head -1 > $LOGDIR/07_ords_pid.txt
 
-  tr '\0' ' ' < /proc/$(cat $LOGDIR/07_ords_pid.txt)/cmdline | grep -o "ords-[0-9.]*[0-9]/ords.war"
+  ls -l /proc/$(cat $LOGDIR/07_ords_pid.txt)/fd | grep -o "ords-[0-9.]*[0-9]/ords.war"
+  # Zeigt die Datei, die der Prozess wirklich offen hat (Links schon
+  # aufgeloest, gilt fuer Fall A, B und C).
   # Erwartet: ords-26.3.1.303.1615/ords.war
-  # Zeigt noch den alten Pfad -> SCHRITT 5 hat nicht gegriffen
-  # (daemon-reload vergessen?).
+  # Zeigt noch die alte Version -> SCHRITT 5 hat nicht gegriffen
+  # (daemon-reload vergessen? Fall C: Link pruefen, ls -l $OLD_HOME).
 
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/ords/apex
   # Port aus 1.5 (standalone.http.port), Default 8080.
@@ -771,13 +817,21 @@ SCHRITT 11: Aufraeumen  (als oracle, erst NACH der Abnahme)
 
   # Erst nach einigen Tagen ohne Probleme:
 
-  ls -d $ORDS_BASE/ords*
-  # Erwartet: ords (alt) und ords-26.3.1.303.1615 (neu)
+  ls -ld $ORDS_BASE/ords* $OLD_REAL
+  # Erwartet: ords (alt) und ords-26.3.1.303.1615 (neu).
+  # Fall C: ords ist der Link auf die NEUE Software, die alte liegt
+  # unter $OLD_REAL.
+
+  readlink -f $OLD_HOME
+  # Fall C: Erwartet .../ords-26.3.1.303.1615. Den Link $OLD_HOME
+  # NIE loeschen - ORDS startet ueber ihn.
 
   # Alte Software loeschen - Pfad erst anzeigen, dann loeschen:
-  echo "${OLD_HOME:?}"
+  echo "${OLD_REAL:?}"
+  # Erwartet: das alte Verzeichnis (ohne Link gleich $OLD_HOME, mit
+  # Link z.B. /oracle/product/ords-26.3.0). NIEMALS $NEW_HOME.
 
-  # rm -rf "${OLD_HOME:?}"
+  # rm -rf "${OLD_REAL:?}"
 
   # rm -rf "${WORK:?}/${APEX_PATCH:?}"
   # Die Sicherungen unter $BACKUP und die Logs unter $LOGDIR bleiben
@@ -796,6 +850,8 @@ RUECKWEG
                             sudo cp -p $BACKUP/$ORDS_UNIT.service.vorher <UNIT_FILE>
 
                             (Fall B: $BACKUP/ords.conf.vorher -> /etc/ords.conf)
+                            (Fall C: sudo ln -sfn $OLD_REAL $OLD_HOME
+                             statt Unit zurueck, kein daemon-reload)
                             sudo systemctl daemon-reload
 
                             sudo systemctl start $ORDS_UNIT
